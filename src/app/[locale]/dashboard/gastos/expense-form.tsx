@@ -1,7 +1,9 @@
 "use client";
 
-import { useTranslations } from "next-intl";
-import { useActionState } from "react";
+import { ImagePlus, Plus, Sparkles, Trash2 } from "lucide-react";
+import { useLocale, useTranslations } from "next-intl";
+import { type ChangeEvent, useActionState, useRef, useState, useTransition } from "react";
+import { ImageCropper } from "@/components/form/image-cropper";
 import { SubmitButton } from "@/components/form/submit-button";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -16,31 +18,56 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Link } from "@/i18n/navigation";
-import { centsToEur } from "@/lib/money";
-import { createExpense, updateExpense } from "./actions";
+import { centsToEur, eurToCents, formatCents } from "@/lib/money";
+import { createExpense, extractExpenseAction, updateExpense } from "./actions";
 
 type Option = { id: string; name: string };
+
+type ItemRow = {
+  item: string;
+  quantity: string;
+  unitPriceEur: string;
+  link: string;
+  addToMaterials: boolean;
+};
 
 export type ExpenseFormValues = {
   id: string;
   date: Date;
-  item: string;
-  link: string | null;
-  quantity: number;
-  unitPriceCents: number;
-  totalCents: number;
+  store: string | null;
   paidById: string;
+  shippingCents: number;
+  totalCents: number;
   received: boolean;
   notes: string | null;
+  items: {
+    item: string;
+    quantity: number;
+    unitPriceCents: number;
+    link: string | null;
+  }[];
 };
 
-/** Date -> "YYYY-MM-DD" en la zona local (evita el desfase de toISOString). */
 function toDateInputValue(date: Date): string {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
 }
+
+const emptyRow = (): ItemRow => ({
+  item: "",
+  quantity: "1",
+  unitPriceEur: "",
+  link: "",
+  addToMaterials: false,
+});
+
+const round2 = (n: number) => Math.round(n * 100) / 100;
+const num = (value: string) => {
+  const n = Number.parseFloat(value);
+  return Number.isFinite(n) ? n : 0;
+};
 
 export function ExpenseForm({
   users,
@@ -51,73 +78,302 @@ export function ExpenseForm({
 }) {
   const t = useTranslations("Expenses");
   const tForms = useTranslations("Forms");
+  const locale = useLocale();
   const [state, formAction] = useActionState(
     expense ? updateExpense : createExpense,
     null,
   );
+
+  const [items, setItems] = useState<ItemRow[]>(() =>
+    expense && expense.items.length > 0
+      ? expense.items.map((line) => ({
+          item: line.item,
+          quantity: String(line.quantity),
+          unitPriceEur: String(centsToEur(line.unitPriceCents)),
+          link: line.link ?? "",
+          addToMaterials: false,
+        }))
+      : [emptyRow()],
+  );
+  const [shipping, setShipping] = useState(
+    expense && expense.shippingCents > 0
+      ? String(centsToEur(expense.shippingCents))
+      : "",
+  );
+  const [aiText, setAiText] = useState("");
+  const [aiImages, setAiImages] = useState<string[]>([]);
+  const [cropSrc, setCropSrc] = useState<string | null>(null);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [extracting, startExtract] = useTransition();
+  const fileRef = useRef<HTMLInputElement>(null);
+
   const defaultDate = expense
     ? toDateInputValue(expense.date)
     : new Date().toISOString().slice(0, 10);
 
-  return (
-    <form action={formAction} className="max-w-xl space-y-5">
-      {expense && <input type="hidden" name="id" value={expense.id} />}
+  function patchRow(index: number, patch: Partial<ItemRow>) {
+    setItems((rows) =>
+      rows.map((row, i) => (i === index ? { ...row, ...patch } : row)),
+    );
+  }
+  function addRow() {
+    setItems((rows) => [...rows, emptyRow()]);
+  }
+  function removeRow(index: number) {
+    setItems((rows) => (rows.length > 1 ? rows.filter((_, i) => i !== index) : rows));
+  }
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-2">
-          <Label htmlFor="item">{t("fieldItem")}</Label>
-          <Input
-            id="item"
-            name="item"
-            required
-            maxLength={200}
-            defaultValue={expense?.item}
+  function onPickImage(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => setCropSrc(String(reader.result));
+    reader.readAsDataURL(file);
+  }
+
+  function runExtract() {
+    setAiError(null);
+    startExtract(async () => {
+      const result = await extractExpenseAction({
+        text: aiText.trim() || undefined,
+        images: aiImages,
+      });
+      if (!result.ok) {
+        setAiError(result.error);
+        return;
+      }
+      const rows = result.items.map<ItemRow>((line) => {
+        const quantity = line.quantity >= 1 ? line.quantity : 1;
+        const unit =
+          line.unitPriceEur != null && line.unitPriceEur > 0
+            ? line.unitPriceEur
+            : line.totalEur != null
+              ? line.totalEur / quantity
+              : 0;
+        return {
+          item: line.item,
+          quantity: String(quantity),
+          unitPriceEur: unit > 0 ? String(round2(unit)) : "",
+          link: line.link ?? "",
+          addToMaterials: false,
+        };
+      });
+      if (rows.length > 0) setItems(rows);
+    });
+  }
+
+  const linesCents = items.reduce(
+    (sum, row) => sum + eurToCents(num(row.unitPriceEur)) * (num(row.quantity) || 0),
+    0,
+  );
+  const autoTotalCents = linesCents + eurToCents(num(shipping));
+
+  // Solo se envían las filas con nombre; el total va como null (auto) salvo ajuste.
+  const itemsJson = JSON.stringify(
+    items
+      .filter((row) => row.item.trim())
+      .map((row) => ({
+        item: row.item.trim(),
+        quantity: Number.parseInt(row.quantity, 10) || 1,
+        unitPriceEur: num(row.unitPriceEur),
+        totalEur: null,
+        link: row.link.trim() || null,
+        addToMaterials: row.addToMaterials,
+      })),
+  );
+
+  return (
+    <form action={formAction} className="max-w-2xl space-y-5">
+      {expense && <input type="hidden" name="id" value={expense.id} />}
+      <input type="hidden" name="items" value={itemsJson} />
+
+      {/* Asistente IA */}
+      <fieldset className="space-y-3 rounded-xl border bg-muted/30 p-4">
+        <legend className="flex items-center gap-1.5 px-1 text-sm font-medium">
+          <Sparkles className="size-4 text-primary" />
+          {t("aiTitle")}
+        </legend>
+        <p className="text-xs text-muted-foreground">{t("aiHint")}</p>
+        <Textarea
+          rows={2}
+          value={aiText}
+          onChange={(event) => setAiText(event.target.value)}
+          placeholder={t("aiTextPlaceholder")}
+        />
+        {aiImages.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {aiImages.map((src, index) => (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                key={src.slice(-32) + index}
+                src={src}
+                alt=""
+                className="size-16 rounded-lg border object-cover"
+              />
+            ))}
+          </div>
+        )}
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            aria-label={t("aiAddImage")}
+            className="hidden"
+            onChange={onPickImage}
           />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => fileRef.current?.click()}
+          >
+            <ImagePlus />
+            {t("aiAddImage")}
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            onClick={runExtract}
+            disabled={extracting || (!aiText.trim() && aiImages.length === 0)}
+          >
+            <Sparkles />
+            {extracting ? t("aiExtracting") : t("aiExtract")}
+          </Button>
         </div>
+        {aiError && <p className="text-sm text-destructive">{aiError}</p>}
+        {cropSrc && (
+          <ImageCropper
+            src={cropSrc}
+            onCropped={(dataUrl) => {
+              setAiImages((prev) => [...prev, dataUrl]);
+              setCropSrc(null);
+            }}
+            onCancel={() => setCropSrc(null)}
+          />
+        )}
+      </fieldset>
+
+      {/* Cabecera del recibo */}
+      <div className="grid gap-4 sm:grid-cols-3">
         <div className="space-y-2">
           <Label htmlFor="date">{t("fieldDate")}</Label>
           <Input id="date" name="date" type="date" defaultValue={defaultDate} />
         </div>
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="link">
-          {t("fieldLink")}{" "}
-          <span className="text-muted-foreground">({tForms("optional")})</span>
-        </Label>
-        <Input
-          id="link"
-          name="link"
-          type="url"
-          placeholder="https://…"
-          defaultValue={expense?.link ?? undefined}
-        />
-      </div>
-
-      <div className="grid grid-cols-3 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="quantity">{t("fieldQuantity")}</Label>
-          <Input
-            id="quantity"
-            name="quantity"
-            type="number"
-            min={1}
-            step={1}
-            defaultValue={expense?.quantity ?? 1}
-          />
+          <Label htmlFor="store">
+            {t("fieldStore")}{" "}
+            <span className="text-muted-foreground">({tForms("optional")})</span>
+          </Label>
+          <Input id="store" name="store" defaultValue={expense?.store ?? undefined} />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="unitPriceEur">{t("fieldUnitPrice")}</Label>
+          <Label htmlFor="paidById">{t("fieldPaidBy")}</Label>
+          <Select name="paidById" defaultValue={expense?.paidById ?? users[0]?.id}>
+            <SelectTrigger id="paidById" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {users.map((user) => (
+                <SelectItem key={user.id} value={user.id}>
+                  {user.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      {/* Líneas */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <Label>{t("itemsTitle")}</Label>
+          <Button type="button" variant="outline" size="sm" onClick={addRow}>
+            <Plus />
+            {t("addItem")}
+          </Button>
+        </div>
+        <div className="space-y-2">
+          {items.map((row, index) => (
+            <div
+              key={index}
+              className="grid grid-cols-[1fr_auto] gap-2 rounded-xl border p-3 sm:grid-cols-[1fr_5rem_6rem_auto]"
+            >
+              <Input
+                aria-label={t("colItem")}
+                placeholder={t("colItem")}
+                value={row.item}
+                onChange={(event) => patchRow(index, { item: event.target.value })}
+                className="col-span-2 sm:col-span-1"
+              />
+              <Input
+                aria-label={t("colQuantity")}
+                type="number"
+                min={1}
+                step={1}
+                value={row.quantity}
+                onChange={(event) => patchRow(index, { quantity: event.target.value })}
+              />
+              <Input
+                aria-label={t("colUnitPrice")}
+                type="number"
+                min={0}
+                step="0.01"
+                placeholder="0.00"
+                value={row.unitPriceEur}
+                onChange={(event) =>
+                  patchRow(index, { unitPriceEur: event.target.value })
+                }
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                aria-label={t("removeItem")}
+                onClick={() => removeRow(index)}
+                className="self-center text-muted-foreground hover:text-destructive"
+              >
+                <Trash2 />
+              </Button>
+              <label className="col-span-2 flex items-center gap-2 text-xs text-muted-foreground sm:col-span-4">
+                <Checkbox
+                  checked={row.addToMaterials}
+                  onCheckedChange={(checked) =>
+                    patchRow(index, { addToMaterials: checked === true })
+                  }
+                />
+                {t("addToMaterials")}
+                <Input
+                  aria-label={t("fieldLink")}
+                  type="url"
+                  placeholder={t("itemLinkPlaceholder")}
+                  value={row.link}
+                  onChange={(event) => patchRow(index, { link: event.target.value })}
+                  className="ml-auto h-7 max-w-52"
+                />
+              </label>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Totales */}
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-2">
+          <Label htmlFor="shippingEur">
+            {t("fieldShipping")}{" "}
+            <span className="text-muted-foreground">({tForms("optional")})</span>
+          </Label>
           <Input
-            id="unitPriceEur"
-            name="unitPriceEur"
+            id="shippingEur"
+            name="shippingEur"
             type="number"
             min={0}
             step="0.01"
             placeholder="0.00"
-            defaultValue={
-              expense ? centsToEur(expense.unitPriceCents) : undefined
-            }
+            value={shipping}
+            onChange={(event) => setShipping(event.target.value)}
           />
         </div>
         <div className="space-y-2">
@@ -128,29 +384,17 @@ export function ExpenseForm({
             type="number"
             min={0}
             step="0.01"
-            placeholder={t("totalPlaceholder")}
-            defaultValue={expense ? centsToEur(expense.totalCents) : undefined}
+            placeholder={formatCents(autoTotalCents, locale)}
+            defaultValue={
+              expense && expense.totalCents !== autoTotalCents
+                ? centsToEur(expense.totalCents)
+                : undefined
+            }
           />
+          <p className="text-xs text-muted-foreground">
+            {t("autoTotal", { total: formatCents(autoTotalCents, locale) })}
+          </p>
         </div>
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="paidById">{t("fieldPaidBy")}</Label>
-        <Select
-          name="paidById"
-          defaultValue={expense?.paidById ?? users[0]?.id}
-        >
-          <SelectTrigger id="paidById" className="w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {users.map((user) => (
-              <SelectItem key={user.id} value={user.id}>
-                {user.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
       </div>
 
       <div className="space-y-2">
@@ -167,11 +411,7 @@ export function ExpenseForm({
       </div>
 
       <div className="flex items-center gap-3 rounded-xl border p-4">
-        <Checkbox
-          id="received"
-          name="received"
-          defaultChecked={expense?.received}
-        />
+        <Checkbox id="received" name="received" defaultChecked={expense?.received} />
         <Label htmlFor="received">{t("fieldReceived")}</Label>
       </div>
 

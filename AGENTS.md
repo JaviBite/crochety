@@ -83,29 +83,33 @@ Organizado en fases para implementación incremental. `✅` = ya hecho.
   implícita Prisma), `TagInput` (chips), chips + filtro `?tag=` en los listados.
   Helpers en `lib/tags.ts`.
 
-### Fase B — Imágenes y color
+### Fase B — Imágenes y color ✅ (falta foto de patrón)
 
-- **Color dominante automático** del material desde la foto: extracción en cliente
-  con Canvas (sin dependencia de servidor), corregible con cuentagotas sobre la
-  propia imagen + selector de color. (Sustituye al plan previo con colorthief.)
-- **Foto de pedido terminado**: subir la foto del resultado; si no hay, usar como
-  fallback la portada del patrón asociado (listado, detalle y galería pública).
+- ✅ **Color dominante automático** del material desde la foto: extracción en cliente
+  con Canvas (`lib/color.ts`), corregible con cuentagotas sobre la propia imagen +
+  selector de color (`materiales/material-color-field.tsx`).
+- ✅ **Foto de pedido terminado** con fallback a la portada del patrón asociado
+  (listado y cuadrícula de pedidos + galería pública).
 - **Foto de patrón**: opcional al alta; si no se sube, derivarla del origen
   (primera página del PDF / `og:image` de la web). Se apoya en la Fase D.
 
-### Fase C — Agente IA de gastos (multi-producto)
+### Fase C — Agente IA de gastos (multi-producto) ✅ (falta persistir fotos)
 
-- **Esquema multi-producto**: `Expense` pasa a ser la compra/recibo (fecha, quién
-  paga, tienda, total, imágenes) con `ExpenseItem[]` (artículo, cantidad, precio
-  ud., `→ Material` opcional). Migrar los gastos actuales a 1 ítem cada uno.
-- **Captura/texto → gasto por IA**: pegar una captura o el texto resumen del pedido
-  y que el agente (visión del proveedor) extraiga las líneas del gasto con
-  `generateObject`.
-- **Imágenes de compra**: subir imagen, o dar un enlace y que se descargue y se
-  guarde; **recorte en cliente** antes de mandar a la IA (recortar el producto de
-  una captura entera — la IA sola no acierta a recortar).
-- **Checkbox "añadir a materiales"**: al registrar la compra, alta automática en
-  inventario de los productos comprados (`ExpenseItem → Material`).
+- ✅ **Esquema multi-producto**: `Expense` (recibo: fecha, tienda, quién paga,
+  envío, total) + `ExpenseItem[]` (`→ Material` opcional) + `ExpensePhoto[]`.
+  Migración `expense_items` aplicada en Neon.
+- ✅ **Captura/texto → gasto por IA**: `lib/ai/extract-expense.ts` (contrato +
+  visión + mapeo a céntimos) + server action `extractExpenseAction`; el formulario
+  rellena las líneas a partir del texto/imagen.
+- ✅ **Recorte en cliente** antes de la IA (`lib/crop.ts` + `components/form/image-cropper.tsx`).
+- ✅ **Checkbox "añadir a materiales"** por línea (`ExpenseItem → Material`, en
+  transacción; categoría por defecto `OTRO`).
+- **Pendiente**: persistir las **imágenes de compra** (`ExpensePhoto`): subirlas a
+  Blob y la opción "por link y que se guarde" (falta un upload kind `expenses` en
+  `lib/files.ts` + servirlas privadas en `/api/files`). Nota: al editar un gasto se
+  recrean las líneas, así que el enlace `ExpenseItem.materialId` se pierde (el
+  material sigue en inventario); las casillas "añadir a materiales" salen desmarcadas
+  en edición para no duplicar.
 
 ### Fase D — IA de patrones y extras
 

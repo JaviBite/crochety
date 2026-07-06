@@ -76,6 +76,7 @@ model Material {
   createdAt  DateTime        @default(now())
   orders     OrderMaterial[]
   tags       Tag[]           @relation("MaterialTags")
+  expenseItems ExpenseItem[]
 }
 
 // Etiquetas libres para agrupar y filtrar materiales y patrones. m2m implícita
@@ -89,20 +90,45 @@ model Tag {
   patterns  Pattern[]  @relation("PatternTags")
 }
 
-// Gasto. totalCents se persiste (no solo quantity*unitPrice) para permitir
-// ajustes manuales (envío, descuentos).
+// Compra/recibo. Puede tener varias líneas (ExpenseItem) e imágenes
+// (ExpensePhoto). totalCents se persiste (líneas + envío/ajustes manuales).
 model Expense {
-  id             String   @id @default(cuid())
-  date           DateTime @default(now())
+  id            String         @id @default(cuid())
+  date          DateTime       @default(now())
+  store         String? // tienda o proveedor
+  paidById      String
+  paidBy        User           @relation(fields: [paidById], references: [id])
+  shippingCents Int            @default(0)
+  totalCents    Int            @default(0)
+  received      Boolean        @default(false)
+  notes         String?
+  createdAt     DateTime       @default(now())
+  items         ExpenseItem[]
+  photos        ExpensePhoto[]
+}
+
+// Cada producto comprado dentro de un gasto. materialId se rellena si se dio de
+// alta en el inventario ("añadir a materiales").
+model ExpenseItem {
+  id             String    @id @default(cuid())
+  expenseId      String
+  expense        Expense   @relation(fields: [expenseId], references: [id], onDelete: Cascade)
   item           String
   link           String?
-  quantity       Int      @default(1)
-  unitPriceCents Int      @default(0)
-  totalCents     Int      @default(0)
-  paidById       String
-  paidBy         User     @relation(fields: [paidById], references: [id])
-  received       Boolean  @default(false)
-  notes          String?
+  quantity       Int       @default(1)
+  unitPriceCents Int       @default(0)
+  totalCents     Int       @default(0)
+  materialId     String?
+  material       Material? @relation(fields: [materialId], references: [id])
+}
+
+// Imágenes de la compra (subidas o descargadas de un enlace). path del blob.
+model ExpensePhoto {
+  id        String   @id @default(cuid())
+  expenseId String
+  expense   Expense  @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  path      String
+  createdAt DateTime @default(now())
 }
 
 model Pattern {

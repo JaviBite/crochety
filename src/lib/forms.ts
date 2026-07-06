@@ -98,65 +98,115 @@ export function parseOrderForm(formData: FormData): ParseResult<OrderInput> {
   return { ok: true, data: { ...rest, priceCents: eurToCents(priceEur) } };
 }
 
-// --- Gasto -------------------------------------------------------------------
+// --- Gasto (compra/recibo con varias líneas) --------------------------------
 
-const expenseFormSchema = z.object({
-  date: z.date().nullable(),
-  item: z.string().min(1, "El artículo es obligatorio"),
-  link: z.union([z.null(), z.url("El enlace no es una URL válida")]),
-  quantity: quantitySchema,
-  unitPriceEur: eurosSchema,
-  // null PRIMERO: z.coerce.number() convertiría null en 0 y rompería el
-  // cálculo automático del total.
-  totalEur: z.union([z.null(), eurosSchema]),
-  paidById: z.string().min(1, "Indica quién lo pagó"),
-  received: z.boolean(),
-  notes: z.string().nullable(),
+// Una línea llega desde el cliente en euros (el form serializa el array en un
+// campo oculto `items` como JSON). Tolerante: los importes/cantidades inválidos
+// caen a un valor por defecto porque pueden venir de la extracción por IA.
+const expenseItemSchema = z.object({
+  item: z.string().trim().min(1),
+  quantity: z.coerce.number().int().min(1).catch(1),
+  unitPriceEur: z.coerce.number().min(0).catch(0),
+  totalEur: z.union([z.null(), z.coerce.number().min(0)]).catch(null),
+  link: z.union([z.null(), z.string()]).catch(null),
+  addToMaterials: z.boolean().catch(false),
 });
 
-export type ExpenseInput = {
-  date: Date;
+export type ExpenseItemInput = {
   item: string;
   link: string | null;
   quantity: number;
   unitPriceCents: number;
   totalCents: number;
+  addToMaterials: boolean;
+};
+
+export type ExpenseInput = {
+  date: Date;
+  store: string | null;
   paidById: string;
+  shippingCents: number;
+  totalCents: number;
   received: boolean;
   notes: string | null;
+  items: ExpenseItemInput[];
 };
+
+/** Euros crudos (string) → céntimos, saneando NaN/negativos a 0. */
+function eurStrToCents(value: FormDataEntryValue | null): number {
+  const eur = Number.parseFloat(str(value));
+  return Number.isFinite(eur) && eur > 0 ? eurToCents(eur) : 0;
+}
+
+function parseItemsJson(raw: FormDataEntryValue | null): unknown[] {
+  if (typeof raw !== "string" || !raw.trim()) return [];
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
 
 export function parseExpenseForm(
   formData: FormData,
 ): ParseResult<ExpenseInput> {
-  const totalRaw = str(formData.get("totalEur"));
-  const parsed = expenseFormSchema.safeParse({
-    date: optDate(formData.get("date")),
-    item: str(formData.get("item")),
-    link: opt(formData.get("link")),
-    quantity: str(formData.get("quantity")) || "1",
-    unitPriceEur: str(formData.get("unitPriceEur")) || "0",
-    totalEur: totalRaw === "" ? null : totalRaw,
-    paidById: str(formData.get("paidById")),
-    received: checkbox(formData.get("received")),
-    notes: opt(formData.get("notes")),
-  });
-  if (!parsed.success) return { ok: false, error: firstIssue(parsed.error) };
+  const paidById = str(formData.get("paidById"));
+  if (!paidById) return { ok: false, error: "Indica quién lo pagó" };
 
-  const { date, unitPriceEur, totalEur, ...rest } = parsed.data;
-  const unitPriceCents = eurToCents(unitPriceEur);
+  const rawItems = parseItemsJson(formData.get("items"));
+  if (rawItems.length === 0) {
+    return { ok: false, error: "Añade al menos un producto" };
+  }
+
+  const items: ExpenseItemInput[] = [];
+  for (const raw of rawItems) {
+    const parsed = expenseItemSchema.safeParse(raw);
+    if (!parsed.success) {
+      return { ok: false, error: "Hay un producto sin nombre" };
+    }
+    const { item, quantity, unitPriceEur, totalEur, link, addToMaterials } =
+      parsed.data;
+
+    let unitPriceCents: number;
+    if (unitPriceEur > 0) {
+      unitPriceCents = eurToCents(unitPriceEur);
+    } else if (totalEur != null) {
+      unitPriceCents = eurToCents(totalEur / quantity);
+    } else {
+      unitPriceCents = 0;
+    }
+    const totalCents =
+      totalEur != null ? eurToCents(totalEur) : unitPriceCents * quantity;
+
+    items.push({
+      item,
+      link: link?.trim() ? link.trim() : null,
+      quantity,
+      unitPriceCents,
+      totalCents,
+      addToMaterials,
+    });
+  }
+
+  const shippingCents = eurStrToCents(formData.get("shippingEur"));
+  const itemsTotal = items.reduce((sum, line) => sum + line.totalCents, 0);
+  // El total se autocalcula (líneas + envío) pero se permite ajustarlo a mano.
+  const totalRaw = str(formData.get("totalEur"));
+  const totalCents =
+    totalRaw === "" ? itemsTotal + shippingCents : eurStrToCents(totalRaw);
+
   return {
     ok: true,
     data: {
-      ...rest,
-      date: date ?? new Date(),
-      unitPriceCents,
-      // Si no se indica el total se calcula, pero se permite ajustarlo a mano
-      // (gastos de envío, descuentos...).
-      totalCents:
-        totalEur === null
-          ? unitPriceCents * parsed.data.quantity
-          : eurToCents(totalEur),
+      date: optDate(formData.get("date")) ?? new Date(),
+      store: opt(formData.get("store")),
+      paidById,
+      shippingCents,
+      totalCents,
+      received: checkbox(formData.get("received")),
+      notes: opt(formData.get("notes")),
+      items,
     },
   };
 }

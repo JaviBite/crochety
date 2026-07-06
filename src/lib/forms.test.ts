@@ -75,48 +75,74 @@ describe("parseOrderForm", () => {
 });
 
 describe("parseExpenseForm", () => {
-  it("calcula el total cuando no se indica", () => {
-    const result = parseExpenseForm(
-      fd({ item: "Lana merino", quantity: "3", unitPriceEur: "4.20", paidById: "u1" }),
-    );
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.data.unitPriceCents).toBe(420);
-    expect(result.data.totalCents).toBe(1260);
-  });
+  const items = (arr: unknown[]) => JSON.stringify(arr);
 
-  it("respeta un total ajustado a mano (envío, descuentos)", () => {
+  it("parsea un recibo con varias líneas y calcula el total", () => {
     const result = parseExpenseForm(
       fd({
-        item: "Ojos de seguridad",
-        quantity: "2",
-        unitPriceEur: "3",
-        totalEur: "8.50",
         paidById: "u1",
+        shippingEur: "2.99",
+        items: items([
+          { item: "Lana", quantity: 3, unitPriceEur: 4.2, totalEur: null, link: null, addToMaterials: true },
+          { item: "Ojos", quantity: 2, unitPriceEur: 0, totalEur: 8.5, link: "https://x.example", addToMaterials: false },
+        ]),
       }),
     );
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.data.totalCents).toBe(850);
+    expect(result.data.items).toHaveLength(2);
+    expect(result.data.items[0]).toMatchObject({
+      item: "Lana",
+      quantity: 3,
+      unitPriceCents: 420,
+      totalCents: 1260,
+      addToMaterials: true,
+    });
+    expect(result.data.items[1]).toMatchObject({
+      unitPriceCents: 425,
+      totalCents: 850,
+      link: "https://x.example",
+    });
+    expect(result.data.shippingCents).toBe(299);
+    expect(result.data.totalCents).toBe(1260 + 850 + 299);
+  });
+
+  it("respeta un total ajustado a mano", () => {
+    const result = parseExpenseForm(
+      fd({
+        paidById: "u1",
+        totalEur: "20",
+        items: items([
+          { item: "x", quantity: 1, unitPriceEur: 5, totalEur: null, link: null, addToMaterials: false },
+        ]),
+      }),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.totalCents).toBe(2000);
   });
 
   it("usa la fecha de hoy si no se indica", () => {
-    const result = parseExpenseForm(fd({ item: "Relleno", paidById: "u1" }));
+    const result = parseExpenseForm(
+      fd({
+        paidById: "u1",
+        items: items([
+          { item: "Relleno", quantity: 1, unitPriceEur: 1, totalEur: null, link: null, addToMaterials: false },
+        ]),
+      }),
+    );
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.data.date).toBeInstanceOf(Date);
   });
 
-  it("exige artículo y pagador", () => {
+  it("exige pagador y al menos un producto", () => {
+    const oneItem = items([
+      { item: "x", quantity: 1, unitPriceEur: 1, totalEur: null, link: null, addToMaterials: false },
+    ]);
+    expect(parseExpenseForm(fd({ items: oneItem })).ok).toBe(false);
+    expect(parseExpenseForm(fd({ paidById: "u1", items: "[]" })).ok).toBe(false);
     expect(parseExpenseForm(fd({ paidById: "u1" })).ok).toBe(false);
-    expect(parseExpenseForm(fd({ item: "Lana" })).ok).toBe(false);
-  });
-
-  it("rechaza enlaces que no son URLs", () => {
-    expect(
-      parseExpenseForm(fd({ item: "Lana", paidById: "u1", link: "no-es-url" }))
-        .ok,
-    ).toBe(false);
   });
 });
 

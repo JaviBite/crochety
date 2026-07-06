@@ -1,4 +1,4 @@
-import { ExternalLink, Plus, Receipt } from "lucide-react";
+import { Plus, Receipt } from "lucide-react";
 import { getFormatter, getLocale, getTranslations } from "next-intl/server";
 import { RowActions } from "@/components/dashboard/row-actions";
 import { EmptyState } from "@/components/empty-state";
@@ -28,7 +28,10 @@ export default async function ExpensesPage() {
 
   const expenses = await prisma.expense.findMany({
     orderBy: { date: "desc" },
-    include: { paidBy: { select: { name: true } } },
+    include: {
+      paidBy: { select: { name: true } },
+      items: { select: { item: true, quantity: true } },
+    },
   });
 
   return (
@@ -58,9 +61,7 @@ export default async function ExpensesPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>{t("colDate")}</TableHead>
-                <TableHead>{t("colItem")}</TableHead>
-                <TableHead className="text-right">{t("colQuantity")}</TableHead>
-                <TableHead className="text-right">{t("colUnitPrice")}</TableHead>
+                <TableHead>{t("colPurchase")}</TableHead>
                 <TableHead className="text-right">{t("colTotal")}</TableHead>
                 <TableHead>{t("colPaidBy")}</TableHead>
                 <TableHead>{t("colReceived")}</TableHead>
@@ -68,62 +69,60 @@ export default async function ExpensesPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {expenses.map((expense) => (
-                <TableRow key={expense.id}>
-                  <TableCell className="whitespace-nowrap">
-                    {format.dateTime(expense.date, { dateStyle: "medium" })}
-                  </TableCell>
-                  <TableCell className="font-medium">
-                    <span className="flex items-center gap-1.5">
-                      {expense.item}
-                      {expense.link && (
-                        <a
-                          href={expense.link}
-                          target="_blank"
-                          rel="noreferrer noopener"
-                          className="text-muted-foreground transition-colors hover:text-foreground"
-                          aria-label={t("colLink")}
-                        >
-                          <ExternalLink className="size-3.5" />
-                        </a>
+              {expenses.map((expense) => {
+                const summary =
+                  expense.items
+                    .map((line) =>
+                      line.quantity > 1 ? `${line.item} ×${line.quantity}` : line.item,
+                    )
+                    .join(", ") || "—";
+                return (
+                  <TableRow key={expense.id}>
+                    <TableCell className="whitespace-nowrap">
+                      {format.dateTime(expense.date, { dateStyle: "medium" })}
+                    </TableCell>
+                    <TableCell className="max-w-72 font-medium">
+                      {expense.store ? (
+                        <>
+                          {expense.store}
+                          <p className="truncate text-xs font-normal text-muted-foreground">
+                            {summary}
+                          </p>
+                        </>
+                      ) : (
+                        <span className="line-clamp-2">{summary}</span>
                       )}
-                    </span>
-                    {expense.notes && (
-                      <p className="text-xs font-normal text-muted-foreground">
-                        {expense.notes}
-                      </p>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {expense.quantity}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {formatCents(expense.unitPriceCents, locale)}
-                  </TableCell>
-                  <TableCell className="text-right font-medium tabular-nums">
-                    {formatCents(expense.totalCents, locale)}
-                  </TableCell>
-                  <TableCell>{expense.paidBy.name}</TableCell>
-                  <TableCell>
-                    <Badge
-                      variant="outline"
-                      className={
-                        expense.received
-                          ? "border-transparent bg-primary/15 text-primary"
-                          : "border-transparent bg-muted text-muted-foreground"
-                      }
-                    >
-                      {expense.received ? t("received") : t("pending")}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <RowActions
-                      editHref={`${BASE_PATH}/editar/${expense.id}`}
-                      deleteAction={deleteExpense.bind(null, expense.id)}
-                    />
-                  </TableCell>
-                </TableRow>
-              ))}
+                      {expense.notes && (
+                        <p className="truncate text-xs font-normal text-muted-foreground">
+                          {expense.notes}
+                        </p>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right font-medium tabular-nums">
+                      {formatCents(expense.totalCents, locale)}
+                    </TableCell>
+                    <TableCell>{expense.paidBy.name}</TableCell>
+                    <TableCell>
+                      <Badge
+                        variant="outline"
+                        className={
+                          expense.received
+                            ? "border-transparent bg-primary/15 text-primary"
+                            : "border-transparent bg-muted text-muted-foreground"
+                        }
+                      >
+                        {expense.received ? t("received") : t("pending")}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <RowActions
+                        editHref={`${BASE_PATH}/editar/${expense.id}`}
+                        deleteAction={deleteExpense.bind(null, expense.id)}
+                      />
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </div>

@@ -11,7 +11,14 @@ export default async function EditExpensePage({
   const { id } = await params;
   const [t, expense, users] = await Promise.all([
     getTranslations("Expenses"),
-    prisma.expense.findUnique({ where: { id } }),
+    prisma.expense.findUnique({
+      where: { id },
+      include: {
+        items: {
+          select: { item: true, quantity: true, unitPriceCents: true, link: true },
+        },
+      },
+    }),
     prisma.user.findMany({
       select: { id: true, name: true },
       orderBy: { createdAt: "asc" },
@@ -26,7 +33,20 @@ export default async function EditExpensePage({
         <h1 className="text-2xl font-bold tracking-tight">{t("editTitle")}</h1>
         <p className="text-muted-foreground">{t("editDescription")}</p>
       </div>
-      <ExpenseForm users={users} expense={expense} />
+      <ExpenseForm
+        users={users}
+        expense={{
+          id: expense.id,
+          date: expense.date,
+          store: expense.store,
+          paidById: expense.paidById,
+          shippingCents: expense.shippingCents,
+          totalCents: expense.totalCents,
+          received: expense.received,
+          notes: expense.notes,
+          items: expense.items,
+        }}
+      />
     </div>
   );
 }
