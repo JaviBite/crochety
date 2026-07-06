@@ -167,7 +167,8 @@
     "fieldWeight": "Weight",
     "fieldHasColor": "Color",
     "fieldColor": "Color",
-    "colorHint": "Soon the color will be suggested automatically from the photo.",
+    "colorHint": "Detected from the photo on upload; tweak it if needed.",
+    "colorEyedropper": "Click the image to pick a color",
     "fieldPhoto": "Photo",
     "inStock": "{count} in stock"
   },

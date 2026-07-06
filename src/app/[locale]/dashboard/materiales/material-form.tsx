@@ -1,11 +1,10 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { useActionState, useState } from "react";
+import { useActionState } from "react";
 import { SubmitButton } from "@/components/form/submit-button";
 import { TagInput } from "@/components/form/tag-input";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -19,6 +18,7 @@ import { Link } from "@/i18n/navigation";
 import { centsToEur } from "@/lib/money";
 import { MATERIAL_CATEGORIES } from "@/lib/validations";
 import { createMaterial, updateMaterial } from "./actions";
+import { MaterialColorField } from "./material-color-field";
 
 export type MaterialFormValues = {
   id: string;
@@ -49,9 +49,6 @@ export function MaterialForm({
   const [state, formAction] = useActionState(
     material ? updateMaterial : createMaterial,
     null,
-  );
-  const [hasColor, setHasColor] = useState(
-    material ? material.colorHex !== null : true,
   );
 
   return (
@@ -165,25 +162,6 @@ export function MaterialForm({
             />
           </div>
         </div>
-        <div className="flex items-center gap-3">
-          <Checkbox
-            id="hasColor"
-            name="hasColor"
-            checked={hasColor}
-            onCheckedChange={(checked) => setHasColor(checked === true)}
-          />
-          <Label htmlFor="hasColor">{t("fieldHasColor")}</Label>
-          <Input
-            id="colorHex"
-            name="colorHex"
-            type="color"
-            defaultValue={material?.colorHex ?? "#a3e2c8"}
-            disabled={!hasColor}
-            className="h-9 w-16 cursor-pointer p-1"
-            aria-label={t("fieldColor")}
-          />
-        </div>
-        <p className="text-xs text-muted-foreground">{t("colorHint")}</p>
       </fieldset>
 
       <div className="space-y-2">
@@ -199,21 +177,11 @@ export function MaterialForm({
         <p className="text-xs text-muted-foreground">{tForms("tagsHint")}</p>
       </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="photo">
-          {t("fieldPhoto")}{" "}
-          <span className="text-muted-foreground">({tForms("optional")})</span>
-        </Label>
-        {material?.photoPath && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={`/api/files/${material.photoPath}`}
-            alt={material.name}
-            className="size-20 rounded-lg border object-cover"
-          />
-        )}
-        <Input id="photo" name="photo" type="file" accept="image/*" />
-      </div>
+      <MaterialColorField
+        defaultPhotoPath={material?.photoPath}
+        defaultColorHex={material?.colorHex}
+        defaultHasColor={material ? material.colorHex !== null : true}
+      />
 
       {state?.error && (
         <p role="alert" className="text-sm text-destructive">

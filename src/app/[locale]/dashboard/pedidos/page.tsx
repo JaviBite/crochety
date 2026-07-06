@@ -37,6 +37,14 @@ const STATUS_CLASSES: Record<OrderStatus, string> = {
   COBRADO: "bg-primary text-primary-foreground",
 };
 
+// Portada del pedido: su foto propia o, si no tiene, la del patrón asociado.
+function orderCover(order: {
+  photos: { path: string }[];
+  pattern: { coverImagePath: string | null } | null;
+}): string | null {
+  return order.photos[0]?.path ?? order.pattern?.coverImagePath ?? null;
+}
+
 export default async function OrdersPage() {
   const [t, tStatus, locale, format] = await Promise.all([
     getTranslations("Orders"),
@@ -50,6 +58,7 @@ export default async function OrdersPage() {
     include: {
       assignedTo: { select: { name: true } },
       photos: { where: { isCover: true }, take: 1 },
+      pattern: { select: { coverImagePath: true } },
     },
   });
 
@@ -97,14 +106,16 @@ export default async function OrdersPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {orders.map((order) => (
+              {orders.map((order) => {
+                const cover = orderCover(order);
+                return (
                 <TableRow key={order.id}>
                   <TableCell className="font-medium">
                     <div className="flex items-center gap-3">
-                      {order.photos[0] ? (
+                      {cover ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
-                          src={`/api/files/${order.photos[0].path}`}
+                          src={`/api/files/${cover}`}
                           alt=""
                           className="size-9 rounded-lg border object-cover"
                         />
@@ -150,21 +161,24 @@ export default async function OrdersPage() {
                     />
                   </TableCell>
                 </TableRow>
-              ))}
+                );
+              })}
             </TableBody>
           </Table>
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {orders.map((order) => (
+          {orders.map((order) => {
+            const cover = orderCover(order);
+            return (
             <Card
               key={order.id}
               className="overflow-hidden rounded-2xl pt-0 shadow-sm"
             >
-              {order.photos[0] ? (
+              {cover ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
-                  src={`/api/files/${order.photos[0].path}`}
+                  src={`/api/files/${cover}`}
                   alt={order.name}
                   className="h-40 w-full object-cover"
                 />
@@ -211,7 +225,8 @@ export default async function OrdersPage() {
                 )}
               </CardContent>
             </Card>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

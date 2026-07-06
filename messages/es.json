@@ -167,7 +167,8 @@
     "fieldWeight": "Grosor",
     "fieldHasColor": "Color",
     "fieldColor": "Color",
-    "colorHint": "Más adelante el color se sugerirá automáticamente desde la foto.",
+    "colorHint": "Se detecta de la foto al subirla; ajústalo si hace falta.",
+    "colorEyedropper": "Haz clic en la imagen para elegir el color",
     "fieldPhoto": "Foto",
     "inStock": "{count} en stock"
   },

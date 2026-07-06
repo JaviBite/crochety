@@ -6,22 +6,27 @@ Portfolio público estilo Pinterest en `/`, panel de gestión protegido en `/das
 
 ## Stack
 
-- **Next.js 16** (App Router, TypeScript, `output: standalone`)
+- **Next.js 16** (App Router, TypeScript)
 - **Tailwind CSS v4 + shadcn/ui** — modo claro/oscuro + 4 acentos (menta, lavanda, melocotón, cielo)
 - **next-intl** — UI bilingüe: español (por defecto, sin prefijo) e inglés (`/en`)
-- **SQLite + Prisma 7** (adapter better-sqlite3) — un solo fichero en `data/`
+- **Postgres (Neon) + Prisma 7** (adapter pg)
+- **Vercel Blob** — fotos y ficheros de patrones, servidos vía `/api/files`
 - **Auth.js v5** — login con credenciales, sesión JWT, registro deshabilitado
-- **Vercel AI SDK** — proveedor LLM configurable: Anthropic (por defecto), OpenAI u Ollama
+- **Vercel AI SDK** — proveedor LLM configurable: Anthropic, OpenAI, OpenRouter u Ollama
 
 ## Desarrollo
 
 ```bash
-cp .env.example .env        # rellena AUTH_SECRET y los USER1_/USER2_
+cp .env.example .env        # rellena AUTH_SECRET, DATABASE_URL* y los USER1_/USER2_
 npm install                 # postinstall ejecuta prisma generate
-npx prisma migrate dev      # crea data/crochety.db
+npx prisma migrate dev      # aplica migraciones a la BD de desarrollo
 npm run db:seed             # crea los 2 usuarios del .env
 npm run dev                 # http://localhost:3000
 ```
+
+La BD de desarrollo puede ser un Postgres local (`docker run postgres`) o un
+branch "dev" de Neon; los uploads necesitan `BLOB_READ_WRITE_TOKEN`
+(`vercel env pull`). Detalles en [deploy/README.md](deploy/README.md).
 
 - `/` galería pública (español) · `/en` en inglés
 - `/login` acceso al panel · `/dashboard` protegido por sesión
@@ -37,18 +42,12 @@ npm run dev                 # http://localhost:3000
 | `npm run test` | tests unitarios (Vitest) |
 | `npm run typecheck` | `tsc --noEmit` |
 
-## Despliegue con Docker
+## Despliegue
 
-```bash
-cp .env.example .env        # AUTH_SECRET real + credenciales de usuarios
-docker compose up --build -d
-```
-
-El contenedor aplica las migraciones y siembra los usuarios en cada arranque
-(idempotente). Datos persistentes en el host:
-
-- `./data/` → base de datos SQLite
-- `./uploads/` → fotos y PDFs de patrones
+Push a `master` → Vercel construye y despliega (el script `vercel-build`
+aplica las migraciones antes del build). Base de datos en Neon y ficheros en
+Vercel Blob, ambos gestionados desde el dashboard de Vercel. Guía completa
+paso a paso en [deploy/README.md](deploy/README.md).
 
 ## Variables de entorno
 
@@ -68,6 +67,6 @@ src/
 ├── lib/                     # prisma, auth, money, validations, files, ai/
 └── proxy.ts                 # protección de rutas + routing de locale
 prisma/                      # schema, migraciones, seed
-docker/                      # entrypoint, seed de producción, config prisma
+deploy/                      # guía de despliegue (Vercel + Neon + Blob)
 messages/                    # es.json, en.json
 ```

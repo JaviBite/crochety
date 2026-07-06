@@ -1,81 +1,148 @@
-import { mkdtemp, readFile, rm } from "node:fs/promises";
-import os from "node:os";
-import path from "node:path";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { del, list, put } from "@vercel/blob";
+import {
+  deleteUpload,
+  isValidUploadPath,
+  MAX_IMAGE_BYTES,
+  resolveUploadUrl,
+  saveUpload,
+  UploadError,
+} from "./files";
 
-// UPLOAD_ROOT se resuelve al importar el módulo, así que la variable de
-// entorno debe fijarse ANTES del import dinámico.
-let tmpDir: string;
-let files: typeof import("./files");
+// Sin red en tests: se mockea el SDK de Vercel Blob entero.
+vi.mock("@vercel/blob", () => ({
+  put: vi.fn(),
+  del: vi.fn(),
+  list: vi.fn(),
+}));
 
-beforeAll(async () => {
-  tmpDir = await mkdtemp(path.join(os.tmpdir(), "crochety-uploads-"));
-  vi.stubEnv("UPLOAD_DIR", tmpDir);
-  vi.resetModules();
-  files = await import("./files");
+const putMock = vi.mocked(put);
+const delMock = vi.mocked(del);
+const listMock = vi.mocked(list);
+
+const UUID = "123e4567-e89b-42d3-a456-426614174000";
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  putMock.mockResolvedValue({
+    url: "https://store.blob/x",
+    pathname: "x",
+  } as Awaited<ReturnType<typeof put>>);
 });
 
-afterAll(async () => {
-  vi.unstubAllEnvs();
-  await rm(tmpDir, { recursive: true, force: true });
-});
-
-describe("resolveUploadPath", () => {
-  it("resuelve rutas relativas dentro de la raíz", () => {
-    const abs = files.resolveUploadPath("orders/foto.jpg");
-    expect(abs).toBe(path.join(tmpDir, "orders", "foto.jpg"));
+describe("isValidUploadPath", () => {
+  it("acepta pathnames con la forma generada por saveUpload", () => {
+    expect(isValidUploadPath(`orders/${UUID}.jpg`)).toBe(true);
+    expect(isValidUploadPath(`patterns/${UUID}.pdf`)).toBe(true);
   });
 
-  it("bloquea path traversal con ../", () => {
-    expect(files.resolveUploadPath("../secreto.txt")).toBeNull();
-    expect(files.resolveUploadPath("orders/../../etc/passwd")).toBeNull();
+  it("bloquea path traversal y rutas absolutas", () => {
+    expect(isValidUploadPath("../secreto.txt")).toBe(false);
+    expect(isValidUploadPath(`orders/../../etc/${UUID}.jpg`)).toBe(false);
+    expect(isValidUploadPath("/etc/passwd")).toBe(false);
+    expect(isValidUploadPath("C:\\Windows\\system32")).toBe(false);
   });
 
-  it("bloquea rutas absolutas fuera de la raíz", () => {
-    expect(files.resolveUploadPath("/etc/passwd")).toBeNull();
-    expect(files.resolveUploadPath("C:\\Windows\\system32")).toBeNull();
+  it("bloquea tipos, extensiones y nombres no generados", () => {
+    expect(isValidUploadPath(`otros/${UUID}.jpg`)).toBe(false);
+    expect(isValidUploadPath(`orders/${UUID}.exe`)).toBe(false);
+    expect(isValidUploadPath("orders/foto-original.jpg")).toBe(false);
   });
 });
 
 describe("saveUpload", () => {
-  it("guarda una imagen y devuelve una ruta relativa con nombre generado", async () => {
+  it("sube una imagen y devuelve un pathname relativo con nombre generado", async () => {
     const file = new File([Buffer.from("fake-png")], "mi foto ../rara.png", {
       type: "image/png",
     });
-    const relPath = await files.saveUpload("orders", file);
+    const relPath = await saveUpload("orders", file);
 
     // Nombre generado (nunca el original) dentro de la subcarpeta del tipo.
     expect(relPath).toMatch(/^orders\/[0-9a-f-]{36}\.png$/);
-    const saved = await readFile(path.join(tmpDir, relPath));
-    expect(saved.toString()).toBe("fake-png");
+    expect(putMock).toHaveBeenCalledWith(
+      relPath,
+      file,
+      expect.objectContaining({
+        access: "public",
+        addRandomSuffix: false,
+        contentType: "image/png",
+      }),
+    );
   });
 
-  it("rechaza tipos de fichero no permitidos", async () => {
+  it("rechaza tipos de fichero no permitidos sin llamar a Blob", async () => {
     const file = new File(["hola"], "script.exe", {
       type: "application/x-msdownload",
     });
-    await expect(files.saveUpload("orders", file)).rejects.toThrow(
-      files.UploadError,
-    );
+    await expect(saveUpload("orders", file)).rejects.toThrow(UploadError);
+    expect(putMock).not.toHaveBeenCalled();
   });
 
   it("solo admite documentos (PDF/DOCX) en patrones", async () => {
     const pdf = new File(["%PDF"], "patron.pdf", { type: "application/pdf" });
-    await expect(files.saveUpload("materials", pdf)).rejects.toThrow(
-      files.UploadError,
-    );
-    const relPath = await files.saveUpload("patterns", pdf);
+    await expect(saveUpload("materials", pdf)).rejects.toThrow(UploadError);
+    const relPath = await saveUpload("patterns", pdf);
     expect(relPath).toMatch(/^patterns\/[0-9a-f-]{36}\.pdf$/);
   });
 
   it("rechaza imágenes que superan el tamaño máximo", async () => {
-    const big = new File(
-      [new ArrayBuffer(files.MAX_IMAGE_BYTES + 1)],
-      "enorme.png",
-      { type: "image/png" },
+    const big = new File([new ArrayBuffer(MAX_IMAGE_BYTES + 1)], "enorme.png", {
+      type: "image/png",
+    });
+    await expect(saveUpload("orders", big)).rejects.toThrow(/demasiado grande/);
+    expect(putMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("resolveUploadUrl", () => {
+  const relPath = `orders/${UUID}.jpg`;
+
+  it("devuelve la URL del blob cuando el pathname existe", async () => {
+    listMock.mockResolvedValue({
+      blobs: [{ pathname: relPath, url: "https://store.blob/orders/x.jpg" }],
+    } as Awaited<ReturnType<typeof list>>);
+    await expect(resolveUploadUrl(relPath)).resolves.toBe(
+      "https://store.blob/orders/x.jpg",
     );
-    await expect(files.saveUpload("orders", big)).rejects.toThrow(
-      /demasiado grande/,
-    );
+    expect(listMock).toHaveBeenCalledWith({ prefix: relPath, limit: 1 });
+  });
+
+  it("devuelve null si el blob no existe", async () => {
+    listMock.mockResolvedValue({ blobs: [] } as unknown as Awaited<
+      ReturnType<typeof list>
+    >);
+    await expect(resolveUploadUrl(relPath)).resolves.toBeNull();
+  });
+
+  it("rechaza pathnames inválidos sin llamar a Blob", async () => {
+    await expect(resolveUploadUrl("../secreto.txt")).resolves.toBeNull();
+    expect(listMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("deleteUpload", () => {
+  const relPath = `orders/${UUID}.jpg`;
+
+  it("borra el blob resuelto por su pathname", async () => {
+    listMock.mockResolvedValue({
+      blobs: [{ pathname: relPath, url: "https://store.blob/orders/x.jpg" }],
+    } as Awaited<ReturnType<typeof list>>);
+    await deleteUpload(relPath);
+    expect(delMock).toHaveBeenCalledWith("https://store.blob/orders/x.jpg");
+  });
+
+  it("ignora rutas nulas o inexistentes", async () => {
+    await deleteUpload(null);
+    await deleteUpload(undefined);
+    listMock.mockResolvedValue({ blobs: [] } as unknown as Awaited<
+      ReturnType<typeof list>
+    >);
+    await deleteUpload(relPath);
+    expect(delMock).not.toHaveBeenCalled();
+  });
+
+  it("es best-effort: no propaga errores del SDK", async () => {
+    listMock.mockRejectedValue(new Error("network down"));
+    await expect(deleteUpload(relPath)).resolves.toBeUndefined();
   });
 });

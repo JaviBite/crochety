@@ -1,9 +1,11 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { del, list, put } from "@vercel/blob";
 
-// Raíz de subidas: en dev ./uploads, en Docker /app/uploads (volumen).
-export const UPLOAD_ROOT = path.resolve(process.env.UPLOAD_DIR ?? "./uploads");
+// Almacenamiento de subidas en Vercel Blob. En la BD se persiste el pathname
+// relativo dentro del store, p. ej. "orders/ckxyz.jpg" — el mismo contrato que
+// tenía el almacenamiento en disco. Requiere BLOB_READ_WRITE_TOKEN (en local:
+// `vercel env pull`).
 
 export const UPLOAD_KINDS = ["materials", "orders", "patterns"] as const;
 export type UploadKind = (typeof UPLOAD_KINDS)[number];
@@ -39,10 +41,35 @@ export function isUploadKind(value: string): value is UploadKind {
   return (UPLOAD_KINDS as readonly string[]).includes(value);
 }
 
+// Forma exacta de un pathname generado por saveUpload: tipo conocido + UUID +
+// extensión conocida. Todo lo demás (traversal, prefijos arbitrarios del
+// store, nombres originales) se rechaza antes de tocar Blob.
+const UPLOAD_PATH_RE = new RegExp(
+  `^(${UPLOAD_KINDS.join("|")})/[0-9a-f-]{36}(${Object.keys(EXT_TO_MIME)
+    .map((ext) => ext.replace(".", "\\."))
+    .join("|")})$`,
+);
+
+export function isValidUploadPath(relPath: string): boolean {
+  return UPLOAD_PATH_RE.test(relPath);
+}
+
 /**
- * Guarda un fichero subido con nombre generado (nunca el nombre original)
- * dentro de la subcarpeta del tipo. Devuelve la ruta relativa a UPLOAD_ROOT,
- * p. ej. "orders/ckxyz.jpg" — es lo que se persiste en la BD.
+ * Resuelve un pathname relativo (de la BD o de la URL) a la URL del blob.
+ * Devuelve null si el pathname no tiene la forma generada por saveUpload o
+ * no existe en el store.
+ */
+export async function resolveUploadUrl(relPath: string): Promise<string | null> {
+  if (!isValidUploadPath(relPath)) return null;
+  const { blobs } = await list({ prefix: relPath, limit: 1 });
+  const blob = blobs[0];
+  return blob && blob.pathname === relPath ? blob.url : null;
+}
+
+/**
+ * Sube un fichero con nombre generado (nunca el nombre original) dentro de la
+ * subcarpeta del tipo. Devuelve el pathname relativo, p. ej. "orders/ckxyz.jpg"
+ * — es lo que se persiste en la BD.
  */
 export async function saveUpload(kind: UploadKind, file: File): Promise<string> {
   const isImage = file.type in IMAGE_MIME_TO_EXT;
@@ -64,42 +91,34 @@ export async function saveUpload(kind: UploadKind, file: File): Promise<string> 
 
   const ext = isImage ? IMAGE_MIME_TO_EXT[file.type] : DOCUMENT_MIME_TO_EXT[file.type];
   const relPath = path.posix.join(kind, `${randomUUID()}${ext}`);
-  const absPath = path.join(UPLOAD_ROOT, relPath);
 
-  await mkdir(path.dirname(absPath), { recursive: true });
-  await writeFile(absPath, Buffer.from(await file.arrayBuffer()));
+  // El UUID ya hace la URL del blob no adivinable; el control de acceso fino
+  // (sesión para patrones) lo aplica /api/files, la única URL que ve el cliente.
+  await put(relPath, file, {
+    access: "public",
+    addRandomSuffix: false,
+    contentType: file.type,
+    cacheControlMaxAge: 31536000,
+  });
 
   return relPath;
 }
 
 /**
- * Borra un fichero subido a partir de su ruta relativa. Ignora rutas nulas,
- * inválidas o ya inexistentes: borrar es best-effort (evita ficheros huérfanos
- * al eliminar/reemplazar) y nunca debe tumbar la operación principal.
+ * Borra un fichero subido a partir de su pathname relativo. Ignora rutas
+ * nulas, inválidas o ya inexistentes: borrar es best-effort (evita ficheros
+ * huérfanos al eliminar/reemplazar) y nunca debe tumbar la operación principal.
  */
 export async function deleteUpload(
   relPath: string | null | undefined,
 ): Promise<void> {
   if (!relPath) return;
-  const abs = resolveUploadPath(relPath);
-  if (!abs) return;
   try {
-    await unlink(abs);
+    const url = await resolveUploadUrl(relPath);
+    if (url) await del(url);
   } catch {
-    // fichero ausente o ya borrado: no es un error
+    // fichero ausente o fallo de red en el borrado: no es un error fatal
   }
-}
-
-/**
- * Resuelve una ruta relativa (de la BD o de la URL) a una absoluta dentro de
- * UPLOAD_ROOT. Devuelve null si el path escapa de la raíz (../, absolutos…).
- */
-export function resolveUploadPath(relPath: string): string | null {
-  const abs = path.resolve(UPLOAD_ROOT, relPath);
-  if (abs !== UPLOAD_ROOT && !abs.startsWith(UPLOAD_ROOT + path.sep)) {
-    return null;
-  }
-  return abs;
 }
 
 export class UploadError extends Error {}

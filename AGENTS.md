@@ -9,44 +9,43 @@ This version has breaking changes — APIs, conventions, and file structure may 
 Plataforma para un pequeño negocio de crochet/amigurumis de 2 personas: pedidos,
 gastos, balance estilo Splitwise, inventario de materiales y patrones
 estandarizados por IA. Galería pública en `/`, panel protegido en `/dashboard`.
-Premisa: **cozy minimalism, cero sobre-ingeniería** — SQLite embebido, un solo
-contenedor Docker, sin servicios externos.
+Premisa: **cozy minimalism, cero sobre-ingeniería** — desplegado gratis en
+Vercel + Neon Postgres + Vercel Blob (guía en `deploy/README.md`).
 
 ## Stack (versiones importantes)
 
 - **Next.js 16** App Router + TS. El middleware se llama **`src/proxy.ts`** (convención Next 16).
-- **Prisma 7** + SQLite vía driver adapter `@prisma/adapter-better-sqlite3`. El cliente se genera en `src/generated/prisma` (gitignored, `postinstall` lo regenera). La URL de la BD vive en `prisma.config.ts`, NO en `schema.prisma`.
+- **Prisma 7** + Postgres (Neon) vía driver adapter `@prisma/adapter-pg`. El cliente se genera en `src/generated/prisma` (gitignored, `postinstall` lo regenera). La URL de la BD vive en `prisma.config.ts`, NO en `schema.prisma`.
 - **Auth.js v5 (next-auth beta)**: Credentials + JWT. Config dividida: `lib/auth.config.ts` (sin Prisma, la usa el proxy) y `lib/auth.ts` (con Prisma).
 - **next-intl v4**: locales `es` (default, SIN prefijo) y `en` (`/en/...`), `localePrefix: "as-needed"`.
 - **Tailwind v4 + shadcn/ui** (preset radix-nova) + next-themes.
-- **Vercel AI SDK**: proveedor configurable por env (`AI_PROVIDER`: anthropic|openai|ollama).
+- **Vercel AI SDK**: proveedor configurable por env (`AI_PROVIDER`: anthropic|openai|openrouter|ollama). En producción: openrouter con el router gratuito `openrouter/free`.
 - **Vitest + Testing Library**: tests colocados junto al código (`*.test.ts[x]`).
 
 ## Trampas conocidas (no re-aprender por las malas)
 
 1. **NO envolver el proxy con el wrapper `auth()` de NextAuth**: rompe las respuestas de rewrite de next-intl (bucle de 307 en `/`). El proxy valida sesión con `getToken` de `next-auth/jwt`.
-2. **SQLite no soporta enums ni Decimal de Prisma**: estados/categorías son `String` validados con las constantes zod de `src/lib/validations.ts`; el dinero va en **céntimos enteros** (`Int`), helpers en `src/lib/money.ts`.
+2. **Nada de enums ni Decimal de Prisma** (herencia de SQLite, se mantiene por simplicidad): estados/categorías son `String` validados con las constantes zod de `src/lib/validations.ts`; el dinero va en **céntimos enteros** (`Int`), helpers en `src/lib/money.ts`.
 3. **Navegación localizada**: usar SIEMPRE `Link`/`redirect`/`useRouter`/`usePathname` de `@/i18n/navigation` (no los de `next/*`)… con una excepción: tras `signIn` el login usa el router crudo de `next/navigation` porque el callbackUrl ya lleva prefijo.
 4. **zod v4 + coerce**: `z.coerce.number()` convierte `null` a `0`; en uniones opcionales poner `z.null()` PRIMERO (ver `lib/forms.ts`).
 5. **Selects opcionales (Radix)**: no admiten `value=""`; se usa el centinela `NONE_VALUE` de `lib/forms.ts`.
 6. **`redirect()` de next-intl no está tipado como `never`**: en server actions hace falta un `return null` inalcanzable detrás.
-7. **Ficheros subidos**: nunca por `public/` (no funciona en runtime con build standalone); se sirven por `/api/files/[...path]` con validación anti-traversal (`lib/files.ts`). Los `patterns/` requieren sesión.
+7. **Ficheros subidos**: viven en Vercel Blob (`lib/files.ts`; en la BD se persiste el pathname relativo tipo `orders/uuid.jpg`, igual que antes). Se sirven SIEMPRE vía el proxy `/api/files/[...path]` (la URL del blob no llega al cliente): los `patterns/` requieren sesión. En local hace falta `BLOB_READ_WRITE_TOKEN` (`vercel env pull`).
 8. **El acento de color** se persiste en la cookie `accent` y se lee en el layout servidor (`data-accent` en `<html>`) para evitar flash. Los 4 acentos viven en `globals.css`.
-9. **Docker**: el runner NO lleva el node_modules completo; `/app/migrator` (etapa `migrator` del Dockerfile) contiene el CLI de Prisma + `docker/seed.cjs` (JS plano contra SQLite) para `migrate deploy` + seed en cada arranque.
-10. **Si `npm ci` falla en Docker por lockfile desincronizado**: regenerar con `rm -rf node_modules package-lock.json && npm install`.
+9. **Dos URLs de BD (Neon)**: el runtime usa `DATABASE_URL` (pooled/pgbouncer) vía el adapter; el CLI de Prisma (migrate/seed/studio) usa `DATABASE_URL_UNPOOLED` (directa) — ya resuelto en `prisma.config.ts`. Las migraciones de producción las aplica el script `vercel-build` en cada deploy.
 
 ## Comandos
 
 ```bash
 npm run dev          # desarrollo (puerto 3000)
-npm run build        # build producción (output standalone)
+npm run build        # build producción
 npm run test         # vitest run
 npm run typecheck    # tsc --noEmit
 npx eslint src       # lint
 npm run db:migrate   # prisma migrate dev
 npm run db:seed      # crea los 2 usuarios desde .env (USER1_*/USER2_*)
 npm run db:studio    # inspector de BD
-docker compose up -d --build   # despliegue (volúmenes ./data y ./uploads)
+# despliegue: push a master → Vercel (migra + build vía script vercel-build)
 ```
 
 Credenciales de dev en `.env` (ver `.env.example`). Login en `/login`.
@@ -57,7 +56,7 @@ Credenciales de dev en `.env` (ver `.env.example`). Login en `/login`.
 - `src/app/[locale]/dashboard/{pedidos,gastos,materiales,patrones}/` — cada sección: `page.tsx` (listado), `nuevo/page.tsx` (alta), `*-form.tsx` (client, `useActionState`), `actions.ts` (server action con guard de sesión + parser de `lib/forms.ts`)
 - `src/lib/` — `prisma` (singleton), `auth`, `forms` (parsers FormData→datos), `files` (uploads), `money`, `validations`, `theme`, `ai/` (provider multi-LLM + contrato del patrón estandarizado)
 - `messages/{es,en}.json` — TODA cadena de UI pasa por aquí (ambos ficheros siempre a la vez)
-- `docker/` — entrypoint, seed de producción, config Prisma del contenedor
+- `deploy/README.md` — guía de despliegue (Vercel + Neon + Blob + OpenRouter)
 
 ## Convenciones
 

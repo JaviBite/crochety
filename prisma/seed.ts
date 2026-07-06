@@ -1,10 +1,16 @@
-import "dotenv/config";
+import { config as loadEnv } from "dotenv";
 import { hashSync } from "bcryptjs";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../src/generated/prisma/client";
 
+// Como Next: primero .env.development.local (lo escribe `vercel env pull`),
+// luego .env. dotenv no pisa variables ya definidas, así que gana el primero.
+loadEnv({ path: [".env.development.local", ".env"] });
+
 const adapter = new PrismaPg({
-  connectionString: process.env.DATABASE_URL,
+  // Script puntual: mejor la conexión directa (sin pgbouncer) si está definida.
+  connectionString:
+    process.env.DATABASE_URL_UNPOOLED ?? process.env.DATABASE_URL,
 });
 const prisma = new PrismaClient({ adapter });
 

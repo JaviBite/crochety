@@ -1,100 +1,83 @@
-# Despliegue en producción (Oracle Cloud Always Free)
+# Despliegue en producción (Vercel)
 
-Arquitectura: VM ARM Always Free de Oracle con `docker compose` (app + Caddy),
-imagen construida por GitHub Actions en ghcr.io y desplegada por SSH en cada
-push a `master`. Dominio gratuito de DuckDNS con HTTPS automático (Let's
-Encrypt vía Caddy). IA con OpenRouter (modelos gratuitos). Coste: 0 €.
+Arquitectura: **Vercel** (Hobby) para el hosting con deploy automático en cada
+push a `master`, **Neon Postgres** (free tier, vía Vercel Marketplace) como base
+de datos y **Vercel Blob** para los ficheros subidos. IA con **OpenRouter**
+(modelos gratuitos). Coste: 0 €.
 
-## 1. Crear la VM en Oracle Cloud
+> Nota: el plan Hobby de Vercel prohíbe formalmente el uso comercial. Para un
+> negocio pequeño el riesgo práctico es bajo; si crece, el plan Pro son 20 $/mes.
 
-1. Cuenta en [oracle.com/cloud/free](https://www.oracle.com/cloud/free/)
-   (pide tarjeta para verificar, pero el Always Free no cobra).
-2. Compute → Instances → Create: shape **VM.Standard.A1.Flex** (p. ej.
-   2 OCPU / 12 GB, dentro del límite Always Free de 4 OCPU / 24 GB), imagen
-   **Ubuntu 24.04 (aarch64)**, y sube tu clave SSH pública.
-   - Si da "Out of capacity": prueba otro Availability Domain u otra hora;
-     es la pega habitual del free tier.
-3. Networking → reservar una **IP pública estática** (gratis) y asignarla a
-   la VNIC de la instancia.
-4. Abrir puertos **80 y 443**, en los DOS sitios:
-   - VCN → Security List → Ingress Rules: TCP 80 y 443 desde `0.0.0.0/0`.
-   - Dentro de la VM (las imágenes de Oracle traen iptables restrictivo):
-     ```bash
-     sudo iptables -I INPUT 6 -p tcp --dport 80 -j ACCEPT
-     sudo iptables -I INPUT 6 -p tcp --dport 443 -j ACCEPT
-     sudo netfilter-persistent save
-     ```
+## 1. Proyecto en Vercel
 
-## 2. Preparar la VM
+1. Cuenta en [vercel.com](https://vercel.com) iniciando sesión **con GitHub**.
+2. **Add New → Project** → importar el repo `crochety`. Framework: Next.js
+   (autodetectado). No hace falta tocar el build: Vercel usa el script
+   `vercel-build` del package.json, que ejecuta `prisma migrate deploy` antes
+   de `next build` (las migraciones se aplican solas en cada deploy).
+3. No despliegues todavía (faltan BD y variables); si el primer deploy falla,
+   no pasa nada — se relanza al acabar la configuración.
 
-```bash
-# Docker + compose plugin
-curl -fsSL https://get.docker.com | sudo sh
-sudo usermod -aG docker $USER   # re-loguearse después
+## 2. Base de datos (Neon vía Marketplace)
 
-# La app vive en ~/crochety (clon del repo: el compose y el Caddyfile van por git)
-git clone https://github.com/JaviBite/crochety.git ~/crochety
-cd ~/crochety
-cp .env.example .env && nano .env
-```
+1. En el proyecto → pestaña **Storage** → **Create Database** → **Neon
+   (Postgres)** → plan **Free**.
+2. Al conectarla al proyecto, Vercel inyecta automáticamente `DATABASE_URL`
+   (pooled) y `DATABASE_URL_UNPOOLED` (directa) como variables de entorno.
+   El código ya usa la pooled en runtime y la directa para el CLI de Prisma
+   (ver `prisma.config.ts`).
 
-`.env` de producción — rellenar al menos:
+## 3. Ficheros (Vercel Blob)
 
-- `AUTH_SECRET` nuevo (`openssl rand -base64 32`)
-- `USER1_*` / `USER2_*` (credenciales reales del seed)
-- `AI_PROVIDER="openrouter"` + `OPENROUTER_API_KEY` (key en
-  [openrouter.ai/keys](https://openrouter.ai/keys); `AI_MODEL` por defecto usa
-  el router gratuito `openrouter/free`)
-- `DOMAIN` (paso 3)
+1. Pestaña **Storage** → **Create Database** → **Blob** (1 GB gratis).
+2. Al conectarlo, inyecta `BLOB_READ_WRITE_TOKEN`. Nada más que hacer.
 
-`DATABASE_URL` y `UPLOAD_DIR` los sobreescribe el compose; los datos quedan en
-`~/crochety/data` y `~/crochety/uploads` (volúmenes bind).
+## 4. Resto de variables de entorno
 
-## 3. Dominio gratuito (DuckDNS)
+En **Settings → Environment Variables** del proyecto añadir:
 
-1. En [duckdns.org](https://www.duckdns.org): crear subdominio (p. ej.
-   `zgzstitches`) apuntando a la IP reservada de la VM. Al ser IP estática no
-   hace falta cron de refresco.
-2. En `.env`: `DOMAIN="zgzstitches.duckdns.org"`.
+| Variable | Valor |
+|---|---|
+| `AUTH_SECRET` | `openssl rand -base64 32` (o `npx auth secret`) |
+| `AUTH_TRUST_HOST` | `true` |
+| `AI_PROVIDER` | `openrouter` |
+| `OPENROUTER_API_KEY` | key de [openrouter.ai/keys](https://openrouter.ai/keys) |
+| `USER1_NAME/EMAIL/PASSWORD` | credenciales del primer usuario (para el seed) |
+| `USER2_NAME/EMAIL/PASSWORD` | ídem del segundo |
 
-## 4. CI/CD con GitHub Actions
+`AI_MODEL` es opcional: por defecto usa `openrouter/free` (router automático de
+modelos gratuitos de OpenRouter).
 
-El workflow [.github/workflows/deploy.yml](../.github/workflows/deploy.yml)
-construye la imagen `linux/arm64`, la publica en `ghcr.io/javibite/crochety` y
-despliega por SSH. Configuración una sola vez:
+## 5. Primer deploy
 
-1. Clave SSH dedicada para el deploy:
-   ```bash
-   ssh-keygen -t ed25519 -f deploy_key -N ""
-   # la pública → ~/.ssh/authorized_keys de la VM
-   # la privada → secret DEPLOY_SSH_KEY
-   ```
-2. Secrets del repo (Settings → Secrets and variables → Actions):
-   `DEPLOY_HOST` (IP de la VM), `DEPLOY_USER` (`ubuntu`), `DEPLOY_SSH_KEY`.
-3. Si el paquete de ghcr es privado, en la VM: `docker login ghcr.io` con un
-   token clásico con scope `read:packages`. (Alternativa: hacer público el
-   paquete en la página del package de GitHub.)
-4. Push a `master` → build + deploy. Primer arranque:
-   `docker compose -f docker-compose.prod.yml up -d` a mano si no quieres
-   esperar al workflow.
+Push a `master` (o **Deployments → Redeploy**). El script `vercel-build` hace
+`migrate deploy` + `db seed` + `next build`: migraciones y usuarios (`USER1_*`/
+`USER2_*`) se aplican solos en cada deploy (el seed es un upsert idempotente).
+Login en `https://<proyecto>.vercel.app/login`.
 
-El entrypoint del contenedor ya ejecuta `migrate deploy` + seed en cada
-arranque, así que las migraciones nuevas se aplican solas.
+## 6. Desarrollo local
 
-## 5. Backup mínimo
+Ojo: las variables de la integración de Neon/Blob son **Sensitive** en Vercel,
+así que `vercel env pull` las descarga VACÍAS. Para el `.env` local:
 
-Cron diario en la VM (`crontab -e`):
+- `DATABASE_URL` / `DATABASE_URL_UNPOOLED`: cópialas de la consola de Neon
+  (Storage → tu BD → **Open in Neon** → Connection string). Mejor aún: crea un
+  **branch "dev"** en Neon (free) y usa su URL para no desarrollar contra
+  producción. Alternativa sin Neon: `docker run -d -p 5432:5432 -e
+  POSTGRES_PASSWORD=dev postgres:17` y
+  `DATABASE_URL=postgresql://postgres:dev@localhost:5432/postgres`.
+- `BLOB_READ_WRITE_TOKEN`: Storage → tu store de Blob → pestaña Settings/
+  Tokens, copia el token manualmente.
 
-```cron
-0 4 * * * cd ~/crochety && mkdir -p ~/backups && sqlite3 data/crochety.db ".backup '$HOME/backups/crochety-$(date +\%u).db'" && tar czf ~/backups/uploads-$(date +\%u).tar.gz uploads
-```
+## 7. Dominio
 
-(`%u` = día de la semana → rotación de 7 días. Requiere `sudo apt install sqlite3`.)
-Opcional futuro: `rclone` de `~/backups` a un almacenamiento gratuito externo.
+Por defecto: `https://<proyecto>.vercel.app` (gratis, con SSL). Si algún día hay
+dominio propio: Settings → Domains, y Vercel gestiona DNS + certificado.
 
-## Notas
+## Límites del free tier a vigilar
 
-- La imagen es **arm64**: si algún día se cambia a una VM x86, ajustar
-  `platforms:` en el workflow.
-- OpenRouter free tier: ~50 peticiones/día (1000 si alguna vez cargas 10 $ de
-  crédito una única vez) — de sobra para estandarizar patrones.
+- **Blob 1 GB**: comprimir fotos antes de subirlas alarga mucho la vida.
+- **Neon free**: 0,5 GB de datos y la BD "duerme" tras inactividad (el primer
+  request tarda ~1 s extra en despertar; irrelevante para 2 usuarias).
+- **OpenRouter free**: ~50 peticiones/día (1000 si se cargan 10 $ de crédito
+  una única vez).
