@@ -1,7 +1,0 @@
-# DOMAIN llega del entorno (definido en .env, p. ej. zgzstitches.duckdns.org).
-# Caddy emite y renueva el certificado Let's Encrypt automáticamente (HTTP-01),
-# por eso el puerto 80 debe estar abierto además del 443.
-{$DOMAIN} {
-	encode gzip
-	reverse_proxy crochety:3000
-}
