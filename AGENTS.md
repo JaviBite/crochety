@@ -69,7 +69,10 @@ Credenciales de dev en `.env` (ver `.env.example`). Login en `/login`.
 ## Pendiente (roadmap)
 
 - Editar/borrar en las 4 secciones (hoy solo alta + listado).
+- Apartado de perfil para modificar perfil de usuario
+- Apartado gestor usuarios para el admin (premite crea usuarios aqui)
 - Calculadora de precio sugerido por materiales del pedido (`OrderMaterial` ya existe).
 - Balance "quién debe a quién" fino en el dashboard.
 - colorthief para sugerir `colorHex` desde la foto del material.
 - Pipeline completo del agente IA de patrones: extracción de texto (unpdf/mammoth) + `standardizePattern()` (ya funcional dado el texto) + render del JSON estandarizado.
+- Editor de patrones online para los esntadarizados
