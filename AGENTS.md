@@ -30,7 +30,7 @@ Vercel + Neon Postgres + Vercel Blob (guía en `deploy/README.md`).
 4. **zod v4 + coerce**: `z.coerce.number()` convierte `null` a `0`; en uniones opcionales poner `z.null()` PRIMERO (ver `lib/forms.ts`).
 5. **Selects opcionales (Radix)**: no admiten `value=""`; se usa el centinela `NONE_VALUE` de `lib/forms.ts`.
 6. **`redirect()` de next-intl no está tipado como `never`**: en server actions hace falta un `return null` inalcanzable detrás.
-7. **Ficheros subidos**: viven en Vercel Blob (`lib/files.ts`; en la BD se persiste el pathname relativo tipo `orders/uuid.jpg`, igual que antes). Se sirven SIEMPRE vía el proxy `/api/files/[...path]` (la URL del blob no llega al cliente): los `patterns/` requieren sesión. En local hace falta `BLOB_READ_WRITE_TOKEN` (`vercel env pull`).
+7. **Ficheros subidos**: driver dual en `lib/files.ts` — Vercel Blob si hay `BLOB_READ_WRITE_TOKEN` (producción), disco local (`UPLOAD_DIR`, `./uploads`) si no (dev offline). En la BD se persiste el pathname relativo tipo `orders/uuid.jpg` en ambos casos. Se sirven SIEMPRE vía el proxy `/api/files/[...path]` (la URL interna no llega al cliente): los `patterns/` requieren sesión.
 8. **El acento de color** se persiste en la cookie `accent` y se lee en el layout servidor (`data-accent` en `<html>`) para evitar flash. Los 4 acentos viven en `globals.css`.
 9. **Dos URLs de BD (Neon)**: el runtime usa `DATABASE_URL` (pooled/pgbouncer) vía el adapter; el CLI de Prisma (migrate/seed/studio) usa `DATABASE_URL_UNPOOLED` (directa) — ya resuelto en `prisma.config.ts`. Las migraciones de producción las aplica el script `vercel-build` en cada deploy.
 
@@ -114,6 +114,7 @@ Organizado en fases para implementación incremental. `✅` = ya hecho.
   render del JSON estandarizado + orquestación de `aiStatus`
   (PENDING→PROCESSING→DONE/ERROR).
 - **Editor de patrones online** para los estandarizados.
+- **Permitir añadir patrones en batch** a partir de varios ficheros
 - **Calculadora de precio sugerido** por materiales del pedido (`OrderMaterial` ya
   existe).
 - **Perfil de usuario**: apartado para modificar el propio perfil.

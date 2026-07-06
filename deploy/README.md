@@ -55,19 +55,22 @@ Push a `master` (o **Deployments → Redeploy**). El script `vercel-build` hace
 `USER2_*`) se aplican solos en cada deploy (el seed es un upsert idempotente).
 Login en `https://<proyecto>.vercel.app/login`.
 
-## 6. Desarrollo local
+## 6. Desarrollo local (offline)
 
-Ojo: las variables de la integración de Neon/Blob son **Sensitive** en Vercel,
-así que `vercel env pull` las descarga VACÍAS. Para el `.env` local:
+El dev local no necesita ningún servicio de Vercel:
 
-- `DATABASE_URL` / `DATABASE_URL_UNPOOLED`: cópialas de la consola de Neon
-  (Storage → tu BD → **Open in Neon** → Connection string). Mejor aún: crea un
-  **branch "dev"** en Neon (free) y usa su URL para no desarrollar contra
-  producción. Alternativa sin Neon: `docker run -d -p 5432:5432 -e
-  POSTGRES_PASSWORD=dev postgres:17` y
-  `DATABASE_URL=postgresql://postgres:dev@localhost:5432/postgres`.
-- `BLOB_READ_WRITE_TOKEN`: Storage → tu store de Blob → pestaña Settings/
-  Tokens, copia el token manualmente.
+- **BD**: Postgres local en Docker —
+  `docker run --name crochety-pg -d -p 5432:5432 -e POSTGRES_PASSWORD=dev postgres:17`
+  y en `.env`: `DATABASE_URL=postgresql://postgres:dev@localhost:5432/postgres`.
+  Después `npm run db:migrate` + `npm run db:seed` (una vez).
+- **Uploads**: con `BLOB_READ_WRITE_TOKEN` vacío, `lib/files.ts` guarda en
+  `./uploads` (driver de disco). No hay que configurar nada.
+
+Si algún día se quiere desarrollar contra datos reales: las variables de la
+integración Neon/Blob son **Sensitive** en Vercel y `vercel env pull` las
+descarga VACÍAS — hay que copiar la connection string desde la consola de Neon
+(Storage → **Open in Neon**; mejor desde un branch "dev") y el token de Blob
+desde su pestaña de settings.
 
 ## 7. Dominio
 

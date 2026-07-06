@@ -1,15 +1,16 @@
 import path from "node:path";
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { EXT_TO_MIME, resolveUploadUrl } from "@/lib/files";
+import { EXT_TO_MIME, readUpload } from "@/lib/files";
 
 export const runtime = "nodejs";
 
 /**
- * GET /api/files/{kind}/{fichero} — sirve ficheros haciendo proxy de Vercel
- * Blob (la URL del blob nunca llega al cliente). Las imágenes son públicas
- * (la galería las necesita) y cacheables en el CDN; los ficheros de patrones
- * (PDF/DOCX) requieren sesión y no se cachean en compartido.
+ * GET /api/files/{kind}/{fichero} — sirve ficheros del almacenamiento de
+ * subidas (Vercel Blob en producción, disco en dev; la URL interna nunca
+ * llega al cliente). Las imágenes son públicas (la galería las necesita) y
+ * cacheables en el CDN; los ficheros de patrones (PDF/DOCX) requieren sesión
+ * y no se cachean en compartido.
  */
 export async function GET(
   _request: Request,
@@ -33,17 +34,12 @@ export async function GET(
     }
   }
 
-  const blobUrl = await resolveUploadUrl(relPath);
-  if (!blobUrl) {
+  const content = await readUpload(relPath);
+  if (!content) {
     return NextResponse.json({ error: "No encontrado" }, { status: 404 });
   }
 
-  const blob = await fetch(blobUrl);
-  if (!blob.ok || !blob.body) {
-    return NextResponse.json({ error: "No encontrado" }, { status: 404 });
-  }
-
-  return new Response(blob.body, {
+  return new Response(content, {
     headers: {
       "Content-Type": mime,
       "Cache-Control": isPattern

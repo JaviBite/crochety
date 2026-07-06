@@ -1,11 +1,22 @@
 import { randomUUID } from "node:crypto";
+import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { del, list, put } from "@vercel/blob";
 
-// Almacenamiento de subidas en Vercel Blob. En la BD se persiste el pathname
-// relativo dentro del store, p. ej. "orders/ckxyz.jpg" — el mismo contrato que
-// tenía el almacenamiento en disco. Requiere BLOB_READ_WRITE_TOKEN (en local:
-// `vercel env pull`).
+// Almacenamiento de subidas con dos drivers tras el mismo contrato (en la BD
+// se persiste siempre el pathname relativo, p. ej. "orders/ckxyz.jpg"):
+// - Vercel Blob cuando hay BLOB_READ_WRITE_TOKEN (producción/previews).
+// - Disco local (UPLOAD_DIR, ./uploads por defecto) sin token: desarrollo
+//   offline sin depender de servicios de Vercel.
+
+function hasBlobToken(): boolean {
+  return Boolean(process.env.BLOB_READ_WRITE_TOKEN);
+}
+
+// Se resuelve por llamada (no al importar) para poder cambiarla en tests.
+function uploadRoot(): string {
+  return path.resolve(process.env.UPLOAD_DIR ?? "./uploads");
+}
 
 export const UPLOAD_KINDS = ["materials", "orders", "patterns"] as const;
 export type UploadKind = (typeof UPLOAD_KINDS)[number];
@@ -42,8 +53,9 @@ export function isUploadKind(value: string): value is UploadKind {
 }
 
 // Forma exacta de un pathname generado por saveUpload: tipo conocido + UUID +
-// extensión conocida. Todo lo demás (traversal, prefijos arbitrarios del
-// store, nombres originales) se rechaza antes de tocar Blob.
+// extensión conocida. Todo lo demás (traversal, prefijos arbitrarios, nombres
+// originales) se rechaza antes de tocar el almacenamiento — también hace de
+// barrera anti-traversal para el driver de disco.
 const UPLOAD_PATH_RE = new RegExp(
   `^(${UPLOAD_KINDS.join("|")})/[0-9a-f-]{36}(${Object.keys(EXT_TO_MIME)
     .map((ext) => ext.replace(".", "\\."))
@@ -55,7 +67,7 @@ export function isValidUploadPath(relPath: string): boolean {
 }
 
 /**
- * Resuelve un pathname relativo (de la BD o de la URL) a la URL del blob.
+ * Resuelve un pathname relativo a la URL del blob (solo driver Blob).
  * Devuelve null si el pathname no tiene la forma generada por saveUpload o
  * no existe en el store.
  */
@@ -92,16 +104,45 @@ export async function saveUpload(kind: UploadKind, file: File): Promise<string> 
   const ext = isImage ? IMAGE_MIME_TO_EXT[file.type] : DOCUMENT_MIME_TO_EXT[file.type];
   const relPath = path.posix.join(kind, `${randomUUID()}${ext}`);
 
-  // El UUID ya hace la URL del blob no adivinable; el control de acceso fino
-  // (sesión para patrones) lo aplica /api/files, la única URL que ve el cliente.
-  await put(relPath, file, {
-    access: "public",
-    addRandomSuffix: false,
-    contentType: file.type,
-    cacheControlMaxAge: 31536000,
-  });
+  if (hasBlobToken()) {
+    // El UUID ya hace la URL del blob no adivinable; el control de acceso fino
+    // (sesión para patrones) lo aplica /api/files, la única URL que ve el cliente.
+    await put(relPath, file, {
+      access: "public",
+      addRandomSuffix: false,
+      contentType: file.type,
+      cacheControlMaxAge: 31536000,
+    });
+  } else {
+    const absPath = path.join(uploadRoot(), relPath);
+    await mkdir(path.dirname(absPath), { recursive: true });
+    await writeFile(absPath, Buffer.from(await file.arrayBuffer()));
+  }
 
   return relPath;
+}
+
+/**
+ * Devuelve el contenido de un fichero subido (stream con Blob, bytes con
+ * disco) o null si el pathname es inválido o no existe.
+ */
+export async function readUpload(
+  relPath: string,
+): Promise<ReadableStream<Uint8Array> | Uint8Array<ArrayBuffer> | null> {
+  if (!isValidUploadPath(relPath)) return null;
+
+  if (hasBlobToken()) {
+    const url = await resolveUploadUrl(relPath);
+    if (!url) return null;
+    const res = await fetch(url);
+    return res.ok && res.body ? res.body : null;
+  }
+
+  try {
+    return new Uint8Array(await readFile(path.join(uploadRoot(), relPath)));
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -112,12 +153,16 @@ export async function saveUpload(kind: UploadKind, file: File): Promise<string> 
 export async function deleteUpload(
   relPath: string | null | undefined,
 ): Promise<void> {
-  if (!relPath) return;
+  if (!relPath || !isValidUploadPath(relPath)) return;
   try {
-    const url = await resolveUploadUrl(relPath);
-    if (url) await del(url);
+    if (hasBlobToken()) {
+      const url = await resolveUploadUrl(relPath);
+      if (url) await del(url);
+    } else {
+      await unlink(path.join(uploadRoot(), relPath));
+    }
   } catch {
-    // fichero ausente o fallo de red en el borrado: no es un error fatal
+    // fichero ausente o fallo puntual del almacenamiento: no es un error fatal
   }
 }
 
