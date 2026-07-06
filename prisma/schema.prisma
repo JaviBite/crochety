@@ -4,7 +4,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
 }
 
 model User {
@@ -17,8 +17,9 @@ model User {
   expensesPaid   Expense[]
 }
 
-// Pedido. SQLite no soporta enums: status usa constantes validadas con zod
-// (src/lib/validations.ts). Dinero en céntimos (Int) para evitar redondeos.
+// Pedido. Estados/categorías como String validado con las constantes zod de
+// src/lib/validations.ts (herencia de SQLite; se mantiene por simplicidad).
+// Dinero en céntimos (Int) para evitar redondeos.
 model Order {
   id           String          @id @default(cuid())
   createdAt    DateTime        @default(now())
@@ -74,6 +75,18 @@ model Material {
   weight     String? // DK | WORSTED | ...
   createdAt  DateTime        @default(now())
   orders     OrderMaterial[]
+  tags       Tag[]           @relation("MaterialTags")
+}
+
+// Etiquetas libres para agrupar y filtrar materiales y patrones. m2m implícita
+// de Prisma (crea las tablas puente _MaterialTags / _PatternTags en SQLite).
+// El nombre se normaliza a minúsculas/trim en el parser antes de connectOrCreate.
+model Tag {
+  id        String     @id @default(cuid())
+  name      String     @unique
+  createdAt DateTime   @default(now())
+  materials Material[] @relation("MaterialTags")
+  patterns  Pattern[]  @relation("PatternTags")
 }
 
 // Gasto. totalCents se persiste (no solo quantity*unitPrice) para permitir
@@ -102,4 +115,5 @@ model Pattern {
   aiStatus            String   @default("NONE") // NONE | PENDING | PROCESSING | DONE | ERROR
   createdAt           DateTime @default(now())
   orders              Order[]
+  tags                Tag[]    @relation("PatternTags")
 }

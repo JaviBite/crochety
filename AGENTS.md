@@ -68,11 +68,67 @@ Credenciales de dev en `.env` (ver `.env.example`). Login en `/login`.
 
 ## Pendiente (roadmap)
 
-- Editar/borrar en las 4 secciones (hoy solo alta + listado).
-- Apartado de perfil para modificar perfil de usuario
-- Apartado gestor usuarios para el admin (premite crea usuarios aqui)
-- Calculadora de precio sugerido por materiales del pedido (`OrderMaterial` ya existe).
-- Balance "quién debe a quién" fino en el dashboard.
-- colorthief para sugerir `colorHex` desde la foto del material.
-- Pipeline completo del agente IA de patrones: extracción de texto (unpdf/mammoth) + `standardizePattern()` (ya funcional dado el texto) + render del JSON estandarizado.
-- Editor de patrones online para los esntadarizados
+Organizado en fases para implementación incremental. `✅` = ya hecho.
+
+### Fase A — Fundamentos transversales ✅
+
+- ✅ **CRUD completo**: editar/borrar en las 4 secciones. Cada `*-form.tsx` es
+  create/edit compartido (recibe la entidad opcional), con `editar/[id]/page.tsx`,
+  acciones `updateX`/`deleteX` y `RowActions` (editar + borrar con `AlertDialog`)
+  en los listados. `deleteUpload()` en `lib/files.ts` limpia ficheros huérfanos.
+- ✅ **Vistas lista/cuadrícula**: `ViewToggle` + `lib/view.ts` (cookie por sección,
+  leída en servidor sin flash). Aplicado a materiales y patrones (cuadrícula↔lista)
+  y pedidos (lista↔cuadrícula). Gastos se queda como libro contable (tabla) por
+  ser un registro puramente tabular.
+- ✅ **Tags/keywords** en materiales y patrones: modelo `Tag` normalizado (m2m
+  implícita Prisma), `TagInput` (chips), chips + filtro `?tag=` en los listados.
+  Helpers en `lib/tags.ts`.
+
+### Fase B — Imágenes y color
+
+- **Color dominante automático** del material desde la foto: extracción en cliente
+  con Canvas (sin dependencia de servidor), corregible con cuentagotas sobre la
+  propia imagen + selector de color. (Sustituye al plan previo con colorthief.)
+- **Foto de pedido terminado**: subir la foto del resultado; si no hay, usar como
+  fallback la portada del patrón asociado (listado, detalle y galería pública).
+- **Foto de patrón**: opcional al alta; si no se sube, derivarla del origen
+  (primera página del PDF / `og:image` de la web). Se apoya en la Fase D.
+
+### Fase C — Agente IA de gastos (multi-producto)
+
+- **Esquema multi-producto**: `Expense` pasa a ser la compra/recibo (fecha, quién
+  paga, tienda, total, imágenes) con `ExpenseItem[]` (artículo, cantidad, precio
+  ud., `→ Material` opcional). Migrar los gastos actuales a 1 ítem cada uno.
+- **Captura/texto → gasto por IA**: pegar una captura o el texto resumen del pedido
+  y que el agente (visión del proveedor) extraiga las líneas del gasto con
+  `generateObject`.
+- **Imágenes de compra**: subir imagen, o dar un enlace y que se descargue y se
+  guarde; **recorte en cliente** antes de mandar a la IA (recortar el producto de
+  una captura entera — la IA sola no acierta a recortar).
+- **Checkbox "añadir a materiales"**: al registrar la compra, alta automática en
+  inventario de los productos comprados (`ExpenseItem → Material`).
+
+### Fase D — IA de patrones y extras
+
+- **Pipeline IA de patrones**: extracción de texto (unpdf para PDF / mammoth para
+  DOCX / fetch para web) + `standardizePattern()` (ya funcional dado el texto) +
+  render del JSON estandarizado + orquestación de `aiStatus`
+  (PENDING→PROCESSING→DONE/ERROR).
+- **Editor de patrones online** para los estandarizados.
+- **Calculadora de precio sugerido** por materiales del pedido (`OrderMaterial` ya
+  existe).
+- **Perfil de usuario**: apartado para modificar el propio perfil.
+- **Gestor de usuarios** (admin): crear usuarios desde la app. Introduce el rol
+  `admin` en `User`.
+- **Panel de administración / ajustes** (solo admin): configuración editable en
+  runtime que hoy vive en `.env`: proveedor y modelo de IA (`AI_PROVIDER` /
+  `AI_MODEL`, claves API enmascaradas y nunca expuestas al cliente), datos del
+  taller (nombre/tagline de la landing, hoy hardcodeados), idioma y acento por
+  defecto, y ajustes de la galería pública. Requiere un modelo `Setting`
+  (clave-valor) leído en servidor con *fallback* a env, de forma que
+  `getAiProvider()`/`getModel()` consulten la BD primero.
+- **Balance fino "quién debe a quién"** en el dashboard.
+
+### Ya hecho
+
+- ✅ Galería pública tipo mampostería (Pinterest) con CSS columns en `/`.

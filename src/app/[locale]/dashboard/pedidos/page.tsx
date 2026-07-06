@@ -1,8 +1,17 @@
 import { Package, Plus } from "lucide-react";
 import { getFormatter, getLocale, getTranslations } from "next-intl/server";
+import { cookies } from "next/headers";
+import { RowActions } from "@/components/dashboard/row-actions";
+import { ViewToggle } from "@/components/dashboard/view-toggle";
 import { EmptyState } from "@/components/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -14,7 +23,12 @@ import {
 import { Link } from "@/i18n/navigation";
 import { formatCents } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
+import { parseView, viewCookieName } from "@/lib/view";
 import type { OrderStatus } from "@/lib/validations";
+import { deleteOrder } from "./actions";
+
+const BASE_PATH = "/dashboard/pedidos";
+const SECTION = "pedidos";
 
 const STATUS_CLASSES: Record<OrderStatus, string> = {
   SIN_EMPEZAR: "bg-muted text-muted-foreground",
@@ -39,6 +53,11 @@ export default async function OrdersPage() {
     },
   });
 
+  const view = parseView(
+    (await cookies()).get(viewCookieName(SECTION))?.value,
+    "list",
+  );
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -46,12 +65,15 @@ export default async function OrdersPage() {
           <h1 className="text-2xl font-bold tracking-tight">{t("title")}</h1>
           <p className="text-muted-foreground">{t("description")}</p>
         </div>
-        <Button asChild>
-          <Link href="/dashboard/pedidos/nuevo">
-            <Plus className="size-4" />
-            {t("add")}
-          </Link>
-        </Button>
+        <div className="flex items-center gap-2">
+          {orders.length > 0 && <ViewToggle section={SECTION} value={view} />}
+          <Button asChild>
+            <Link href="/dashboard/pedidos/nuevo">
+              <Plus className="size-4" />
+              {t("add")}
+            </Link>
+          </Button>
+        </div>
       </div>
 
       {orders.length === 0 ? (
@@ -60,7 +82,7 @@ export default async function OrdersPage() {
           title={t("emptyTitle")}
           description={t("emptyDescription")}
         />
-      ) : (
+      ) : view === "list" ? (
         <div className="overflow-x-auto rounded-2xl border bg-card shadow-sm">
           <Table>
             <TableHeader>
@@ -71,6 +93,7 @@ export default async function OrdersPage() {
                 <TableHead className="text-right">{t("colPrice")}</TableHead>
                 <TableHead>{t("colAssignedTo")}</TableHead>
                 <TableHead>{t("colDueDate")}</TableHead>
+                <TableHead className="w-10" />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -120,10 +143,75 @@ export default async function OrdersPage() {
                       ? format.dateTime(order.dueDate, { dateStyle: "medium" })
                       : "—"}
                   </TableCell>
+                  <TableCell className="text-right">
+                    <RowActions
+                      editHref={`${BASE_PATH}/editar/${order.id}`}
+                      deleteAction={deleteOrder.bind(null, order.id)}
+                    />
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
+        </div>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {orders.map((order) => (
+            <Card
+              key={order.id}
+              className="overflow-hidden rounded-2xl pt-0 shadow-sm"
+            >
+              {order.photos[0] ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={`/api/files/${order.photos[0].path}`}
+                  alt={order.name}
+                  className="h-40 w-full object-cover"
+                />
+              ) : (
+                <div className="flex h-40 w-full items-center justify-center bg-accent text-accent-foreground">
+                  <Package className="size-8" />
+                </div>
+              )}
+              <CardHeader className="pb-2">
+                <div className="flex items-start justify-between gap-2">
+                  <CardTitle className="text-base leading-snug">
+                    {order.name}
+                    {order.customer && (
+                      <span className="block text-xs font-normal text-muted-foreground">
+                        {t("forCustomer", { name: order.customer })}
+                      </span>
+                    )}
+                  </CardTitle>
+                  <div className="flex shrink-0 flex-col items-end gap-1.5">
+                    <Badge
+                      variant="outline"
+                      className={`border-transparent ${STATUS_CLASSES[order.status as OrderStatus] ?? ""}`}
+                    >
+                      {tStatus(order.status)}
+                    </Badge>
+                    <RowActions
+                      editHref={`${BASE_PATH}/editar/${order.id}`}
+                      deleteAction={deleteOrder.bind(null, order.id)}
+                    />
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-1 text-sm text-muted-foreground">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="tabular-nums">
+                    {order.quantity} · {formatCents(order.priceCents, locale)}
+                  </span>
+                  {order.assignedTo?.name && <span>{order.assignedTo.name}</span>}
+                </div>
+                {order.dueDate && (
+                  <p className="text-xs">
+                    {format.dateTime(order.dueDate, { dateStyle: "medium" })}
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          ))}
         </div>
       )}
     </div>

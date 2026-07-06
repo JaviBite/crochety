@@ -35,6 +35,19 @@ describe("getModel", () => {
     expect(() => getModel()).toThrow(/OPENAI_API_KEY/);
   });
 
+  it("falla con un mensaje claro si falta la API key de OpenRouter", () => {
+    vi.stubEnv("AI_PROVIDER", "openrouter");
+    vi.stubEnv("OPENROUTER_API_KEY", "");
+    expect(() => getModel()).toThrow(/OPENROUTER_API_KEY/);
+  });
+
+  it("crea el modelo de OpenRouter con la key presente", () => {
+    vi.stubEnv("AI_PROVIDER", "openrouter");
+    vi.stubEnv("OPENROUTER_API_KEY", "sk-or-test");
+    vi.stubEnv("AI_MODEL", "");
+    expect(getModel()).toBeTruthy();
+  });
+
   it("crea el modelo de Anthropic con la key presente", () => {
     vi.stubEnv("AI_PROVIDER", "anthropic");
     vi.stubEnv("ANTHROPIC_API_KEY", "sk-test");

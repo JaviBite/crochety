@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 // Raíz de subidas: en dev ./uploads, en Docker /app/uploads (volumen).
@@ -70,6 +70,24 @@ export async function saveUpload(kind: UploadKind, file: File): Promise<string> 
   await writeFile(absPath, Buffer.from(await file.arrayBuffer()));
 
   return relPath;
+}
+
+/**
+ * Borra un fichero subido a partir de su ruta relativa. Ignora rutas nulas,
+ * inválidas o ya inexistentes: borrar es best-effort (evita ficheros huérfanos
+ * al eliminar/reemplazar) y nunca debe tumbar la operación principal.
+ */
+export async function deleteUpload(
+  relPath: string | null | undefined,
+): Promise<void> {
+  if (!relPath) return;
+  const abs = resolveUploadPath(relPath);
+  if (!abs) return;
+  try {
+    await unlink(abs);
+  } catch {
+    // fichero ausente o ya borrado: no es un error
+  }
 }
 
 /**

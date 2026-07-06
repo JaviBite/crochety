@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { eurToCents } from "@/lib/money";
+import { parseTagNames } from "@/lib/tags";
 import {
   materialCategorySchema,
   orderStatusSchema,
@@ -180,7 +181,7 @@ const materialFormSchema = z.object({
 export type MaterialInput = Omit<
   z.infer<typeof materialFormSchema>,
   "priceEur"
-> & { priceCents: number };
+> & { priceCents: number; tags: string[] };
 
 export function parseMaterialForm(
   formData: FormData,
@@ -203,7 +204,14 @@ export function parseMaterialForm(
   if (!parsed.success) return { ok: false, error: firstIssue(parsed.error) };
 
   const { priceEur, ...rest } = parsed.data;
-  return { ok: true, data: { ...rest, priceCents: eurToCents(priceEur) } };
+  return {
+    ok: true,
+    data: {
+      ...rest,
+      priceCents: eurToCents(priceEur),
+      tags: parseTagNames(formData.get("tags")),
+    },
+  };
 }
 
 // --- Patrón --------------------------------------------------------------------
@@ -213,7 +221,9 @@ const patternFormSchema = z.object({
   externalUrl: z.union([z.null(), z.url("El enlace no es una URL válida")]),
 });
 
-export type PatternInput = z.infer<typeof patternFormSchema>;
+export type PatternInput = z.infer<typeof patternFormSchema> & {
+  tags: string[];
+};
 
 export function parsePatternForm(
   formData: FormData,
@@ -223,7 +233,10 @@ export function parsePatternForm(
     externalUrl: opt(formData.get("externalUrl")),
   });
   if (!parsed.success) return { ok: false, error: firstIssue(parsed.error) };
-  return { ok: true, data: parsed.data };
+  return {
+    ok: true,
+    data: { ...parsed.data, tags: parseTagNames(formData.get("tags")) },
+  };
 }
 
 /** Un File de un input vacío llega con size 0: se trata como "sin fichero". */

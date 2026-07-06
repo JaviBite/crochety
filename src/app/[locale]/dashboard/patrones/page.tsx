@@ -1,5 +1,9 @@
 import { ExternalLink, FileText, Plus, ScrollText } from "lucide-react";
 import { getTranslations } from "next-intl/server";
+import { cookies } from "next/headers";
+import { RowActions } from "@/components/dashboard/row-actions";
+import { TagChips, TagFilter } from "@/components/dashboard/tag-filter";
+import { ViewToggle } from "@/components/dashboard/view-toggle";
 import { EmptyState } from "@/components/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,7 +15,9 @@ import {
 } from "@/components/ui/card";
 import { Link } from "@/i18n/navigation";
 import { prisma } from "@/lib/prisma";
+import { parseView, viewCookieName } from "@/lib/view";
 import type { PatternAiStatus } from "@/lib/validations";
+import { deletePattern } from "./actions";
 
 const AI_STATUS_CLASSES: Record<PatternAiStatus, string> = {
   NONE: "bg-muted text-muted-foreground",
@@ -21,15 +27,35 @@ const AI_STATUS_CLASSES: Record<PatternAiStatus, string> = {
   ERROR: "bg-destructive/15 text-destructive",
 };
 
-export default async function PatternsPage() {
-  const [t, tAiStatus] = await Promise.all([
+const BASE_PATH = "/dashboard/patrones";
+const SECTION = "patrones";
+
+export default async function PatternsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tag?: string }>;
+}) {
+  const { tag } = await searchParams;
+  const activeTag = tag?.toLowerCase();
+  const view = parseView(
+    (await cookies()).get(viewCookieName(SECTION))?.value,
+    "grid",
+  );
+
+  const [t, tAiStatus, patterns, filterTags] = await Promise.all([
     getTranslations("Patterns"),
     getTranslations("PatternAiStatus"),
+    prisma.pattern.findMany({
+      where: activeTag ? { tags: { some: { name: activeTag } } } : undefined,
+      orderBy: { createdAt: "desc" },
+      include: { tags: { select: { name: true }, orderBy: { name: "asc" } } },
+    }),
+    prisma.tag.findMany({
+      where: { patterns: { some: {} } },
+      orderBy: { name: "asc" },
+      select: { name: true },
+    }),
   ]);
-
-  const patterns = await prisma.pattern.findMany({
-    orderBy: { createdAt: "desc" },
-  });
 
   return (
     <div className="space-y-6">
@@ -46,13 +72,24 @@ export default async function PatternsPage() {
         </Button>
       </div>
 
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex-1">
+          <TagFilter
+            tags={filterTags.map((tag) => tag.name)}
+            activeTag={activeTag}
+            basePath={BASE_PATH}
+          />
+        </div>
+        {patterns.length > 0 && <ViewToggle section={SECTION} value={view} />}
+      </div>
+
       {patterns.length === 0 ? (
         <EmptyState
           icon={ScrollText}
           title={t("emptyTitle")}
           description={t("emptyDescription")}
         />
-      ) : (
+      ) : view === "grid" ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {patterns.map((pattern) => (
             <Card key={pattern.id} className="overflow-hidden rounded-2xl pt-0 shadow-sm">
@@ -73,6 +110,74 @@ export default async function PatternsPage() {
                   <CardTitle className="text-base leading-snug">
                     {pattern.title}
                   </CardTitle>
+                  <div className="flex shrink-0 flex-col items-end gap-1.5">
+                    <Badge
+                      variant="outline"
+                      className={`border-transparent ${AI_STATUS_CLASSES[pattern.aiStatus as PatternAiStatus] ?? ""}`}
+                    >
+                      {tAiStatus(pattern.aiStatus)}
+                    </Badge>
+                    <RowActions
+                      editHref={`${BASE_PATH}/editar/${pattern.id}`}
+                      deleteAction={deletePattern.bind(null, pattern.id)}
+                    />
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm text-muted-foreground">
+                <div className="flex items-center gap-3">
+                  {pattern.filePath && (
+                    <a
+                      href={`/api/files/${pattern.filePath}`}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                      className="flex items-center gap-1 transition-colors hover:text-foreground"
+                    >
+                      <FileText className="size-3.5" />
+                      {t("viewFile")}
+                    </a>
+                  )}
+                  {pattern.externalUrl && (
+                    <a
+                      href={pattern.externalUrl}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                      className="flex items-center gap-1 transition-colors hover:text-foreground"
+                    >
+                      <ExternalLink className="size-3.5" />
+                      {t("viewLink")}
+                    </a>
+                  )}
+                  {!pattern.filePath && !pattern.externalUrl && (
+                    <span className="text-xs">{t("noSource")}</span>
+                  )}
+                </div>
+                <TagChips tags={pattern.tags} basePath={BASE_PATH} />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        <div className="divide-y overflow-hidden rounded-2xl border bg-card shadow-sm">
+          {patterns.map((pattern) => (
+            <div key={pattern.id} className="flex items-center gap-3 p-3">
+              {pattern.coverImagePath ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={`/api/files/${pattern.coverImagePath}`}
+                  alt={pattern.title}
+                  className="size-12 shrink-0 rounded-lg border object-cover"
+                />
+              ) : (
+                <span className="flex size-12 shrink-0 items-center justify-center rounded-lg bg-accent text-accent-foreground">
+                  <ScrollText className="size-5" />
+                </span>
+              )}
+              <div className="min-w-0 flex-1 space-y-1">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <span className="font-medium text-foreground">
+                    {pattern.title}
+                  </span>
                   <Badge
                     variant="outline"
                     className={`border-transparent ${AI_STATUS_CLASSES[pattern.aiStatus as PatternAiStatus] ?? ""}`}
@@ -80,35 +185,40 @@ export default async function PatternsPage() {
                     {tAiStatus(pattern.aiStatus)}
                   </Badge>
                 </div>
-              </CardHeader>
-              <CardContent className="flex items-center gap-3 text-sm text-muted-foreground">
-                {pattern.filePath && (
-                  <a
-                    href={`/api/files/${pattern.filePath}`}
-                    target="_blank"
-                    rel="noreferrer noopener"
-                    className="flex items-center gap-1 transition-colors hover:text-foreground"
-                  >
-                    <FileText className="size-3.5" />
-                    {t("viewFile")}
-                  </a>
-                )}
-                {pattern.externalUrl && (
-                  <a
-                    href={pattern.externalUrl}
-                    target="_blank"
-                    rel="noreferrer noopener"
-                    className="flex items-center gap-1 transition-colors hover:text-foreground"
-                  >
-                    <ExternalLink className="size-3.5" />
-                    {t("viewLink")}
-                  </a>
-                )}
-                {!pattern.filePath && !pattern.externalUrl && (
-                  <span className="text-xs">{t("noSource")}</span>
-                )}
-              </CardContent>
-            </Card>
+                <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                  {pattern.filePath && (
+                    <a
+                      href={`/api/files/${pattern.filePath}`}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                      className="flex items-center gap-1 transition-colors hover:text-foreground"
+                    >
+                      <FileText className="size-3.5" />
+                      {t("viewFile")}
+                    </a>
+                  )}
+                  {pattern.externalUrl && (
+                    <a
+                      href={pattern.externalUrl}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                      className="flex items-center gap-1 transition-colors hover:text-foreground"
+                    >
+                      <ExternalLink className="size-3.5" />
+                      {t("viewLink")}
+                    </a>
+                  )}
+                  {!pattern.filePath && !pattern.externalUrl && (
+                    <span className="text-xs">{t("noSource")}</span>
+                  )}
+                </div>
+                <TagChips tags={pattern.tags} basePath={BASE_PATH} />
+              </div>
+              <RowActions
+                editHref={`${BASE_PATH}/editar/${pattern.id}`}
+                deleteAction={deletePattern.bind(null, pattern.id)}
+              />
+            </div>
           ))}
         </div>
       )}

@@ -142,6 +142,15 @@ describe("parseMaterialForm", () => {
     expect(result.data.colorHex).toBe("#a3e2c8");
   });
 
+  it("normaliza los tags recibidos", () => {
+    const result = parseMaterialForm(
+      fd({ name: "Lana", category: "LANA", tags: "Verde, verde ,Suave" }),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.tags).toEqual(["verde", "suave"]);
+  });
+
   it("descarta el color si el checkbox no está marcado", () => {
     const result = parseMaterialForm(
       fd({ name: "Tijeras", category: "HERRAMIENTAS", colorHex: "#112233" }),
@@ -168,7 +177,11 @@ describe("parsePatternForm", () => {
     );
     expect(result).toEqual({
       ok: true,
-      data: { title: "Pulpo clásico", externalUrl: "https://example.com/patron" },
+      data: {
+        title: "Pulpo clásico",
+        externalUrl: "https://example.com/patron",
+        tags: [],
+      },
     });
   });
 

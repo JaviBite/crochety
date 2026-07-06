@@ -1,5 +1,6 @@
 import { ExternalLink, Plus, Receipt } from "lucide-react";
 import { getFormatter, getLocale, getTranslations } from "next-intl/server";
+import { RowActions } from "@/components/dashboard/row-actions";
 import { EmptyState } from "@/components/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,6 +15,9 @@ import {
 import { Link } from "@/i18n/navigation";
 import { formatCents } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
+import { deleteExpense } from "./actions";
+
+const BASE_PATH = "/dashboard/gastos";
 
 export default async function ExpensesPage() {
   const [t, locale, format] = await Promise.all([
@@ -60,6 +64,7 @@ export default async function ExpensesPage() {
                 <TableHead className="text-right">{t("colTotal")}</TableHead>
                 <TableHead>{t("colPaidBy")}</TableHead>
                 <TableHead>{t("colReceived")}</TableHead>
+                <TableHead className="w-10" />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -110,6 +115,12 @@ export default async function ExpensesPage() {
                     >
                       {expense.received ? t("received") : t("pending")}
                     </Badge>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <RowActions
+                      editHref={`${BASE_PATH}/editar/${expense.id}`}
+                      deleteAction={deleteExpense.bind(null, expense.id)}
+                    />
                   </TableCell>
                 </TableRow>
               ))}

@@ -1,0 +1,40 @@
+# Compose de producción (VM Oracle): imagen pre-construida de ghcr.io + Caddy
+# como reverse proxy con HTTPS automático. Uso:
+#   docker compose -f docker-compose.prod.yml up -d
+# Requiere en .env, además de las vars de la app: DOMAIN (p. ej. zgzstitches.duckdns.org)
+services:
+  crochety:
+    image: ghcr.io/javibite/crochety:latest
+    container_name: crochety
+    env_file: .env
+    environment:
+      # Rutas dentro del contenedor: sobreescriben las del .env de desarrollo.
+      DATABASE_URL: "file:/app/data/crochety.db"
+      UPLOAD_DIR: "/app/uploads"
+    volumes:
+      - ./data:/app/data
+      - ./uploads:/app/uploads
+    # Sin `ports`: solo accesible desde Caddy por la red interna de compose.
+    expose:
+      - "3000"
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2
+    container_name: crochety-caddy
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - crochety
+    restart: unless-stopped
+
+volumes:
+  caddy_data:
+  caddy_config:
