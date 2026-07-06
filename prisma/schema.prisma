@@ -1,0 +1,105 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id             String    @id @default(cuid())
+  name           String
+  email          String    @unique
+  passwordHash   String
+  createdAt      DateTime  @default(now())
+  ordersAssigned Order[]   @relation("AssignedOrders")
+  expensesPaid   Expense[]
+}
+
+// Pedido. SQLite no soporta enums: status usa constantes validadas con zod
+// (src/lib/validations.ts). Dinero en céntimos (Int) para evitar redondeos.
+model Order {
+  id           String          @id @default(cuid())
+  createdAt    DateTime        @default(now())
+  name         String
+  description  String?
+  quantity     Int             @default(1)
+  priceCents   Int             @default(0)
+  status       String          @default("SIN_EMPEZAR") // SIN_EMPEZAR | EMPEZADO | TERMINADO | COBRADO
+  customer     String? // para quién es el pedido
+  assignedToId String? // quién lo hace
+  assignedTo   User?           @relation("AssignedOrders", fields: [assignedToId], references: [id])
+  patternId    String?
+  pattern      Pattern?        @relation(fields: [patternId], references: [id])
+  dueDate      DateTime? // fecha de finalización prevista
+  completedAt  DateTime?
+  isPublic     Boolean         @default(false) // publicar en el portfolio público
+  photos       OrderPhoto[]
+  materials    OrderMaterial[]
+}
+
+model OrderPhoto {
+  id        String   @id @default(cuid())
+  orderId   String
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  path      String // relativo a UPLOAD_DIR
+  isCover   Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+// Materiales usados en un pedido: base de la calculadora de precio sugerido.
+model OrderMaterial {
+  orderId    String
+  materialId String
+  quantity   Float    @default(1) // unidades/ovillos usados
+  order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  material   Material @relation(fields: [materialId], references: [id])
+
+  @@id([orderId, materialId])
+}
+
+model Material {
+  id         String          @id @default(cuid())
+  name       String
+  photoPath  String?
+  link       String?
+  priceCents Int             @default(0)
+  stock      Float           @default(0)
+  location   String? // ubicación física
+  category   String // LANA | OJOS | RELLENO | HERRAMIENTAS | OTRO
+  colorHex   String? // color dominante extraído de la foto, validado por el usuario
+  brand      String? // opcionales, pensados para lanas
+  fiberType  String? // ALGODON | ACRILICO | VELVET | ...
+  weight     String? // DK | WORSTED | ...
+  createdAt  DateTime        @default(now())
+  orders     OrderMaterial[]
+}
+
+// Gasto. totalCents se persiste (no solo quantity*unitPrice) para permitir
+// ajustes manuales (envío, descuentos).
+model Expense {
+  id             String   @id @default(cuid())
+  date           DateTime @default(now())
+  item           String
+  link           String?
+  quantity       Int      @default(1)
+  unitPriceCents Int      @default(0)
+  totalCents     Int      @default(0)
+  paidById       String
+  paidBy         User     @relation(fields: [paidById], references: [id])
+  received       Boolean  @default(false)
+  notes          String?
+}
+
+model Pattern {
+  id                  String   @id @default(cuid())
+  title               String
+  coverImagePath      String?
+  filePath            String? // PDF/DOCX subido (relativo a UPLOAD_DIR)
+  externalUrl         String? // alternativa: link externo
+  standardizedContent String? // JSON producido por el agente IA (contrato en src/lib/ai)
+  aiStatus            String   @default("NONE") // NONE | PENDING | PROCESSING | DONE | ERROR
+  createdAt           DateTime @default(now())
+  orders              Order[]
+}

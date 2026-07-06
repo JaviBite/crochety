@@ -1,0 +1,86 @@
+{
+  "Common": {
+    "appName": "Zgz Stitches",
+    "loading": "Cargando…"
+  },
+  "Landing": {
+    "tagline": "Amigurumis y crochet hechos a mano en Zaragoza",
+    "emptyTitle": "Aún estamos tejiendo…",
+    "emptyDescription": "Muy pronto encontrarás aquí nuestras creaciones terminadas.",
+    "login": "Acceso"
+  },
+  "Login": {
+    "title": "Bienvenida de nuevo",
+    "subtitle": "Accede al panel de gestión",
+    "email": "Correo electrónico",
+    "password": "Contraseña",
+    "submit": "Entrar",
+    "submitting": "Entrando…",
+    "error": "Correo o contraseña incorrectos",
+    "backHome": "← Volver a la galería"
+  },
+  "Nav": {
+    "home": "Inicio",
+    "orders": "Pedidos",
+    "expenses": "Gastos",
+    "materials": "Materiales",
+    "patterns": "Patrones",
+    "signOut": "Cerrar sesión",
+    "openMenu": "Abrir menú"
+  },
+  "Dashboard": {
+    "greeting": "Hola, {name} 🧶",
+    "subtitle": "Así van las cuentas del taller",
+    "totalEarned": "Total ganado",
+    "totalEarnedHint": "Pedidos cobrados",
+    "totalSpent": "Total gastado",
+    "totalSpentHint": "Compras de material",
+    "profit": "Beneficio",
+    "profitHint": "Ganado − gastado",
+    "balanceTitle": "Balance personal",
+    "balanceDescription": "Lo que ha pagado y cobrado cada una",
+    "balancePaid": "Pagado en gastos",
+    "balanceEarned": "Cobrado en pedidos",
+    "balanceNet": "Neto"
+  },
+  "Orders": {
+    "title": "Pedidos",
+    "description": "Encargos en curso, terminados y cobrados",
+    "emptyTitle": "Sin pedidos todavía",
+    "emptyDescription": "Cuando registres un encargo aparecerá aquí."
+  },
+  "Expenses": {
+    "title": "Gastos",
+    "description": "Compras de material y quién las pagó",
+    "emptyTitle": "Sin gastos registrados",
+    "emptyDescription": "Apunta aquí cada compra para que las cuentas cuadren."
+  },
+  "Materials": {
+    "title": "Materiales",
+    "description": "Inventario de lanas, ojos, relleno y herramientas",
+    "emptyTitle": "El cesto está vacío",
+    "emptyDescription": "Añade tus lanas y materiales con su foto y color."
+  },
+  "Patterns": {
+    "title": "Patrones",
+    "description": "Tu biblioteca de patrones, estandarizados por IA",
+    "emptyTitle": "Sin patrones guardados",
+    "emptyDescription": "Sube un PDF o enlaza un patrón para empezar."
+  },
+  "Theme": {
+    "toggle": "Cambiar tema",
+    "light": "Claro",
+    "dark": "Oscuro",
+    "system": "Sistema",
+    "accent": "Color de acento",
+    "mint": "Menta",
+    "lavender": "Lavanda",
+    "peach": "Melocotón",
+    "sky": "Cielo"
+  },
+  "LocaleSwitcher": {
+    "label": "Idioma",
+    "es": "Español",
+    "en": "English"
+  }
+}

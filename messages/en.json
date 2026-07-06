@@ -1,0 +1,86 @@
+{
+  "Common": {
+    "appName": "Zgz Stitches",
+    "loading": "Loading…"
+  },
+  "Landing": {
+    "tagline": "Handmade amigurumi & crochet from Zaragoza",
+    "emptyTitle": "Still stitching…",
+    "emptyDescription": "Our finished creations will show up here very soon.",
+    "login": "Sign in"
+  },
+  "Login": {
+    "title": "Welcome back",
+    "subtitle": "Sign in to the management panel",
+    "email": "Email",
+    "password": "Password",
+    "submit": "Sign in",
+    "submitting": "Signing in…",
+    "error": "Wrong email or password",
+    "backHome": "← Back to the gallery"
+  },
+  "Nav": {
+    "home": "Home",
+    "orders": "Orders",
+    "expenses": "Expenses",
+    "materials": "Materials",
+    "patterns": "Patterns",
+    "signOut": "Sign out",
+    "openMenu": "Open menu"
+  },
+  "Dashboard": {
+    "greeting": "Hi, {name} 🧶",
+    "subtitle": "Here's how the workshop is doing",
+    "totalEarned": "Total earned",
+    "totalEarnedHint": "Paid orders",
+    "totalSpent": "Total spent",
+    "totalSpentHint": "Material purchases",
+    "profit": "Profit",
+    "profitHint": "Earned − spent",
+    "balanceTitle": "Personal balance",
+    "balanceDescription": "What each of us has paid and collected",
+    "balancePaid": "Paid in expenses",
+    "balanceEarned": "Collected from orders",
+    "balanceNet": "Net"
+  },
+  "Orders": {
+    "title": "Orders",
+    "description": "Commissions in progress, finished and paid",
+    "emptyTitle": "No orders yet",
+    "emptyDescription": "Register a commission and it will show up here."
+  },
+  "Expenses": {
+    "title": "Expenses",
+    "description": "Material purchases and who paid for them",
+    "emptyTitle": "No expenses recorded",
+    "emptyDescription": "Log every purchase here to keep the books straight."
+  },
+  "Materials": {
+    "title": "Materials",
+    "description": "Inventory of yarn, eyes, stuffing and tools",
+    "emptyTitle": "The basket is empty",
+    "emptyDescription": "Add your yarns and materials with a photo and color."
+  },
+  "Patterns": {
+    "title": "Patterns",
+    "description": "Your pattern library, standardized by AI",
+    "emptyTitle": "No patterns saved",
+    "emptyDescription": "Upload a PDF or link a pattern to get started."
+  },
+  "Theme": {
+    "toggle": "Toggle theme",
+    "light": "Light",
+    "dark": "Dark",
+    "system": "System",
+    "accent": "Accent color",
+    "mint": "Mint",
+    "lavender": "Lavender",
+    "peach": "Peach",
+    "sky": "Sky"
+  },
+  "LocaleSwitcher": {
+    "label": "Language",
+    "es": "Español",
+    "en": "English"
+  }
+}

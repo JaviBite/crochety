@@ -1,0 +1,13 @@
+node_modules
+.next
+.git
+data
+uploads
+.env
+.env.*
+!.env.example
+*.md
+.vscode
+.idea
+src/generated
+coverage

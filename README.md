@@ -1,36 +1,73 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 🧶 Crochety — Zgz Stitches
 
-## Getting Started
+Plataforma para gestionar nuestro pequeño negocio de crochet/amigurumis: pedidos,
+gastos, balances, inventario de materiales y patrones estandarizados por IA.
+Portfolio público estilo Pinterest en `/`, panel de gestión protegido en `/dashboard`.
 
-First, run the development server:
+## Stack
+
+- **Next.js 16** (App Router, TypeScript, `output: standalone`)
+- **Tailwind CSS v4 + shadcn/ui** — modo claro/oscuro + 4 acentos (menta, lavanda, melocotón, cielo)
+- **next-intl** — UI bilingüe: español (por defecto, sin prefijo) e inglés (`/en`)
+- **SQLite + Prisma 7** (adapter better-sqlite3) — un solo fichero en `data/`
+- **Auth.js v5** — login con credenciales, sesión JWT, registro deshabilitado
+- **Vercel AI SDK** — proveedor LLM configurable: Anthropic (por defecto), OpenAI u Ollama
+
+## Desarrollo
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cp .env.example .env        # rellena AUTH_SECRET y los USER1_/USER2_
+npm install                 # postinstall ejecuta prisma generate
+npx prisma migrate dev      # crea data/crochety.db
+npm run db:seed             # crea los 2 usuarios del .env
+npm run dev                 # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+- `/` galería pública (español) · `/en` en inglés
+- `/login` acceso al panel · `/dashboard` protegido por sesión
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Scripts
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Script | Qué hace |
+|---|---|
+| `npm run dev` / `build` / `start` | Next.js |
+| `npm run db:migrate` | `prisma migrate dev` |
+| `npm run db:seed` | crea/actualiza los 2 usuarios desde `.env` |
+| `npm run db:studio` | inspector visual de la BD |
+| `npm run test` | tests unitarios (Vitest) |
+| `npm run typecheck` | `tsc --noEmit` |
 
-## Learn More
+## Despliegue con Docker
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+cp .env.example .env        # AUTH_SECRET real + credenciales de usuarios
+docker compose up --build -d
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+El contenedor aplica las migraciones y siembra los usuarios en cada arranque
+(idempotente). Datos persistentes en el host:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- `./data/` → base de datos SQLite
+- `./uploads/` → fotos y PDFs de patrones
 
-## Deploy on Vercel
+## Variables de entorno
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Ver [.env.example](.env.example). Las claves de IA (`ANTHROPIC_API_KEY`, …) solo
+se usan en el servidor; el proveedor y modelo se eligen con `AI_PROVIDER` y
+`AI_MODEL` sin tocar código.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Estructura
+
+```
+src/
+├── app/[locale]/(public)/   # galería pública + login
+├── app/[locale]/dashboard/  # zona protegida (pedidos, gastos, materiales, patrones)
+├── app/api/                 # auth, subida y servicio de ficheros
+├── components/              # ui (shadcn), theme, dashboard
+├── i18n/                    # config next-intl (es/en)
+├── lib/                     # prisma, auth, money, validations, files, ai/
+└── proxy.ts                 # protección de rutas + routing de locale
+prisma/                      # schema, migraciones, seed
+docker/                      # entrypoint, seed de producción, config prisma
+messages/                    # es.json, en.json
+```
