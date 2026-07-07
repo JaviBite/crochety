@@ -33,6 +33,7 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 !.env.example
+deploy/selfhosted.env
 
 # datos locales (SQLite) y ficheros subidos — van en volúmenes Docker
 /data

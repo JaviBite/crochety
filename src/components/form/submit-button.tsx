@@ -4,12 +4,12 @@ import { useFormStatus } from "react-dom";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 
-export function SubmitButton() {
+export function SubmitButton({ disabled = false }: { disabled?: boolean }) {
   const t = useTranslations("Forms");
   const { pending } = useFormStatus();
 
   return (
-    <Button type="submit" disabled={pending}>
+    <Button type="submit" disabled={pending || disabled}>
       {pending ? t("saving") : t("save")}
     </Button>
   );

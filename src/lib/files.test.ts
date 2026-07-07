@@ -11,13 +11,12 @@ import {
   it,
   vi,
 } from "vitest";
-import { del, list, put } from "@vercel/blob";
+import { del, get, put } from "@vercel/blob";
 import {
   deleteUpload,
   isValidUploadPath,
   MAX_IMAGE_BYTES,
   readUpload,
-  resolveUploadUrl,
   saveUpload,
   UploadError,
 } from "./files";
@@ -26,12 +25,12 @@ import {
 vi.mock("@vercel/blob", () => ({
   put: vi.fn(),
   del: vi.fn(),
-  list: vi.fn(),
+  get: vi.fn(),
 }));
 
 const putMock = vi.mocked(put);
 const delMock = vi.mocked(del);
-const listMock = vi.mocked(list);
+const getMock = vi.mocked(get);
 
 const UUID = "123e4567-e89b-42d3-a456-426614174000";
 
@@ -114,32 +113,29 @@ describe("driver Vercel Blob (con BLOB_READ_WRITE_TOKEN)", () => {
     );
   });
 
-  it("resolveUploadUrl devuelve la URL del blob cuando el pathname existe", async () => {
+  it("readUpload devuelve el stream del blob por su pathname", async () => {
     const relPath = `orders/${UUID}.jpg`;
-    listMock.mockResolvedValue({
-      blobs: [{ pathname: relPath, url: "https://store.blob/orders/x.jpg" }],
-    } as Awaited<ReturnType<typeof list>>);
-    await expect(resolveUploadUrl(relPath)).resolves.toBe(
-      "https://store.blob/orders/x.jpg",
-    );
-    expect(listMock).toHaveBeenCalledWith({ prefix: relPath, limit: 1 });
-  });
-
-  it("resolveUploadUrl devuelve null si el blob no existe o el path es inválido", async () => {
-    listMock.mockResolvedValue({ blobs: [] } as unknown as Awaited<
-      ReturnType<typeof list>
+    const stream = new ReadableStream<Uint8Array>();
+    getMock.mockResolvedValue({ statusCode: 200, stream } as Awaited<
+      ReturnType<typeof get>
     >);
-    await expect(resolveUploadUrl(`orders/${UUID}.jpg`)).resolves.toBeNull();
-    await expect(resolveUploadUrl("../secreto.txt")).resolves.toBeNull();
+    await expect(readUpload(relPath)).resolves.toBe(stream);
+    expect(getMock).toHaveBeenCalledWith(
+      relPath,
+      expect.objectContaining({ access: expect.any(String) }),
+    );
   });
 
-  it("deleteUpload borra el blob resuelto por su pathname", async () => {
+  it("readUpload devuelve null si el blob no existe o el path es inválido", async () => {
+    getMock.mockResolvedValue(null);
+    await expect(readUpload(`orders/${UUID}.jpg`)).resolves.toBeNull();
+    await expect(readUpload("../secreto.txt")).resolves.toBeNull();
+  });
+
+  it("deleteUpload borra el blob por su pathname (idempotente)", async () => {
     const relPath = `orders/${UUID}.jpg`;
-    listMock.mockResolvedValue({
-      blobs: [{ pathname: relPath, url: "https://store.blob/orders/x.jpg" }],
-    } as Awaited<ReturnType<typeof list>>);
     await deleteUpload(relPath);
-    expect(delMock).toHaveBeenCalledWith("https://store.blob/orders/x.jpg");
+    expect(delMock).toHaveBeenCalledWith(relPath);
   });
 
   it("deleteUpload ignora rutas nulas o inexistentes y no propaga errores", async () => {
@@ -147,8 +143,37 @@ describe("driver Vercel Blob (con BLOB_READ_WRITE_TOKEN)", () => {
     await deleteUpload(undefined);
     expect(delMock).not.toHaveBeenCalled();
 
-    listMock.mockRejectedValue(new Error("network down"));
+    delMock.mockRejectedValue(new Error("network down"));
     await expect(deleteUpload(`orders/${UUID}.jpg`)).resolves.toBeUndefined();
+  });
+
+  // Este test cambia el modo memorizado a "private": va el último del bloque.
+  it("saveUpload reintenta con access private cuando el store es privado", async () => {
+    putMock.mockRejectedValueOnce(
+      new Error(
+        "Vercel Blob: Cannot use public access on a private store. The store is configured with private access.",
+      ),
+    );
+    putMock.mockResolvedValueOnce({} as Awaited<ReturnType<typeof put>>);
+
+    const file = new File([Buffer.from("fake-png")], "foto.png", {
+      type: "image/png",
+    });
+    const relPath = await saveUpload("orders", file);
+
+    expect(putMock).toHaveBeenCalledTimes(2);
+    expect(putMock).toHaveBeenNthCalledWith(
+      1,
+      relPath,
+      file,
+      expect.objectContaining({ access: "public" }),
+    );
+    expect(putMock).toHaveBeenNthCalledWith(
+      2,
+      relPath,
+      file,
+      expect.objectContaining({ access: "private" }),
+    );
   });
 });
 

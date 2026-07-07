@@ -17,6 +17,7 @@ export default async function EditExpensePage({
         items: {
           select: { item: true, quantity: true, unitPriceCents: true, link: true },
         },
+        photos: { select: { path: true } },
       },
     }),
     prisma.user.findMany({
@@ -45,6 +46,7 @@ export default async function EditExpensePage({
           received: expense.received,
           notes: expense.notes,
           items: expense.items,
+          photos: expense.photos,
         }}
       />
     </div>

@@ -5,7 +5,6 @@ import { RowActions } from "@/components/dashboard/row-actions";
 import { TagChips, TagFilter } from "@/components/dashboard/tag-filter";
 import { ViewToggle } from "@/components/dashboard/view-toggle";
 import { EmptyState } from "@/components/empty-state";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -16,16 +15,8 @@ import {
 import { Link } from "@/i18n/navigation";
 import { prisma } from "@/lib/prisma";
 import { parseView, viewCookieName } from "@/lib/view";
-import type { PatternAiStatus } from "@/lib/validations";
 import { deletePattern } from "./actions";
-
-const AI_STATUS_CLASSES: Record<PatternAiStatus, string> = {
-  NONE: "bg-muted text-muted-foreground",
-  PENDING: "bg-accent text-accent-foreground",
-  PROCESSING: "bg-accent text-accent-foreground",
-  DONE: "bg-primary/15 text-primary",
-  ERROR: "bg-destructive/15 text-destructive",
-};
+import { AiStatusBadge } from "./ai-status-badge";
 
 const BASE_PATH = "/dashboard/patrones";
 const SECTION = "patrones";
@@ -42,9 +33,8 @@ export default async function PatternsPage({
     "grid",
   );
 
-  const [t, tAiStatus, patterns, filterTags] = await Promise.all([
+  const [t, patterns, filterTags] = await Promise.all([
     getTranslations("Patterns"),
-    getTranslations("PatternAiStatus"),
     prisma.pattern.findMany({
       where: activeTag ? { tags: { some: { name: activeTag } } } : undefined,
       orderBy: { createdAt: "desc" },
@@ -108,15 +98,15 @@ export default async function PatternsPage({
               <CardHeader className="pb-2">
                 <div className="flex items-start justify-between gap-2">
                   <CardTitle className="text-base leading-snug">
-                    {pattern.title}
+                    <Link
+                      href={`${BASE_PATH}/${pattern.id}`}
+                      className="hover:underline"
+                    >
+                      {pattern.title}
+                    </Link>
                   </CardTitle>
                   <div className="flex shrink-0 flex-col items-end gap-1.5">
-                    <Badge
-                      variant="outline"
-                      className={`border-transparent ${AI_STATUS_CLASSES[pattern.aiStatus as PatternAiStatus] ?? ""}`}
-                    >
-                      {tAiStatus(pattern.aiStatus)}
-                    </Badge>
+                    <AiStatusBadge status={pattern.aiStatus} />
                     <RowActions
                       editHref={`${BASE_PATH}/editar/${pattern.id}`}
                       deleteAction={deletePattern.bind(null, pattern.id)}
@@ -175,15 +165,13 @@ export default async function PatternsPage({
               )}
               <div className="min-w-0 flex-1 space-y-1">
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                  <span className="font-medium text-foreground">
-                    {pattern.title}
-                  </span>
-                  <Badge
-                    variant="outline"
-                    className={`border-transparent ${AI_STATUS_CLASSES[pattern.aiStatus as PatternAiStatus] ?? ""}`}
+                  <Link
+                    href={`${BASE_PATH}/${pattern.id}`}
+                    className="font-medium text-foreground hover:underline"
                   >
-                    {tAiStatus(pattern.aiStatus)}
-                  </Badge>
+                    {pattern.title}
+                  </Link>
+                  <AiStatusBadge status={pattern.aiStatus} />
                 </div>
                 <div className="flex items-center gap-3 text-sm text-muted-foreground">
                   {pattern.filePath && (

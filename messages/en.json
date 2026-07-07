@@ -61,7 +61,9 @@
     "deleteConfirmAction": "Yes, delete",
     "deleting": "Deleting…",
     "viewGrid": "Grid",
-    "viewList": "List"
+    "viewList": "List",
+    "uploading": "Uploading…",
+    "uploadFailed": "Could not upload the file"
   },
   "OrderStatus": {
     "SIN_EMPEZAR": "Not started",
@@ -160,7 +162,13 @@
     "colReceived": "Delivery",
     "cropSelection": "Crop selection",
     "cropFull": "Use full image",
-    "cropHint": "Drag over the image to frame the product before the AI."
+    "cropHint": "Drag over the image to frame the product before the AI.",
+    "photosTitle": "Purchase photos",
+    "photosAdd": "Upload image",
+    "photosUploading": "Uploading…",
+    "photosLinkPlaceholder": "…or paste an image link",
+    "photosAddLink": "Add link",
+    "photosHint": "Saved with the purchase (private)."
   },
   "Materials": {
     "title": "Materials",
@@ -202,12 +210,44 @@
     "editDescription": "Update the pattern details",
     "fieldTitle": "Title",
     "fieldFile": "File (PDF or DOCX)",
-    "fileHint": "The AI agent will standardize it in an upcoming version.",
+    "fileHint": "It will be standardized automatically with AI on save.",
     "fieldExternalUrl": "External link",
     "fieldCover": "Cover image",
+    "coverHint": "If you don't upload one, it will be derived from the PDF or the link.",
     "viewFile": "View file",
     "viewLink": "View link",
-    "noSource": "No file or link"
+    "noSource": "No file or link",
+    "detailBack": "Back to patterns",
+    "standardize": "Standardize with AI",
+    "restandardize": "Re-standardize",
+    "retryStandardize": "Retry standardization",
+    "standardizing": "Standardizing…",
+    "standardizeNoSource": "Add a file or a link to standardize it.",
+    "standardizedEmptyTitle": "No standardized version yet",
+    "standardizedEmptyDescription": "The AI converts the pattern into a uniform format: materials, abbreviations and numbered rounds.",
+    "standardizedProcessing": "The AI is processing this pattern; check back in a few seconds.",
+    "metaLanguage": "Language",
+    "metaDifficulty": "Difficulty",
+    "metaHook": "Hook",
+    "hookMm": "{size} mm",
+    "materialsTitle": "Materials",
+    "abbreviationsTitle": "Abbreviations",
+    "colAbbr": "Abbr.",
+    "colMeaning": "Meaning",
+    "colRound": "Round",
+    "colInstruction": "Instruction",
+    "colStitches": "Stitches",
+    "sectionNotesLabel": "Notes",
+    "assemblyTitle": "Assembly & finishing"
+  },
+  "PatternDifficulty": {
+    "principiante": "Beginner",
+    "intermedio": "Intermediate",
+    "avanzado": "Advanced"
+  },
+  "PatternLanguage": {
+    "es": "Spanish",
+    "en": "English"
   },
   "Theme": {
     "toggle": "Toggle theme",

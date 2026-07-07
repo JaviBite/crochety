@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { del, list, put } from "@vercel/blob";
+import { del, get, put } from "@vercel/blob";
 
 // Almacenamiento de subidas con dos drivers tras el mismo contrato (en la BD
 // se persiste siempre el pathname relativo, p. ej. "orders/ckxyz.jpg"):
@@ -13,12 +13,38 @@ function hasBlobToken(): boolean {
   return Boolean(process.env.BLOB_READ_WRITE_TOKEN);
 }
 
+// Modo de acceso del store de Blob: los stores clásicos son públicos, pero los
+// nuevos pueden crearse privados y el SDK exige que cada operación coincida
+// con el modo real. Se asume "public" y, si el store contesta que es del otro
+// tipo, se cambia y se memoriza para el resto del proceso. Da igual el modo:
+// el cliente solo ve /api/files, que aplica el control de acceso fino.
+let blobAccess: "public" | "private" = "public";
+
+function isWrongAccessError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    /access on a (public|private) store/i.test(error.message)
+  );
+}
+
+async function withStoreAccess<T>(
+  operation: (access: "public" | "private") => Promise<T>,
+): Promise<T> {
+  try {
+    return await operation(blobAccess);
+  } catch (error) {
+    if (!isWrongAccessError(error)) throw error;
+    blobAccess = blobAccess === "public" ? "private" : "public";
+    return operation(blobAccess);
+  }
+}
+
 // Se resuelve por llamada (no al importar) para poder cambiarla en tests.
 function uploadRoot(): string {
   return path.resolve(process.env.UPLOAD_DIR ?? "./uploads");
 }
 
-export const UPLOAD_KINDS = ["materials", "orders", "patterns"] as const;
+export const UPLOAD_KINDS = ["materials", "orders", "patterns", "expenses"] as const;
 export type UploadKind = (typeof UPLOAD_KINDS)[number];
 
 export const IMAGE_MIME_TO_EXT: Record<string, string> = {
@@ -67,18 +93,6 @@ export function isValidUploadPath(relPath: string): boolean {
 }
 
 /**
- * Resuelve un pathname relativo a la URL del blob (solo driver Blob).
- * Devuelve null si el pathname no tiene la forma generada por saveUpload o
- * no existe en el store.
- */
-export async function resolveUploadUrl(relPath: string): Promise<string | null> {
-  if (!isValidUploadPath(relPath)) return null;
-  const { blobs } = await list({ prefix: relPath, limit: 1 });
-  const blob = blobs[0];
-  return blob && blob.pathname === relPath ? blob.url : null;
-}
-
-/**
  * Sube un fichero con nombre generado (nunca el nombre original) dentro de la
  * subcarpeta del tipo. Devuelve el pathname relativo, p. ej. "orders/ckxyz.jpg"
  * — es lo que se persiste en la BD.
@@ -106,13 +120,16 @@ export async function saveUpload(kind: UploadKind, file: File): Promise<string> 
 
   if (hasBlobToken()) {
     // El UUID ya hace la URL del blob no adivinable; el control de acceso fino
-    // (sesión para patrones) lo aplica /api/files, la única URL que ve el cliente.
-    await put(relPath, file, {
-      access: "public",
-      addRandomSuffix: false,
-      contentType: file.type,
-      cacheControlMaxAge: 31536000,
-    });
+    // (sesión para documentos de patrones y fotos de compra) lo aplica
+    // /api/files, la única URL que ve el cliente.
+    await withStoreAccess((access) =>
+      put(relPath, file, {
+        access,
+        addRandomSuffix: false,
+        contentType: file.type,
+        cacheControlMaxAge: 31536000,
+      }),
+    );
   } else {
     const absPath = path.join(uploadRoot(), relPath);
     await mkdir(path.dirname(absPath), { recursive: true });
@@ -132,10 +149,10 @@ export async function readUpload(
   if (!isValidUploadPath(relPath)) return null;
 
   if (hasBlobToken()) {
-    const url = await resolveUploadUrl(relPath);
-    if (!url) return null;
-    const res = await fetch(url);
-    return res.ok && res.body ? res.body : null;
+    // get() acepta el pathname directamente (con el token): una sola llamada
+    // y funciona igual en stores públicos y privados.
+    const result = await withStoreAccess((access) => get(relPath, { access }));
+    return result?.stream ?? null;
   }
 
   try {
@@ -156,8 +173,8 @@ export async function deleteUpload(
   if (!relPath || !isValidUploadPath(relPath)) return;
   try {
     if (hasBlobToken()) {
-      const url = await resolveUploadUrl(relPath);
-      if (url) await del(url);
+      // del() acepta el pathname y es idempotente (borrar algo ausente no falla).
+      await del(relPath);
     } else {
       await unlink(path.join(uploadRoot(), relPath));
     }

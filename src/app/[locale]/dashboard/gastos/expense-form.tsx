@@ -1,6 +1,6 @@
 "use client";
 
-import { ImagePlus, Plus, Sparkles, Trash2 } from "lucide-react";
+import { ImagePlus, Plus, Sparkles, Trash2, X } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { type ChangeEvent, useActionState, useRef, useState, useTransition } from "react";
 import { ImageCropper } from "@/components/form/image-cropper";
@@ -46,6 +46,7 @@ export type ExpenseFormValues = {
     unitPriceCents: number;
     link: string | null;
   }[];
+  photos: { path: string }[];
 };
 
 function toDateInputValue(date: Date): string {
@@ -107,6 +108,15 @@ export function ExpenseForm({
   const [extracting, startExtract] = useTransition();
   const fileRef = useRef<HTMLInputElement>(null);
 
+  const [photoPaths, setPhotoPaths] = useState<string[]>(
+    () => expense?.photos.map((photo) => photo.path) ?? [],
+  );
+  const [photoLinks, setPhotoLinks] = useState<string[]>([]);
+  const [linkInput, setLinkInput] = useState("");
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
+  const photoFileRef = useRef<HTMLInputElement>(null);
+
   const defaultDate = expense
     ? toDateInputValue(expense.date)
     : new Date().toISOString().slice(0, 10);
@@ -163,6 +173,40 @@ export function ExpenseForm({
     });
   }
 
+  async function onPickPhoto(event: ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(event.target.files ?? []);
+    event.target.value = "";
+    if (files.length === 0) return;
+    setPhotoError(null);
+    setUploadingPhoto(true);
+    try {
+      for (const file of files) {
+        const body = new FormData();
+        body.set("file", file);
+        body.set("kind", "expenses");
+        const res = await fetch("/api/uploads", { method: "POST", body });
+        const data = (await res.json().catch(() => null)) as
+          | { path?: string; error?: string }
+          | null;
+        if (res.ok && data?.path) {
+          const path = data.path;
+          setPhotoPaths((prev) => [...prev, path]);
+        } else {
+          setPhotoError(data?.error ?? "No se pudo subir la imagen");
+        }
+      }
+    } finally {
+      setUploadingPhoto(false);
+    }
+  }
+
+  function addLink() {
+    const value = linkInput.trim();
+    if (!value) return;
+    setPhotoLinks((prev) => (prev.includes(value) ? prev : [...prev, value]));
+    setLinkInput("");
+  }
+
   const linesCents = items.reduce(
     (sum, row) => sum + eurToCents(num(row.unitPriceEur)) * (num(row.quantity) || 0),
     0,
@@ -187,6 +231,8 @@ export function ExpenseForm({
     <form action={formAction} className="max-w-2xl space-y-5">
       {expense && <input type="hidden" name="id" value={expense.id} />}
       <input type="hidden" name="items" value={itemsJson} />
+      <input type="hidden" name="photoPaths" value={JSON.stringify(photoPaths)} />
+      <input type="hidden" name="photoLinks" value={JSON.stringify(photoLinks)} />
 
       {/* Asistente IA */}
       <fieldset className="space-y-3 rounded-xl border bg-muted/30 p-4">
@@ -396,6 +442,95 @@ export function ExpenseForm({
           </p>
         </div>
       </div>
+
+      <fieldset className="space-y-3 rounded-xl border p-4">
+        <legend className="px-1 text-sm font-medium text-muted-foreground">
+          {t("photosTitle")}
+        </legend>
+        {(photoPaths.length > 0 || photoLinks.length > 0) && (
+          <div className="flex flex-wrap gap-2">
+            {photoPaths.map((path) => (
+              <div key={path} className="relative">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={`/api/files/${path}`}
+                  alt=""
+                  className="size-16 rounded-lg border object-cover"
+                />
+                <button
+                  type="button"
+                  onClick={() =>
+                    setPhotoPaths((prev) => prev.filter((value) => value !== path))
+                  }
+                  aria-label={tForms("delete")}
+                  className="absolute -top-1.5 -right-1.5 rounded-full border bg-background p-0.5 text-muted-foreground hover:text-destructive"
+                >
+                  <X className="size-3" />
+                </button>
+              </div>
+            ))}
+            {photoLinks.map((url) => (
+              <div key={url} className="relative">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={url}
+                  alt=""
+                  className="size-16 rounded-lg border object-cover"
+                />
+                <button
+                  type="button"
+                  onClick={() =>
+                    setPhotoLinks((prev) => prev.filter((value) => value !== url))
+                  }
+                  aria-label={tForms("delete")}
+                  className="absolute -top-1.5 -right-1.5 rounded-full border bg-background p-0.5 text-muted-foreground hover:text-destructive"
+                >
+                  <X className="size-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        <input
+          ref={photoFileRef}
+          type="file"
+          accept="image/*"
+          multiple
+          aria-label={t("photosAdd")}
+          className="hidden"
+          onChange={onPickPhoto}
+        />
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => photoFileRef.current?.click()}
+            disabled={uploadingPhoto}
+          >
+            <ImagePlus />
+            {uploadingPhoto ? t("photosUploading") : t("photosAdd")}
+          </Button>
+          <Input
+            type="url"
+            placeholder={t("photosLinkPlaceholder")}
+            value={linkInput}
+            onChange={(event) => setLinkInput(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                addLink();
+              }
+            }}
+            className="min-w-40 flex-1"
+          />
+          <Button type="button" variant="outline" size="sm" onClick={addLink}>
+            {t("photosAddLink")}
+          </Button>
+        </div>
+        {photoError && <p className="text-sm text-destructive">{photoError}</p>}
+        <p className="text-xs text-muted-foreground">{t("photosHint")}</p>
+      </fieldset>
 
       <div className="space-y-2">
         <Label htmlFor="notes">

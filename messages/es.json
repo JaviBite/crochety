@@ -61,7 +61,9 @@
     "deleteConfirmAction": "Sí, borrar",
     "deleting": "Borrando…",
     "viewGrid": "Cuadrícula",
-    "viewList": "Lista"
+    "viewList": "Lista",
+    "uploading": "Subiendo…",
+    "uploadFailed": "No se pudo subir el fichero"
   },
   "OrderStatus": {
     "SIN_EMPEZAR": "Sin empezar",
@@ -160,7 +162,13 @@
     "colReceived": "Recepción",
     "cropSelection": "Recortar selección",
     "cropFull": "Usar imagen completa",
-    "cropHint": "Arrastra sobre la imagen para acotar el producto antes de la IA."
+    "cropHint": "Arrastra sobre la imagen para acotar el producto antes de la IA.",
+    "photosTitle": "Fotos de la compra",
+    "photosAdd": "Subir imagen",
+    "photosUploading": "Subiendo…",
+    "photosLinkPlaceholder": "…o pega el enlace de una imagen",
+    "photosAddLink": "Añadir enlace",
+    "photosHint": "Se guardan con la compra (son privadas)."
   },
   "Materials": {
     "title": "Materiales",
@@ -202,12 +210,44 @@
     "editDescription": "Actualiza los datos del patrón",
     "fieldTitle": "Título",
     "fieldFile": "Fichero (PDF o DOCX)",
-    "fileHint": "El agente IA lo estandarizará en una próxima versión.",
+    "fileHint": "Se estandarizará automáticamente con IA al guardar.",
     "fieldExternalUrl": "Enlace externo",
     "fieldCover": "Imagen de portada",
+    "coverHint": "Si no subes una, se intentará derivar del PDF o del enlace.",
     "viewFile": "Ver fichero",
     "viewLink": "Ver enlace",
-    "noSource": "Sin fichero ni enlace"
+    "noSource": "Sin fichero ni enlace",
+    "detailBack": "Volver a patrones",
+    "standardize": "Estandarizar con IA",
+    "restandardize": "Volver a estandarizar",
+    "retryStandardize": "Reintentar la estandarización",
+    "standardizing": "Estandarizando…",
+    "standardizeNoSource": "Añade un fichero o un enlace para poder estandarizarlo.",
+    "standardizedEmptyTitle": "Aún sin versión estandarizada",
+    "standardizedEmptyDescription": "La IA convierte el patrón a un formato uniforme: materiales, abreviaturas y rondas numeradas.",
+    "standardizedProcessing": "La IA está procesando este patrón; vuelve en unos segundos.",
+    "metaLanguage": "Idioma",
+    "metaDifficulty": "Dificultad",
+    "metaHook": "Aguja",
+    "hookMm": "{size} mm",
+    "materialsTitle": "Materiales",
+    "abbreviationsTitle": "Abreviaturas",
+    "colAbbr": "Abr.",
+    "colMeaning": "Significado",
+    "colRound": "Ronda",
+    "colInstruction": "Instrucción",
+    "colStitches": "Puntos",
+    "sectionNotesLabel": "Notas",
+    "assemblyTitle": "Montaje y acabado"
+  },
+  "PatternDifficulty": {
+    "principiante": "Principiante",
+    "intermedio": "Intermedio",
+    "avanzado": "Avanzado"
+  },
+  "PatternLanguage": {
+    "es": "Español",
+    "en": "Inglés"
   },
   "Theme": {
     "toggle": "Cambiar tema",

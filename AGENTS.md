@@ -30,9 +30,11 @@ Vercel + Neon Postgres + Vercel Blob (guía en `deploy/README.md`).
 4. **zod v4 + coerce**: `z.coerce.number()` convierte `null` a `0`; en uniones opcionales poner `z.null()` PRIMERO (ver `lib/forms.ts`).
 5. **Selects opcionales (Radix)**: no admiten `value=""`; se usa el centinela `NONE_VALUE` de `lib/forms.ts`.
 6. **`redirect()` de next-intl no está tipado como `never`**: en server actions hace falta un `return null` inalcanzable detrás.
-7. **Ficheros subidos**: driver dual en `lib/files.ts` — Vercel Blob si hay `BLOB_READ_WRITE_TOKEN` (producción), disco local (`UPLOAD_DIR`, `./uploads`) si no (dev offline). En la BD se persiste el pathname relativo tipo `orders/uuid.jpg` en ambos casos. Se sirven SIEMPRE vía el proxy `/api/files/[...path]` (la URL interna no llega al cliente): los `patterns/` requieren sesión.
+7. **Ficheros subidos**: driver dual en `lib/files.ts` — Vercel Blob si hay `BLOB_READ_WRITE_TOKEN` (producción), disco local (`UPLOAD_DIR`, `./uploads`) si no (dev offline). Funciona con stores de Blob públicos **y privados** (el modo se autodetecta y memoriza; todas las operaciones van por pathname con `put`/`get`/`del`). En la BD se persiste el pathname relativo tipo `orders/uuid.jpg` en ambos casos. Se sirven SIEMPRE vía el proxy `/api/files/[...path]` (la URL interna no llega al cliente): los **documentos** (PDF/DOCX de `patterns/`) y las fotos de `expenses/` requieren sesión; las imágenes son públicas (la galería usa portadas de patrón como fallback de pedido) e inmutables (caché fuerte en navegador + CDN).
 8. **El acento de color** se persiste en la cookie `accent` y se lee en el layout servidor (`data-accent` en `<html>`) para evitar flash. Los 4 acentos viven en `globals.css`.
 9. **Dos URLs de BD (Neon)**: el runtime usa `DATABASE_URL` (pooled/pgbouncer) vía el adapter; el CLI de Prisma (migrate/seed/studio) usa `DATABASE_URL_UNPOOLED` (directa) — ya resuelto en `prisma.config.ts`. Las migraciones de producción las aplica el script `vercel-build` en cada deploy.
+10. **Subidas grandes**: las server actions capan el body (`bodySizeLimit: "4mb"` en `next.config.ts`, justo bajo el tope de 4,5 MB de las funciones de Vercel). Los ficheros de patrón NO viajan por la action: el formulario los sube antes a `/api/uploads` y la action recibe solo el pathname (mismo esquema que las fotos de gastos).
+11. **`generateObject` con openrouter/ollama**: el provider `openai-compatible` necesita `supportsStructuredOutputs: true` (ya puesto en `lib/ai/provider.ts`); sin él no se envía el `json_schema` y los modelos flojos devuelven JSON inválido. Además el modelo elegido debe soportar *structured outputs* (p. ej. `nvidia/nemotron-3-super-120b-a12b:free` ✓; `google/gemma-4-31b-it:free` ✗).
 
 ## Comandos
 
@@ -46,6 +48,7 @@ npm run db:migrate   # prisma migrate dev
 npm run db:seed      # crea los 2 usuarios desde .env (USER1_*/USER2_*)
 npm run db:studio    # inspector de BD
 # despliegue: push a master → Vercel (migra + build vía script vercel-build)
+# self-hosted: docker compose up -d --build  (guía en deploy/README.md §B)
 ```
 
 Credenciales de dev en `.env` (ver `.env.example`). Login en `/login`.
@@ -82,18 +85,28 @@ Organizado en fases para implementación incremental. `✅` = ya hecho.
 - ✅ **Tags/keywords** en materiales y patrones: modelo `Tag` normalizado (m2m
   implícita Prisma), `TagInput` (chips), chips + filtro `?tag=` en los listados.
   Helpers en `lib/tags.ts`.
+- ✅ **Subida de patrón >1 MB**: el formulario sube fichero/portada a `/api/uploads`
+  al elegirlos y la action recibe solo pathnames (trampa #10); `bodySizeLimit`
+  a 4 MB para las fotos que sí viajan por action (materiales/pedidos/IA gastos).
+- ✅ **Performance**: `loading.tsx` (dashboard y galería) para feedback instantáneo
+  al navegar; caché inmutable de `/api/files` (privados en navegador, públicos
+  también en CDN con `s-maxage`); lecturas de Blob por pathname con `get()` (una
+  llamada menos por fichero). En dev, gran parte de la lentitud es compilación
+  bajo demanda + filesystem lento (aviso de Next en el arranque).
 
-### Fase B — Imágenes y color ✅ (falta foto de patrón)
+### Fase B — Imágenes y color ✅
 
 - ✅ **Color dominante automático** del material desde la foto: extracción en cliente
   con Canvas (`lib/color.ts`), corregible con cuentagotas sobre la propia imagen +
   selector de color (`materiales/material-color-field.tsx`).
 - ✅ **Foto de pedido terminado** con fallback a la portada del patrón asociado
   (listado y cuadrícula de pedidos + galería pública).
-- **Foto de patrón**: opcional al alta; si no se sube, derivarla del origen
-  (primera página del PDF / `og:image` de la web). Se apoya en la Fase D.
+- ✅ **Foto de patrón**: opcional al alta; si no se sube se deriva del origen en
+  `lib/pattern-source.ts` (imagen más grande de las 3 primeras páginas del PDF
+  vía `extractImages` de unpdf + `fast-png`, o la `og:image` de la web).
+  Best-effort: si falla, el patrón queda sin portada.
 
-### Fase C — Agente IA de gastos (multi-producto) ✅ (falta persistir fotos)
+### Fase C — Agente IA de gastos (multi-producto) ✅
 
 - ✅ **Esquema multi-producto**: `Expense` (recibo: fecha, tienda, quién paga,
   envío, total) + `ExpenseItem[]` (`→ Material` opcional) + `ExpensePhoto[]`.
@@ -104,19 +117,24 @@ Organizado en fases para implementación incremental. `✅` = ya hecho.
 - ✅ **Recorte en cliente** antes de la IA (`lib/crop.ts` + `components/form/image-cropper.tsx`).
 - ✅ **Checkbox "añadir a materiales"** por línea (`ExpenseItem → Material`, en
   transacción; categoría por defecto `OTRO`).
-- **Pendiente**: persistir las **imágenes de compra** (`ExpensePhoto`): subirlas a
-  Blob y la opción "por link y que se guarde" (falta un upload kind `expenses` en
-  `lib/files.ts` + servirlas privadas en `/api/files`). Nota: al editar un gasto se
-  recrean las líneas, así que el enlace `ExpenseItem.materialId` se pierde (el
-  material sigue en inventario); las casillas "añadir a materiales" salen desmarcadas
-  en edición para no duplicar.
+- ✅ **Imágenes de compra** (`ExpensePhoto`): subida a Blob (upload kind `expenses`,
+  servidas privadas por `/api/files`) + opción por enlace (se descarga en servidor).
+  El formulario sube por `/api/uploads` y guarda solo los pathnames. Nota: al editar
+  se recrean las líneas → el enlace `ExpenseItem.materialId` se pierde (el material
+  sigue en inventario); las casillas "añadir a materiales" salen desmarcadas en
+  edición para no duplicar.
 
 ### Fase D — IA de patrones y extras
 
-- **Pipeline IA de patrones**: extracción de texto (unpdf para PDF / mammoth para
-  DOCX / fetch para web) + `standardizePattern()` (ya funcional dado el texto) +
-  render del JSON estandarizado + orquestación de `aiStatus`
-  (PENDING→PROCESSING→DONE/ERROR).
+- ✅ **Pipeline IA de patrones**: extracción de texto en `lib/pattern-source.ts`
+  (unpdf para PDF, mammoth para DOCX, fetch+`htmlToText` para web) +
+  `standardizePattern()` + página de detalle `patrones/[id]` que renderiza el
+  JSON estandarizado (metadatos, materiales, abreviaturas, secciones con rondas,
+  montaje). Orquestación de `aiStatus`: el alta/edición con origen deja PENDING y
+  programa la estandarización con `after()` de `next/server` (no bloquea el
+  redirect); PROCESSING→DONE/ERROR, con botón estandarizar/reintentar en el
+  detalle (`standardizePatternAction`). Requiere modelo con *structured outputs*
+  (trampa #11).
 - **Editor de patrones online** para los estandarizados.
 - **Permitir añadir patrones en batch** a partir de varios ficheros
 - **Calculadora de precio sugerido** por materiales del pedido (`OrderMaterial` ya
@@ -136,3 +154,8 @@ Organizado en fases para implementación incremental. `✅` = ya hecho.
 ### Ya hecho
 
 - ✅ Galería pública tipo mampostería (Pinterest) con CSS columns en `/`.
+- ✅ **Despliegue self-hosted** con un solo `docker compose up -d --build`:
+  `Dockerfile` multi-stage (standalone de Next solo con `DOCKER_BUILD=1`, no
+  afecta a Vercel) + Postgres con volumen + servicio `migrate` de un solo uso
+  (migraciones + seed) + volumen de uploads (driver de disco). Config en
+  `deploy/selfhosted.env` (ejemplo en `deploy/`); guía en `deploy/README.md` §B.

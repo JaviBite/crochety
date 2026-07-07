@@ -1,0 +1,55 @@
+# Despliegue self-hosted en un solo comando (guía en deploy/README.md):
+#   cp deploy/selfhosted.env.example deploy/selfhosted.env   (y editar valores)
+#   docker compose up -d --build
+#
+# Sin ${interpolación} a propósito: así compose no lee el .env de desarrollo
+# del repo (que apunta a la BD real de Neon). Toda la config vive en
+# deploy/selfhosted.env. TLS/dominio: poner un reverse proxy delante del 3000.
+
+name: crochety
+
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    env_file: deploy/selfhosted.env # POSTGRES_USER / POSTGRES_PASSWORD / POSTGRES_DB
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      # $$ escapa la interpolación de compose: se evalúa dentro del contenedor.
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  # Un solo uso por arranque: aplica migraciones y siembra los usuarios
+  # (upsert idempotente, igual que hace vercel-build en cada deploy).
+  migrate:
+    build:
+      context: .
+      target: migrate
+    restart: "no"
+    env_file: deploy/selfhosted.env
+    depends_on:
+      db:
+        condition: service_healthy
+
+  app:
+    build:
+      context: .
+      target: runner
+    restart: unless-stopped
+    env_file: deploy/selfhosted.env
+    ports:
+      - "3000:3000"
+    volumes:
+      - uploads:/data/uploads # driver de disco de lib/files.ts (sin token de Blob)
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  db-data:
+  uploads:

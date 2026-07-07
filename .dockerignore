@@ -1,13 +1,21 @@
+# Nada de secretos ni artefactos locales dentro de la imagen.
 node_modules
 .next
 .git
+.vercel
+.claude
 data
 uploads
 .env
 .env.*
 !.env.example
+deploy/selfhosted.env
 *.md
 .vscode
 .idea
 src/generated
 coverage
+verify-out
+*.tmp.*
+Dockerfile
+docker-compose.yml

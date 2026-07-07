@@ -1,4 +1,9 @@
-# Despliegue en producción (Vercel)
+# Despliegue
+
+Dos opciones: **A) Vercel** (la usada en producción, gratis) y
+**B) self-hosted con Docker Compose** (un solo comando, para servidor propio).
+
+# Opción A — Vercel
 
 Arquitectura: **Vercel** (Hobby) para el hosting con deploy automático en cada
 push a `master`, **Neon Postgres** (free tier, vía Vercel Marketplace) como base
@@ -84,3 +89,52 @@ dominio propio: Settings → Domains, y Vercel gestiona DNS + certificado.
   request tarda ~1 s extra en despertar; irrelevante para 2 usuarias).
 - **OpenRouter free**: ~50 peticiones/día (1000 si se cargan 10 $ de crédito
   una única vez).
+
+# Opción B — Self-hosted con Docker Compose
+
+Todo en un solo `docker compose`: la app (build standalone de Next), un
+Postgres 17 con su volumen, y un servicio `migrate` de un solo uso que aplica
+las migraciones y siembra los usuarios en cada arranque (idempotente, igual
+que hace `vercel-build`). Los ficheros subidos van a un volumen docker con el
+driver de disco de `lib/files.ts` — no hace falta Vercel Blob ni Neon.
+
+## 1. Configuración
+
+```bash
+cp deploy/selfhosted.env.example deploy/selfhosted.env
+# editar deploy/selfhosted.env: contraseña de BD (¡aparece 2 veces!),
+# AUTH_SECRET, usuarios y proveedor de IA
+```
+
+`deploy/selfhosted.env` está en `.gitignore`: nunca se sube al repo.
+
+## 2. Arrancar
+
+```bash
+docker compose up -d --build
+```
+
+La primera build tarda unos minutos (npm ci + next build dentro de la imagen).
+Cuando `migrate` termina, la app queda en `http://<servidor>:3000` (login en
+`/login` con los usuarios del env). Tras un `git pull`, repetir el mismo
+comando: reconstruye, migra y reinicia.
+
+## 3. Datos y copias de seguridad
+
+- BD: volumen `crochety_db-data`. Backup:
+  `docker compose exec db pg_dump -U crochety crochety > backup.sql`
+- Ficheros subidos: volumen `crochety_uploads`.
+
+## 4. TLS / dominio (fuera del compose)
+
+El compose expone HTTP plano en el puerto 3000. Para exponerlo a internet,
+poner delante cualquier reverse proxy con certificados (Caddy, Traefik,
+nginx + certbot) apuntando a `localhost:3000`. En LAN no hace falta nada.
+
+## Notas
+
+- La IA es igual que en Vercel (por env). Para no depender de nadie:
+  `AI_PROVIDER=ollama` y añadir un servicio `ollama` al compose (o usar uno ya
+  existente en la máquina vía `OLLAMA_BASE_URL`).
+- El deploy de Vercel no se ve afectado: el modo standalone de Next solo se
+  activa con `DOCKER_BUILD=1`, que únicamente define el `Dockerfile`.

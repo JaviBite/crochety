@@ -62,14 +62,19 @@ export function getModel(): LanguageModel {
         name: "openrouter",
         baseURL: "https://openrouter.ai/api/v1",
         apiKey: process.env.OPENROUTER_API_KEY,
+        // Sin esto, generateObject no envía el json_schema (response_format)
+        // y cae a "JSON por prompt", que los modelos flojos no cumplen.
+        supportsStructuredOutputs: true,
       });
       return openrouter(modelId);
     }
     case "ollama": {
-      // Ollama expone una API compatible con OpenAI en /v1.
+      // Ollama expone una API compatible con OpenAI en /v1 (con soporte de
+      // salida estructurada vía response_format en versiones recientes).
       const ollama = createOpenAICompatible({
         name: "ollama",
         baseURL: process.env.OLLAMA_BASE_URL ?? "http://localhost:11434/v1",
+        supportsStructuredOutputs: true,
       });
       return ollama(modelId);
     }
