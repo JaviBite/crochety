@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { findOgImage, htmlToText, pickCoverImage } from "./pattern-source";
+import {
+  collectHtmlImageUrls,
+  findOgImage,
+  htmlToText,
+  pickCoverImage,
+} from "./pattern-source";
 
 describe("htmlToText", () => {
   it("quita scripts/estilos y convierte bloques en saltos de línea", () => {
@@ -76,5 +81,43 @@ describe("pickCoverImage", () => {
 
   it("devuelve null sin imágenes", () => {
     expect(pickCoverImage([])).toBeNull();
+  });
+});
+
+describe("collectHtmlImageUrls", () => {
+  const base = "https://blog.example.com/patron/";
+
+  it("recoge og:image e <img>, resuelve relativas y quita duplicados", () => {
+    const html = `
+      <meta property="og:image" content="https://cdn.example.com/portada.jpg">
+      <img src="foto1.jpg">
+      <img src="/assets/foto2.png">
+      <img src="https://cdn.example.com/portada.jpg">
+    `;
+    expect(collectHtmlImageUrls(html, base)).toEqual([
+      "https://cdn.example.com/portada.jpg",
+      "https://blog.example.com/patron/foto1.jpg",
+      "https://blog.example.com/assets/foto2.png",
+    ]);
+  });
+
+  it("descarta data:, svg y basura (logos, iconos, avatares)", () => {
+    const html = `
+      <img src="data:image/png;base64,AAAA">
+      <img src="/img/logo.png">
+      <img src="/icons/menu.svg">
+      <img src="https://gravatar.com/avatar/abc">
+      <img src="/fotos/amigurumi.jpg">
+    `;
+    expect(collectHtmlImageUrls(html, base)).toEqual([
+      "https://blog.example.com/fotos/amigurumi.jpg",
+    ]);
+  });
+
+  it("usa la primera URL de srcset", () => {
+    const html = `<img srcset="/small.jpg 480w, /big.jpg 1200w">`;
+    expect(collectHtmlImageUrls(html, base)).toEqual([
+      "https://blog.example.com/small.jpg",
+    ]);
   });
 });

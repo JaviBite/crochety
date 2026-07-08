@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
+import { parseImagePaths } from "@/lib/pattern-source";
 import { prisma } from "@/lib/prisma";
 import { PatternForm } from "../../pattern-form";
 
@@ -26,7 +27,18 @@ export default async function EditPatternPage({
         <h1 className="text-2xl font-bold tracking-tight">{t("editTitle")}</h1>
         <p className="text-muted-foreground">{t("editDescription")}</p>
       </div>
-      <PatternForm pattern={pattern} suggestions={tags.map((tag) => tag.name)} />
+      <PatternForm
+        pattern={{
+          id: pattern.id,
+          title: pattern.title,
+          externalUrl: pattern.externalUrl,
+          filePath: pattern.filePath,
+          imagePaths: parseImagePaths(pattern.imagePaths),
+          coverImagePath: pattern.coverImagePath,
+          tags: pattern.tags,
+        }}
+        suggestions={tags.map((tag) => tag.name)}
+      />
     </div>
   );
 }

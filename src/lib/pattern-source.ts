@@ -1,4 +1,9 @@
-import { readUpload, saveUpload, IMAGE_MIME_TO_EXT } from "@/lib/files";
+import {
+  readUpload,
+  saveUpload,
+  EXT_TO_MIME,
+  IMAGE_MIME_TO_EXT,
+} from "@/lib/files";
 
 // ---------------------------------------------------------------------------
 // Origen del patrón (fichero subido o enlace externo) → texto para la IA y
@@ -9,7 +14,38 @@ import { readUpload, saveUpload, IMAGE_MIME_TO_EXT } from "@/lib/files";
 export type PatternSource = {
   filePath: string | null;
   externalUrl: string | null;
+  /** Pathnames de imágenes que la IA lee por visión (fuente alternativa). */
+  imagePaths?: string[] | null;
 };
+
+/** Columna Pattern.imagePaths (JSON string) → lista de pathnames válidos. */
+export function parseImagePaths(raw: string | null | undefined): string[] {
+  if (!raw) return [];
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed)
+      ? parsed.filter((p): p is string => typeof p === "string")
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Imágenes del patrón como data-URLs, listas para pasar al modelo de visión. */
+export async function loadPatternImages(paths: string[]): Promise<string[]> {
+  const out: string[] = [];
+  for (const relPath of paths) {
+    const ext = relPath.slice(relPath.lastIndexOf(".")).toLowerCase();
+    const mime = EXT_TO_MIME[ext];
+    if (!mime || !(mime in IMAGE_MIME_TO_EXT)) continue;
+    const bytes = await uploadBytes(relPath);
+    out.push(`data:${mime};base64,${Buffer.from(bytes).toString("base64")}`);
+  }
+  if (out.length === 0) {
+    throw new PatternSourceError("No se pudieron leer las imágenes del patrón");
+  }
+  return out;
+}
 
 /** Error con mensaje apto para mostrar al usuario. */
 export class PatternSourceError extends Error {}
@@ -18,8 +54,27 @@ export class PatternSourceError extends Error {}
 // de sobra; protege de páginas web enormes.
 const MAX_TEXT_CHARS = 60_000;
 
-const FETCH_HEADERS = { "User-Agent": "crochety/1.0 (+pattern import)" };
+// Cabeceras de navegador: muchas webs (WordPress, blogs de patrones) devuelven
+// 403 a agentes no-navegador. No basta contra retos JS de Cloudflare, pero sí
+// desbloquea la mayoría.
+const FETCH_HEADERS = {
+  "User-Agent":
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+  Accept:
+    "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+  "Accept-Language": "es-ES,es;q=0.9,en;q=0.8",
+};
 const FETCH_TIMEOUT_MS = 15_000;
+
+/**
+ * Detecta la página intermedia de un reto anti-bots (Cloudflare "Just a
+ * moment", etc.): un fetch de servidor no ejecuta JS y no puede superarlo.
+ */
+export function looksLikeBotChallenge(html: string): boolean {
+  return /cf_chl|challenge-platform|Just a moment|Enable JavaScript (?:&|and) cookies/i.test(
+    html,
+  );
+}
 
 async function uploadBytes(relPath: string): Promise<Uint8Array> {
   const content = await readUpload(relPath);
@@ -98,7 +153,13 @@ export async function extractPatternText(source: PatternSource): Promise<string>
     if (!res.ok) {
       throw new PatternSourceError("No se pudo descargar la página del patrón");
     }
-    text = htmlToText(await res.text());
+    const html = await res.text();
+    if (looksLikeBotChallenge(html)) {
+      throw new PatternSourceError(
+        "La web bloquea la descarga automática (protección anti-bots). Sube el PDF del patrón o pega el texto.",
+      );
+    }
+    text = htmlToText(html);
   } else {
     throw new PatternSourceError("El patrón no tiene fichero ni enlace");
   }
@@ -185,4 +246,138 @@ export async function derivePatternCover(
   } catch {
     return null;
   }
+}
+
+// ---------------------------------------------------------------------------
+// Selector de portada: se extraen TODAS las imágenes candidatas del origen y
+// se muestran para que el usuario elija (la automática a veces no acierta).
+// Las candidatas viajan como `src` autoexplicativo: data-URL (imágenes del
+// PDF) o URL remota (imágenes de la web). Nada se guarda hasta que se elige
+// una — así no quedan ficheros huérfanos.
+// ---------------------------------------------------------------------------
+
+const MAX_COVER_CANDIDATES = 12;
+const CANDIDATE_PAGES = 8;
+
+// Trozos de URL típicos de imágenes que NO son fotos del patrón (logos, iconos…).
+const JUNK_IMAGE_HINT = /logo|icon|avatar|gravatar|sprite|emoji|pixel|badge/i;
+
+/**
+ * URLs de imágenes candidatas de una página HTML: og:image primero, luego los
+ * <img> (src y primera entrada de srcset), resueltas a absolutas, sin
+ * duplicados ni basura evidente (data:, svg, logos/iconos).
+ */
+export function collectHtmlImageUrls(html: string, baseUrl: string): string[] {
+  const urls = new Set<string>();
+  const add = (raw: string | null | undefined) => {
+    const trimmed = raw?.trim();
+    if (!trimmed || trimmed.startsWith("data:")) return;
+    let resolved: string;
+    try {
+      resolved = new URL(trimmed, baseUrl).href;
+    } catch {
+      return;
+    }
+    if (/\.svg(\?|$)/i.test(resolved) || JUNK_IMAGE_HINT.test(resolved)) return;
+    urls.add(resolved);
+  };
+
+  add(findOgImage(html));
+  for (const match of html.matchAll(/<img\b[^>]*>/gi)) {
+    const tag = match[0];
+    add(tag.match(/\bsrc=["']([^"']+)["']/i)?.[1]);
+    const srcset = tag.match(/\bsrcset=["']([^"']+)["']/i)?.[1];
+    if (srcset) add(srcset.split(",")[0]?.trim().split(/\s+/)[0]);
+  }
+  return [...urls].slice(0, MAX_COVER_CANDIDATES);
+}
+
+async function pdfImageCandidates(filePath: string): Promise<string[]> {
+  const [{ extractImages, getDocumentProxy }, { encode }, bytes] =
+    await Promise.all([
+      import("unpdf"),
+      import("fast-png"),
+      uploadBytes(filePath),
+    ]);
+  const pdf = await getDocumentProxy(bytes);
+
+  const found: { area: number; dataUrl: string }[] = [];
+  for (let page = 1; page <= Math.min(pdf.numPages, CANDIDATE_PAGES); page++) {
+    for (const img of await extractImages(pdf, page)) {
+      if (img.width < MIN_COVER_SIDE || img.height < MIN_COVER_SIDE) continue;
+      const png = encode({
+        width: img.width,
+        height: img.height,
+        data: new Uint8Array(
+          img.data.buffer,
+          img.data.byteOffset,
+          img.data.byteLength,
+        ),
+        channels: img.channels,
+      });
+      found.push({
+        area: img.width * img.height,
+        dataUrl: `data:image/png;base64,${Buffer.from(png).toString("base64")}`,
+      });
+    }
+    if (found.length >= MAX_COVER_CANDIDATES) break;
+  }
+  // Mayores primero (las fotos del amigurumi suelen ser las más grandes).
+  found.sort((a, b) => b.area - a.area);
+  return found.slice(0, MAX_COVER_CANDIDATES).map((entry) => entry.dataUrl);
+}
+
+/** Imágenes candidatas a portada del origen (data-URLs del PDF o URLs web). */
+export async function collectCoverCandidates(
+  source: PatternSource,
+): Promise<string[]> {
+  try {
+    if (source.filePath?.endsWith(".pdf")) {
+      return await pdfImageCandidates(source.filePath);
+    }
+    if (source.externalUrl) {
+      const res = await fetchWithTimeout(source.externalUrl);
+      if (!res.ok) return [];
+      return collectHtmlImageUrls(await res.text(), source.externalUrl);
+    }
+    return [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Guarda como portada la candidata elegida: decodifica el data-URL (PDF) o
+ * descarga la URL remota (web), valida que sea una imagen y la sube.
+ */
+export async function saveChosenCover(src: string): Promise<string> {
+  if (src.startsWith("data:")) {
+    const match = /^data:([^;]+);base64,([\s\S]+)$/.exec(src);
+    if (!match || !(match[1] in IMAGE_MIME_TO_EXT)) {
+      throw new PatternSourceError("Imagen de portada inválida");
+    }
+    const file = new File([Buffer.from(match[2], "base64")], "cover", {
+      type: match[1],
+    });
+    return saveUpload("patterns", file);
+  }
+
+  let url: URL;
+  try {
+    url = new URL(src);
+  } catch {
+    throw new PatternSourceError("Imagen de portada inválida");
+  }
+  let res: Response;
+  try {
+    res = await fetchWithTimeout(url.href);
+  } catch {
+    throw new PatternSourceError("No se pudo descargar la imagen");
+  }
+  const mime = res.headers.get("content-type")?.split(";")[0]?.trim() ?? "";
+  if (!res.ok || !(mime in IMAGE_MIME_TO_EXT)) {
+    throw new PatternSourceError("No se pudo descargar la imagen");
+  }
+  const file = new File([await res.arrayBuffer()], "cover", { type: mime });
+  return saveUpload("patterns", file);
 }

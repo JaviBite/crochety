@@ -32,9 +32,11 @@ import {
   parseStandardizedContent,
   type StandardizedPattern,
 } from "@/lib/ai/standardize-pattern";
+import { parseImagePaths } from "@/lib/pattern-source";
 import { prisma } from "@/lib/prisma";
 import type { PatternAiStatus } from "@/lib/validations";
 import { AiStatusBadge } from "../ai-status-badge";
+import { CoverPicker } from "./cover-picker";
 import { StandardizeButton } from "./standardize-button";
 
 const BASE_PATH = "/dashboard/patrones";
@@ -58,7 +60,11 @@ export default async function PatternDetailPage({
   if (!pattern) notFound();
 
   const standardized = parseStandardizedContent(pattern.standardizedContent);
-  const hasSource = Boolean(pattern.filePath || pattern.externalUrl);
+  const hasSource = Boolean(
+    pattern.filePath ||
+      pattern.externalUrl ||
+      parseImagePaths(pattern.imagePaths).length,
+  );
   const aiStatus = pattern.aiStatus as PatternAiStatus;
 
   return (
@@ -136,6 +142,8 @@ export default async function PatternDetailPage({
       </div>
 
       <StandardizeButton id={pattern.id} aiStatus={aiStatus} hasSource={hasSource} />
+
+      {hasSource && <CoverPicker id={pattern.id} />}
 
       {standardized ? (
         <StandardizedView

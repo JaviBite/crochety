@@ -85,11 +85,6 @@ aparece en el original, usa null.`;
 
 /**
  * Agente de estandarización: texto crudo del patrón → JSON estandarizado.
- *
- * NOTA fase 2: la extracción de texto del fichero original (PDF con unpdf,
- * DOCX con mammoth) y la orquestación (aiStatus PENDING → PROCESSING → DONE,
- * reintentos) se implementarán junto con el CRUD de patrones. Esta función ya
- * es funcional dado el texto.
  */
 export async function standardizePattern(
   rawText: string,
@@ -99,6 +94,36 @@ export async function standardizePattern(
     schema: standardizedPatternSchema,
     system: SYSTEM_PROMPT,
     prompt: rawText,
+  });
+  return object;
+}
+
+const IMAGE_SYSTEM_PROMPT = `${SYSTEM_PROMPT}
+
+En este caso el patrón llega como una o varias IMÁGENES (fotos o capturas de
+las páginas). Lee el texto y las tablas de puntos de las imágenes y vuélcalos
+al esquema. Junta todas las imágenes como un único patrón en orden.`;
+
+type UserContentPart =
+  | { type: "text"; text: string }
+  | { type: "image"; image: string };
+
+/**
+ * Estandariza un patrón a partir de sus imágenes (data URLs). Requiere un
+ * modelo con visión (el mismo que usa la extracción de gastos).
+ */
+export async function standardizePatternFromImages(
+  images: string[],
+): Promise<StandardizedPattern> {
+  const content: UserContentPart[] = [
+    { type: "text", text: "Estandariza el patrón de estas imágenes." },
+    ...images.map((image): UserContentPart => ({ type: "image", image })),
+  ];
+  const { object } = await generateObject({
+    model: await getModel(),
+    schema: standardizedPatternSchema,
+    system: IMAGE_SYSTEM_PROMPT,
+    messages: [{ role: "user", content }],
   });
   return object;
 }

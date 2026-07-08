@@ -7,14 +7,19 @@ import { redirect } from "@/i18n/navigation";
 import {
   standardizedPatternSchema,
   standardizePattern,
+  standardizePatternFromImages,
 } from "@/lib/ai/standardize-pattern";
 import { auth } from "@/lib/auth";
 import { deleteUpload, isValidUploadPath } from "@/lib/files";
 import { parsePatternForm } from "@/lib/forms";
 import {
+  collectCoverCandidates,
   derivePatternCover,
   extractPatternText,
+  loadPatternImages,
+  parseImagePaths,
   PatternSourceError,
+  saveChosenCover,
   type PatternSource,
 } from "@/lib/pattern-source";
 import { prisma } from "@/lib/prisma";
@@ -30,14 +35,45 @@ function uploadedPath(value: FormDataEntryValue | null): string | null {
   return s && isValidUploadPath(s) && s.startsWith("patterns/") ? s : null;
 }
 
+/** Campo oculto `imagePaths` (JSON) → pathnames de patrón válidos (máx. 12). */
+function uploadedImagePaths(value: FormDataEntryValue | null): string[] {
+  if (typeof value !== "string" || !value.trim()) return [];
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map((p) => uploadedPath(typeof p === "string" ? p : null))
+      .filter((p): p is string => p !== null)
+      .slice(0, 12);
+  } catch {
+    return [];
+  }
+}
+
+/** Fila de BD → PatternSource (parsea la columna JSON imagePaths). */
+function toSource(row: {
+  filePath: string | null;
+  externalUrl: string | null;
+  imagePaths: string | null;
+}): PatternSource {
+  return {
+    filePath: row.filePath,
+    externalUrl: row.externalUrl,
+    imagePaths: parseImagePaths(row.imagePaths),
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Pipeline IA: extraer texto del origen → standardizePattern → guardar JSON.
 // aiStatus: PENDING (en cola) → PROCESSING → DONE | ERROR.
 // ---------------------------------------------------------------------------
 
 async function standardizeAndSave(id: string, source: PatternSource) {
-  const text = await extractPatternText(source);
-  const standardized = await standardizePattern(text);
+  const images = source.imagePaths ?? [];
+  // Con imágenes va por visión; si no, se extrae texto del PDF/DOCX/web.
+  const standardized = images.length
+    ? await standardizePatternFromImages(await loadPatternImages(images))
+    : await standardizePattern(await extractPatternText(source));
   await prisma.pattern.update({
     where: { id },
     data: {
@@ -62,7 +98,12 @@ function schedulePatternStandardization(
     try {
       const pattern = await prisma.pattern.findUnique({
         where: { id },
-        select: { filePath: true, externalUrl: true, coverImagePath: true },
+        select: {
+          filePath: true,
+          externalUrl: true,
+          imagePaths: true,
+          coverImagePath: true,
+        },
       });
       if (!pattern) return;
       await prisma.pattern.update({
@@ -70,7 +111,7 @@ function schedulePatternStandardization(
         data: { aiStatus: "PROCESSING" },
       });
       if (deriveCover && !pattern.coverImagePath) {
-        const cover = await derivePatternCover(pattern);
+        const cover = await derivePatternCover(toSource(pattern));
         if (cover) {
           await prisma.pattern.update({
             where: { id },
@@ -78,7 +119,7 @@ function schedulePatternStandardization(
           });
         }
       }
-      await standardizeAndSave(id, pattern);
+      await standardizeAndSave(id, toSource(pattern));
     } catch {
       await prisma.pattern
         .update({ where: { id }, data: { aiStatus: "ERROR" } })
@@ -96,11 +137,12 @@ export async function standardizePatternAction(
 
   const pattern = await prisma.pattern.findUnique({
     where: { id },
-    select: { filePath: true, externalUrl: true },
+    select: { filePath: true, externalUrl: true, imagePaths: true },
   });
   if (!pattern) return { error: "Patrón no encontrado" };
-  if (!pattern.filePath && !pattern.externalUrl) {
-    return { error: "El patrón no tiene fichero ni enlace" };
+  const source = toSource(pattern);
+  if (!source.filePath && !source.externalUrl && !source.imagePaths?.length) {
+    return { error: "El patrón no tiene fichero, imágenes ni enlace" };
   }
 
   await prisma.pattern.update({
@@ -108,7 +150,7 @@ export async function standardizePatternAction(
     data: { aiStatus: "PROCESSING" },
   });
   try {
-    await standardizeAndSave(id, pattern);
+    await standardizeAndSave(id, source);
   } catch (error) {
     await prisma.pattern
       .update({ where: { id }, data: { aiStatus: "ERROR" } })
@@ -172,6 +214,64 @@ export async function updatePatternContent(
   return null;
 }
 
+/**
+ * Imágenes candidatas a portada extraídas del origen (PDF o web), para que el
+ * usuario elija en el detalle. No guarda nada: las candidatas viajan como
+ * data-URL (PDF) o URL remota (web).
+ */
+export async function loadCoverCandidates(
+  id: string,
+): Promise<{ candidates: string[] } | { error: string }> {
+  const session = await auth();
+  if (!session?.user) return { error: "No autorizado" };
+
+  const pattern = await prisma.pattern.findUnique({
+    where: { id },
+    select: { filePath: true, externalUrl: true },
+  });
+  if (!pattern) return { error: "Patrón no encontrado" };
+  if (!pattern.filePath && !pattern.externalUrl) {
+    return { error: "El patrón no tiene fichero ni enlace" };
+  }
+  return { candidates: await collectCoverCandidates(pattern) };
+}
+
+/** Fija como portada la imagen candidata elegida por el usuario. */
+export async function setPatternCover(
+  id: string,
+  src: string,
+): Promise<{ error: string } | void> {
+  const session = await auth();
+  if (!session?.user) return { error: "No autorizado" };
+
+  const pattern = await prisma.pattern.findUnique({
+    where: { id },
+    select: { coverImagePath: true },
+  });
+  if (!pattern) return { error: "Patrón no encontrado" };
+
+  let newPath: string;
+  try {
+    newPath = await saveChosenCover(src);
+  } catch (error) {
+    return {
+      error:
+        error instanceof PatternSourceError
+          ? error.message
+          : "No se pudo guardar la portada",
+    };
+  }
+
+  await prisma.pattern.update({
+    where: { id },
+    data: { coverImagePath: newPath },
+  });
+  if (pattern.coverImagePath && pattern.coverImagePath !== newPath) {
+    await deleteUpload(pattern.coverImagePath);
+  }
+  revalidatePath("/", "layout");
+}
+
 export async function createPattern(
   _prev: ActionState,
   formData: FormData,
@@ -183,14 +283,19 @@ export async function createPattern(
   if (!parsed.ok) return { error: parsed.error };
 
   const filePath = uploadedPath(formData.get("filePath"));
+  const imagePaths = uploadedImagePaths(formData.get("imagePaths"));
   let coverImagePath = uploadedPath(formData.get("coverPath"));
 
   const { tags, ...data } = parsed.data;
-  const source: PatternSource = { filePath, externalUrl: data.externalUrl };
-  const hasSource = Boolean(filePath || data.externalUrl);
+  const source: PatternSource = {
+    filePath,
+    externalUrl: data.externalUrl,
+    imagePaths,
+  };
+  const hasSource = Boolean(filePath || data.externalUrl || imagePaths.length);
 
-  // Sin portada subida: se intenta derivar del origen (1ª página del PDF /
-  // og:image de la web). Best-effort, nunca bloquea el alta.
+  // Portada: subida > primera imagen del patrón > derivada del PDF/web.
+  if (!coverImagePath && imagePaths.length) coverImagePath = imagePaths[0];
   if (!coverImagePath && hasSource) {
     coverImagePath = await derivePatternCover(source);
   }
@@ -199,6 +304,7 @@ export async function createPattern(
     data: {
       ...data,
       filePath,
+      imagePaths: imagePaths.length ? JSON.stringify(imagePaths) : null,
       coverImagePath,
       aiStatus: hasSource ? "PENDING" : "NONE",
       tags: tagsCreateInput(tags),
@@ -279,26 +385,41 @@ export async function updatePattern(
 
   const existing = await prisma.pattern.findUnique({
     where: { id },
-    select: { filePath: true, coverImagePath: true, externalUrl: true },
+    select: {
+      filePath: true,
+      imagePaths: true,
+      coverImagePath: true,
+      externalUrl: true,
+    },
   });
   if (!existing) return { error: "Patrón no encontrado" };
 
   // Los ficheros solo se reemplazan si se suben nuevos; si no, se conservan.
   const newFilePath = uploadedPath(formData.get("filePath"));
+  const newImagePaths = uploadedImagePaths(formData.get("imagePaths"));
   let newCoverPath = uploadedPath(formData.get("coverPath"));
 
   const { tags, ...data } = parsed.data;
+  const imagePaths = newImagePaths.length
+    ? newImagePaths
+    : parseImagePaths(existing.imagePaths);
   const source: PatternSource = {
     filePath: newFilePath ?? existing.filePath,
     externalUrl: data.externalUrl,
+    imagePaths,
   };
-  const hasSource = Boolean(source.filePath || source.externalUrl);
+  const hasSource = Boolean(
+    source.filePath || source.externalUrl || imagePaths.length,
+  );
   // Si cambió el origen, la versión estandarizada anterior deja de valer.
   const sourceChanged =
-    Boolean(newFilePath) || data.externalUrl !== existing.externalUrl;
+    Boolean(newFilePath) ||
+    newImagePaths.length > 0 ||
+    data.externalUrl !== existing.externalUrl;
 
-  if (!newCoverPath && !existing.coverImagePath && hasSource) {
-    newCoverPath = await derivePatternCover(source);
+  if (!newCoverPath && !existing.coverImagePath) {
+    if (newImagePaths.length) newCoverPath = newImagePaths[0];
+    else if (hasSource) newCoverPath = await derivePatternCover(source);
   }
 
   await prisma.pattern.update({
@@ -306,6 +427,9 @@ export async function updatePattern(
     data: {
       ...data,
       ...(newFilePath ? { filePath: newFilePath } : {}),
+      ...(newImagePaths.length
+        ? { imagePaths: JSON.stringify(newImagePaths) }
+        : {}),
       ...(newCoverPath ? { coverImagePath: newCoverPath } : {}),
       ...(sourceChanged
         ? {
@@ -318,6 +442,11 @@ export async function updatePattern(
   });
 
   if (newFilePath) await deleteUpload(existing.filePath);
+  if (newImagePaths.length) {
+    for (const old of parseImagePaths(existing.imagePaths)) {
+      await deleteUpload(old);
+    }
+  }
   if (newCoverPath) await deleteUpload(existing.coverImagePath);
   if (sourceChanged && hasSource) schedulePatternStandardization(id);
 
@@ -334,7 +463,7 @@ export async function deletePattern(
 
   const pattern = await prisma.pattern.findUnique({
     where: { id },
-    select: { filePath: true, coverImagePath: true },
+    select: { filePath: true, imagePaths: true, coverImagePath: true },
   });
 
   // Los pedidos que lo referencian quedan con patternId = null (relación
@@ -343,5 +472,8 @@ export async function deletePattern(
 
   await deleteUpload(pattern?.filePath);
   await deleteUpload(pattern?.coverImagePath);
+  for (const img of parseImagePaths(pattern?.imagePaths)) {
+    await deleteUpload(img);
+  }
   revalidatePath("/", "layout");
 }

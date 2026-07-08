@@ -1,5 +1,6 @@
 "use client";
 
+import { X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { type ChangeEvent, useActionState, useState } from "react";
 import { SubmitButton } from "@/components/form/submit-button";
@@ -15,6 +16,7 @@ export type PatternFormValues = {
   title: string;
   externalUrl: string | null;
   filePath: string | null;
+  imagePaths: string[];
   coverImagePath: string | null;
   tags: { name: string }[];
 };
@@ -37,8 +39,43 @@ export function PatternForm({
   // actions está limitado a 1 MB); la action solo recibe los pathnames.
   const [filePath, setFilePath] = useState<string | null>(null);
   const [coverPath, setCoverPath] = useState<string | null>(null);
+  const [imagePaths, setImagePaths] = useState<string[]>(
+    pattern?.imagePaths ?? [],
+  );
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+
+  // Varias imágenes como origen del patrón: la IA las lee por visión.
+  function onPickImages(event: ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(event.target.files ?? []);
+    event.target.value = "";
+    if (files.length === 0) return;
+    setUploadError(null);
+    setUploading(true);
+    void (async () => {
+      try {
+        for (const file of files) {
+          const body = new FormData();
+          body.set("file", file);
+          body.set("kind", "patterns");
+          const res = await fetch("/api/uploads", { method: "POST", body });
+          const data = (await res.json().catch(() => null)) as
+            | { path?: string; error?: string }
+            | null;
+          if (res.ok && data?.path) {
+            const path = data.path;
+            setImagePaths((current) => [...current, path]);
+          } else {
+            setUploadError(data?.error ?? tForms("uploadFailed"));
+          }
+        }
+      } catch {
+        setUploadError(tForms("uploadFailed"));
+      } finally {
+        setUploading(false);
+      }
+    })();
+  }
 
   function onPickUpload(
     event: ChangeEvent<HTMLInputElement>,
@@ -81,6 +118,11 @@ export function PatternForm({
       {pattern && <input type="hidden" name="id" value={pattern.id} />}
       <input type="hidden" name="filePath" value={filePath ?? ""} />
       <input type="hidden" name="coverPath" value={coverPath ?? ""} />
+      <input
+        type="hidden"
+        name="imagePaths"
+        value={JSON.stringify(imagePaths)}
+      />
 
       <div className="space-y-2">
         <Label htmlFor="title">{t("fieldTitle")}</Label>
@@ -115,6 +157,47 @@ export function PatternForm({
           onChange={(event) => onPickUpload(event, setFilePath)}
         />
         <p className="text-xs text-muted-foreground">{t("fileHint")}</p>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="images">
+          {t("fieldImages")}{" "}
+          <span className="text-muted-foreground">({tForms("optional")})</span>
+        </Label>
+        {imagePaths.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {imagePaths.map((path) => (
+              <div key={path} className="relative">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={`/api/files/${path}`}
+                  alt=""
+                  className="size-16 rounded-lg border object-cover"
+                />
+                <button
+                  type="button"
+                  onClick={() =>
+                    setImagePaths((current) =>
+                      current.filter((entry) => entry !== path),
+                    )
+                  }
+                  aria-label={tForms("delete")}
+                  className="absolute -right-1.5 -top-1.5 rounded-full border bg-background p-0.5 text-muted-foreground hover:text-destructive"
+                >
+                  <X className="size-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        <Input
+          id="images"
+          type="file"
+          accept="image/*"
+          multiple
+          onChange={onPickImages}
+        />
+        <p className="text-xs text-muted-foreground">{t("imagesHint")}</p>
       </div>
 
       <div className="space-y-2">

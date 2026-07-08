@@ -145,6 +145,7 @@ model Pattern {
   title               String
   coverImagePath      String?
   filePath            String? // PDF/DOCX subido (relativo a UPLOAD_DIR)
+  imagePaths          String? // JSON array de pathnames de imágenes: fuente alternativa que la IA lee por visión
   externalUrl         String? // alternativa: link externo
   standardizedContent String? // JSON producido por el agente IA (contrato en src/lib/ai)
   aiStatus            String   @default("NONE") // NONE | PENDING | PROCESSING | DONE | ERROR
