@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeStandardizedPattern } from "./standardize-pattern";
+import { normalizeStandardizedPattern } from "./standardize-pattern.shared";
 
 describe("normalizeStandardizedPattern", () => {
   it("deduplica abreviaturas repetidas y conserva la primera aparición", () => {

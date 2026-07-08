@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { getLocale } from "next-intl/server";
 import { redirect } from "@/i18n/navigation";
 import { auth } from "@/lib/auth";
-import { deleteUpload, saveUpload, UploadError } from "@/lib/files";
+import { UploadError } from "@/lib/files";
+import { deleteUpload, saveUpload } from "@/lib/files.server";
 import { optionalFile, parseOrderForm } from "@/lib/forms";
 import { isForeignKeyViolation, prisma } from "@/lib/prisma";
 

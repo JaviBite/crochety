@@ -1,7 +1,8 @@
 import path from "node:path";
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { EXT_TO_MIME, readUpload } from "@/lib/files";
+import { EXT_TO_MIME } from "@/lib/files";
+import { readUpload } from "@/lib/files.server";
 
 export const runtime = "nodejs";
 

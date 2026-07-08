@@ -25,7 +25,7 @@ import { Link } from "@/i18n/navigation";
 import {
   normalizeStandardizedPattern,
   type StandardizedPattern,
-} from "@/lib/ai/standardize-pattern";
+} from "@/lib/ai/standardize-pattern.shared";
 import { NONE_VALUE } from "@/lib/forms";
 import { updatePatternContent } from "../../actions";
 

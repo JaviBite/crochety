@@ -11,7 +11,8 @@ import {
   standardizePatternFromImages,
 } from "@/lib/ai/standardize-pattern";
 import { auth } from "@/lib/auth";
-import { deleteUpload, isValidUploadPath } from "@/lib/files";
+import { isValidUploadPath } from "@/lib/files";
+import { deleteUpload } from "@/lib/files.server";
 import { parsePatternForm } from "@/lib/forms";
 import {
   collectCoverCandidates,

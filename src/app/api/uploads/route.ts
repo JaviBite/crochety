@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { isUploadKind, saveUpload, UploadError } from "@/lib/files";
+import { isUploadKind, UploadError } from "@/lib/files";
+import { saveUpload } from "@/lib/files.server";
 
 export const runtime = "nodejs";
 
