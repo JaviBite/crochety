@@ -7,6 +7,7 @@ import { redirect } from "@/i18n/navigation";
 import {
   standardizedPatternSchema,
   standardizePattern,
+  standardizePatternFromContent,
   standardizePatternFromImages,
 } from "@/lib/ai/standardize-pattern";
 import { auth } from "@/lib/auth";
@@ -163,6 +164,71 @@ export async function standardizePatternAction(
     };
   }
   revalidatePath("/", "layout");
+}
+
+/**
+ * Estandariza a partir de texto y/o imágenes pegados a mano (no del origen
+ * guardado del patrón): útil cuando el fichero/enlace falla o no existe.
+ * Las imágenes ya llegan subidas a /api/uploads (mismo esquema que el resto
+ * de subidas) y se borran tras usarlas: son de un solo uso, no se guardan
+ * como fuente del patrón.
+ */
+export async function standardizePatternManual(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const session = await auth();
+  if (!session?.user) return { error: "No autorizado" };
+
+  const id = String(formData.get("id") ?? "");
+  if (!id) return { error: "Falta el identificador" };
+
+  const text = String(formData.get("text") ?? "").trim();
+  const imagePaths = uploadedImagePaths(formData.get("imagePaths"));
+  if (!text && imagePaths.length === 0) {
+    return { error: "Añade texto o al menos una imagen" };
+  }
+
+  const pattern = await prisma.pattern.findUnique({
+    where: { id },
+    select: { id: true },
+  });
+  if (!pattern) return { error: "Patrón no encontrado" };
+
+  await prisma.pattern.update({
+    where: { id },
+    data: { aiStatus: "PROCESSING" },
+  });
+
+  let standardized;
+  try {
+    const images = imagePaths.length ? await loadPatternImages(imagePaths) : [];
+    standardized = await standardizePatternFromContent({ text, images });
+  } catch (error) {
+    await prisma.pattern
+      .update({ where: { id }, data: { aiStatus: "ERROR" } })
+      .catch(() => {});
+    for (const path of imagePaths) await deleteUpload(path);
+    return {
+      error:
+        error instanceof PatternSourceError
+          ? error.message
+          : "La estandarización falló, vuelve a intentarlo",
+    };
+  }
+
+  await prisma.pattern.update({
+    where: { id },
+    data: {
+      standardizedContent: JSON.stringify(standardized),
+      aiStatus: "DONE",
+    },
+  });
+  for (const path of imagePaths) await deleteUpload(path);
+
+  revalidatePath("/", "layout");
+  redirect({ href: `/dashboard/patrones/${id}`, locale: await getLocale() });
+  return null;
 }
 
 /**

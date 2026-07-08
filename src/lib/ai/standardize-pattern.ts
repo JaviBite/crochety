@@ -98,15 +98,42 @@ export async function standardizePattern(
   return object;
 }
 
-const IMAGE_SYSTEM_PROMPT = `${SYSTEM_PROMPT}
+const MIXED_SYSTEM_PROMPT = `${SYSTEM_PROMPT}
 
-En este caso el patrón llega como una o varias IMÁGENES (fotos o capturas de
-las páginas). Lee el texto y las tablas de puntos de las imágenes y vuélcalos
-al esquema. Junta todas las imágenes como un único patrón en orden.`;
+El patrón puede llegar como texto (pegado a mano o extraído de un PDF/DOCX/
+web), como una o varias IMÁGENES (fotos o capturas de páginas), o ambos a la
+vez. Lee también el texto y las tablas de puntos que aparezcan en las
+imágenes. Si hay varias imágenes, trátalas como páginas consecutivas de un
+único patrón, en el orden dado.`;
 
 type UserContentPart =
   | { type: "text"; text: string }
   | { type: "image"; image: string };
+
+/**
+ * Estandariza un patrón a partir de texto y/o imágenes (data URLs). Requiere
+ * un modelo con visión si se pasan imágenes (el mismo que usa la extracción
+ * de gastos).
+ */
+export async function standardizePatternFromContent(input: {
+  text?: string | null;
+  images?: string[];
+}): Promise<StandardizedPattern> {
+  const content: UserContentPart[] = [];
+  if (input.text?.trim()) content.push({ type: "text", text: input.text.trim() });
+  for (const image of input.images ?? []) content.push({ type: "image", image });
+  if (content.length === 0) {
+    throw new Error("Se necesita un texto o una imagen para estandarizar");
+  }
+
+  const { object } = await generateObject({
+    model: await getModel(),
+    schema: standardizedPatternSchema,
+    system: MIXED_SYSTEM_PROMPT,
+    messages: [{ role: "user", content }],
+  });
+  return object;
+}
 
 /**
  * Estandariza un patrón a partir de sus imágenes (data URLs). Requiere un
@@ -115,15 +142,5 @@ type UserContentPart =
 export async function standardizePatternFromImages(
   images: string[],
 ): Promise<StandardizedPattern> {
-  const content: UserContentPart[] = [
-    { type: "text", text: "Estandariza el patrón de estas imágenes." },
-    ...images.map((image): UserContentPart => ({ type: "image", image })),
-  ];
-  const { object } = await generateObject({
-    model: await getModel(),
-    schema: standardizedPatternSchema,
-    system: IMAGE_SYSTEM_PROMPT,
-    messages: [{ role: "user", content }],
-  });
-  return object;
+  return standardizePatternFromContent({ images });
 }

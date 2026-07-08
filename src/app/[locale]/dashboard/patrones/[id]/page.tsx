@@ -37,6 +37,7 @@ import { prisma } from "@/lib/prisma";
 import type { PatternAiStatus } from "@/lib/validations";
 import { AiStatusBadge } from "../ai-status-badge";
 import { CoverPicker } from "./cover-picker";
+import { ManualStandardize } from "./manual-standardize";
 import { StandardizeButton } from "./standardize-button";
 
 const BASE_PATH = "/dashboard/patrones";
@@ -142,6 +143,7 @@ export default async function PatternDetailPage({
       </div>
 
       <StandardizeButton id={pattern.id} aiStatus={aiStatus} hasSource={hasSource} />
+      <ManualStandardize id={pattern.id} />
 
       {hasSource && <CoverPicker id={pattern.id} />}
 
