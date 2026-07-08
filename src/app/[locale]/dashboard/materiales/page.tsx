@@ -1,6 +1,8 @@
 import { Boxes, ExternalLink, MapPin, Plus } from "lucide-react";
 import { getLocale, getTranslations } from "next-intl/server";
 import { cookies } from "next/headers";
+import { ColorFilter } from "@/components/dashboard/color-filter";
+import { ListSearch } from "@/components/dashboard/list-search";
 import { RowActions } from "@/components/dashboard/row-actions";
 import { TagChips, TagFilter } from "@/components/dashboard/tag-filter";
 import { ViewToggle } from "@/components/dashboard/view-toggle";
@@ -14,41 +16,94 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Link } from "@/i18n/navigation";
+import type { Prisma } from "@/generated/prisma/client";
 import { formatCents } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
+import { colorFromParam, normalizeSearch } from "@/lib/search";
 import { parseView, viewCookieName } from "@/lib/view";
 import { deleteMaterial } from "./actions";
 
 const BASE_PATH = "/dashboard/materiales";
 const SECTION = "materiales";
 
+/** Badge que abre el enlace del material (tienda/proveedor) en otra pestaña. */
+function MaterialLinkBadge({ href, label }: { href: string; label: string }) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer noopener"
+      className="w-fit"
+      aria-label={label}
+    >
+      <Badge
+        variant="outline"
+        className="cursor-pointer gap-1 font-normal hover:bg-accent"
+      >
+        <ExternalLink className="size-3" />
+        {label}
+      </Badge>
+    </a>
+  );
+}
+
 export default async function MaterialsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tag?: string }>;
+  searchParams: Promise<{ tag?: string; q?: string; color?: string }>;
 }) {
-  const { tag } = await searchParams;
+  const { tag, q, color } = await searchParams;
   const activeTag = tag?.toLowerCase();
+  const search = normalizeSearch(q);
+  const colorHex = colorFromParam(color);
   const view = parseView(
     (await cookies()).get(viewCookieName(SECTION))?.value,
     "grid",
   );
 
-  const [t, tCategory, locale, materials, filterTags] = await Promise.all([
-    getTranslations("Materials"),
-    getTranslations("MaterialCategory"),
-    getLocale(),
-    prisma.material.findMany({
-      where: activeTag ? { tags: { some: { name: activeTag } } } : undefined,
-      orderBy: { createdAt: "desc" },
-      include: { tags: { select: { name: true }, orderBy: { name: "asc" } } },
-    }),
-    prisma.tag.findMany({
-      where: { materials: { some: {} } },
-      orderBy: { name: "asc" },
-      select: { name: true },
-    }),
-  ]);
+  const filters: Prisma.MaterialWhereInput[] = [];
+  if (activeTag) filters.push({ tags: { some: { name: activeTag } } });
+  if (colorHex) filters.push({ colorHex });
+  if (search) {
+    filters.push({
+      OR: [
+        { name: { contains: search, mode: "insensitive" } },
+        { brand: { contains: search, mode: "insensitive" } },
+        { location: { contains: search, mode: "insensitive" } },
+        { fiberType: { contains: search, mode: "insensitive" } },
+      ],
+    });
+  }
+  const hasFilters = filters.length > 0;
+
+  const [t, tCategory, locale, materials, filterTags, colorRows] =
+    await Promise.all([
+      getTranslations("Materials"),
+      getTranslations("MaterialCategory"),
+      getLocale(),
+      prisma.material.findMany({
+        where: hasFilters ? { AND: filters } : undefined,
+        orderBy: { createdAt: "desc" },
+        include: { tags: { select: { name: true }, orderBy: { name: "asc" } } },
+      }),
+      prisma.tag.findMany({
+        where: { materials: { some: {} } },
+        orderBy: { name: "asc" },
+        select: { name: true },
+      }),
+      prisma.material.findMany({
+        where: { colorHex: { not: null } },
+        distinct: ["colorHex"],
+        orderBy: { colorHex: "asc" },
+        select: { colorHex: true },
+      }),
+    ]);
+
+  // Filtros a conservar en los enlaces de tag/color (no perder la búsqueda).
+  const preserve = { q: search, tag: activeTag, color };
+  const colors = colorRows
+    .map((row) => row.colorHex)
+    .filter((hex): hex is string => hex != null);
 
   return (
     <div className="space-y-6">
@@ -65,22 +120,36 @@ export default async function MaterialsPage({
         </Button>
       </div>
 
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="flex-1">
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <ListSearch className="min-w-56 flex-1" />
+          {(materials.length > 0 || hasFilters) && (
+            <ViewToggle section={SECTION} value={view} />
+          )}
+        </div>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
           <TagFilter
             tags={filterTags.map((tag) => tag.name)}
             activeTag={activeTag}
             basePath={BASE_PATH}
+            preserveQuery={preserve}
+          />
+          <ColorFilter
+            colors={colors}
+            activeColor={color}
+            basePath={BASE_PATH}
+            preserveQuery={preserve}
           />
         </div>
-        {materials.length > 0 && <ViewToggle section={SECTION} value={view} />}
       </div>
 
       {materials.length === 0 ? (
         <EmptyState
           icon={Boxes}
-          title={t("emptyTitle")}
-          description={t("emptyDescription")}
+          title={hasFilters ? t("noResultsTitle") : t("emptyTitle")}
+          description={
+            hasFilters ? t("noResultsDescription") : t("emptyDescription")
+          }
         />
       ) : view === "grid" ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -124,21 +193,16 @@ export default async function MaterialsPage({
                 </div>
               </CardHeader>
               <CardContent className="space-y-1.5 text-sm text-muted-foreground">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2">
                   <span>
                     {t("inStock", { count: material.stock })} ·{" "}
                     {formatCents(material.priceCents, locale)}
                   </span>
                   {material.link && (
-                    <a
+                    <MaterialLinkBadge
                       href={material.link}
-                      target="_blank"
-                      rel="noreferrer noopener"
-                      className="transition-colors hover:text-foreground"
-                      aria-label={t("fieldLink")}
-                    >
-                      <ExternalLink className="size-3.5" />
-                    </a>
+                      label={t("fieldLink")}
+                    />
                   )}
                 </div>
                 {(material.brand || material.fiberType || material.weight) && (
@@ -190,6 +254,12 @@ export default async function MaterialsPage({
                   <Badge variant="secondary">
                     {tCategory(material.category)}
                   </Badge>
+                  {material.link && (
+                    <MaterialLinkBadge
+                      href={material.link}
+                      label={t("fieldLink")}
+                    />
+                  )}
                 </div>
                 <p className="text-sm text-muted-foreground">
                   {t("inStock", { count: material.stock })} ·{" "}

@@ -171,6 +171,25 @@ Organizado en fases para implementación incremental. `✅` = ya hecho.
   (gastos e ingresos a medias, greedy para N usuarios, redondeo saneado); los
   pedidos cobrados sin asignar no se reparten.
 
+### Fase E — Importación de datos y robustez (pendiente)
+
+- **Importar datos del Excel antiguo** (PRIORITARIO): script puntual e idempotente
+  para poblar la BD con los gastos, pedidos y materiales históricos. Formato a
+  definir con el fichero real (hojas, columnas, importes → céntimos, mapeo de
+  quién paga → `User`).
+- **Robustez del estandarizador de patrones** (conocido): a veces
+  `standardizePattern` devuelve vacío/nada, y si un fichero contiene **varios
+  patrones** solo procesa uno e ignora el resto. Pendiente montar una batería de
+  pruebas con patrones reales para depurar prompt/segmentación (no urgente).
+- **Selector de imagen de portada del patrón**: hoy `derivePatternCover` elige
+  automáticamente (imagen más grande de las 3 primeras páginas del PDF / og:image)
+  y a veces no es representativa; ofrecer elegir entre las imágenes candidatas
+  extraídas del origen.
+- **Rol admin sin re-login**: hoy el rol viaja en el JWT, así que la migración y
+  los cambios de rol no se ven hasta cerrar y volver a iniciar sesión (por eso
+  el menú Usuarios/Ajustes puede parecer "ausente"). Leer el rol de la BD en el
+  layout y en los guards para que aparezca al instante.
+
 ### Ya hecho
 
 - ✅ Galería pública tipo mampostería (Pinterest) con CSS columns en `/`.

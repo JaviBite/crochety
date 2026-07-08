@@ -1,5 +1,6 @@
 import { Plus, Receipt } from "lucide-react";
 import { getFormatter, getLocale, getTranslations } from "next-intl/server";
+import { ListSearch } from "@/components/dashboard/list-search";
 import { RowActions } from "@/components/dashboard/row-actions";
 import { EmptyState } from "@/components/empty-state";
 import { Badge } from "@/components/ui/badge";
@@ -13,13 +14,32 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Link } from "@/i18n/navigation";
+import type { Prisma } from "@/generated/prisma/client";
 import { formatCents } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
+import { normalizeSearch } from "@/lib/search";
 import { deleteExpense } from "./actions";
 
 const BASE_PATH = "/dashboard/gastos";
 
-export default async function ExpensesPage() {
+export default async function ExpensesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string }>;
+}) {
+  const { q } = await searchParams;
+  const search = normalizeSearch(q);
+
+  const where: Prisma.ExpenseWhereInput | undefined = search
+    ? {
+        OR: [
+          { store: { contains: search, mode: "insensitive" } },
+          { notes: { contains: search, mode: "insensitive" } },
+          { items: { some: { item: { contains: search, mode: "insensitive" } } } },
+        ],
+      }
+    : undefined;
+
   const [t, locale, format] = await Promise.all([
     getTranslations("Expenses"),
     getLocale(),
@@ -27,6 +47,7 @@ export default async function ExpensesPage() {
   ]);
 
   const expenses = await prisma.expense.findMany({
+    where,
     orderBy: { date: "desc" },
     include: {
       paidBy: { select: { name: true } },
@@ -49,11 +70,15 @@ export default async function ExpensesPage() {
         </Button>
       </div>
 
+      <ListSearch className="max-w-sm" />
+
       {expenses.length === 0 ? (
         <EmptyState
           icon={Receipt}
-          title={t("emptyTitle")}
-          description={t("emptyDescription")}
+          title={search ? t("noResultsTitle") : t("emptyTitle")}
+          description={
+            search ? t("noResultsDescription") : t("emptyDescription")
+          }
         />
       ) : (
         <div className="overflow-x-auto rounded-2xl border bg-card shadow-sm">

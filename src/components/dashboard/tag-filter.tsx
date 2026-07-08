@@ -7,21 +7,34 @@ import { Link } from "@/i18n/navigation";
  * añade `?tag=<nombre>` a la ruta; el chip "Todas" limpia el filtro. Se apoya
  * en el render de servidor: la página lee `searchParams.tag` y filtra la query.
  */
+/** Parámetros a conservar en los enlaces, descartando los vacíos. */
+function keepQuery(
+  preserve: Record<string, string | undefined>,
+): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(preserve).filter(([, value]) => value),
+  ) as Record<string, string>;
+}
+
 export async function TagFilter({
   tags,
   activeTag,
   basePath,
+  preserveQuery = {},
 }: {
   tags: string[];
   activeTag?: string;
   basePath: string;
+  /** Otros filtros activos (q, color) que los chips no deben perder. */
+  preserveQuery?: Record<string, string | undefined>;
 }) {
   if (tags.length === 0) return null;
   const tForms = await getTranslations("Forms");
+  const base = keepQuery(preserveQuery);
 
   return (
     <div className="flex flex-wrap items-center gap-1.5">
-      <Link href={basePath}>
+      <Link href={{ pathname: basePath, query: base }}>
         <Badge
           variant={activeTag ? "outline" : "default"}
           className="cursor-pointer"
@@ -32,7 +45,10 @@ export async function TagFilter({
       {tags.map((tag) => {
         const active = activeTag === tag;
         return (
-          <Link key={tag} href={{ pathname: basePath, query: { tag } }}>
+          <Link
+            key={tag}
+            href={{ pathname: basePath, query: { ...base, tag } }}
+          >
             <Badge
               variant={active ? "default" : "outline"}
               className="cursor-pointer"

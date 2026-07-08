@@ -1,0 +1,324 @@
+[
+  {
+    "name": "Alambres flores",
+    "category": "OTRO",
+    "location": "Casa Javi",
+    "link": null,
+    "priceEur": 0,
+    "stock": 1,
+    "brand": "Para los tallos / Son muy finos",
+    "weight": null
+  },
+  {
+    "name": "Lana beige",
+    "category": "LANA",
+    "location": "Casa Javi",
+    "link": null,
+    "priceEur": 0,
+    "stock": 1,
+    "brand": "AliExpress",
+    "weight": null
+  },
+  {
+    "name": "Lana rojo burdeos?",
+    "category": "LANA",
+    "location": "Casa Javi",
+    "link": null,
+    "priceEur": 0,
+    "stock": 1,
+    "brand": "Milk cotton",
+    "weight": "50 g · 70 m"
+  },
+  {
+    "name": "Lana blanca pura chenilla",
+    "category": "LANA",
+    "location": "Casa Javi",
+    "link": null,
+    "priceEur": 0,
+    "stock": 1,
+    "brand": "Marca snowball / Tamaño medio",
+    "weight": "50 g · 70 m"
+  },
+  {
+    "name": "Lana negra",
+    "category": "LANA",
+    "location": "Casa Javi",
+    "link": null,
+    "priceEur": 0,
+    "stock": 1,
+    "brand": "Cotton Milk?",
+    "weight": null
+  },
+  {
+    "name": "Lana marron cerbeza",
+    "category": "LANA",
+    "location": "Casa Javi",
+    "link": "https://es.aliexpress.com/item/1005003949826666.html?aff_fcid=a31d0d799efa4a0c9466363154de1c93-1781963008694-00196-_DdYue7j&tt=CPS_NORMAL&aff_fsk=_DdYue7j&aff_platform=portals-tool&sk=_DdYue7j&aff_trace_key=a31d0d799efa4a0c9466363154de1c93-1781963008694-00196-_DdYue7j&terminal_id=b79ca2686cd747d1a8f4c9c8c8c8b41c&afSmartRedirect=y",
+    "priceEur": 0,
+    "stock": 1,
+    "brand": "Aliexpress",
+    "weight": "50 g · 70 m"
+  },
+  {
+    "name": "Lana amarilla",
+    "category": "LANA",
+    "location": "Casa Javi",
+    "link": null,
+    "priceEur": 0,
+    "stock": 1,
+    "weight": null
+  },
+  {
+    "name": "Lana azul oscuro",
+    "category": "LANA",
+    "location": "Casa Javi",
+    "link": null,
+    "priceEur": 0,
+    "stock": 1,
+    "brand": "Cotton Milk?",
+    "weight": null
+  },
+  {
+    "name": "Lana lila",
+    "category": "OTRO",
+    "location": "Casa Natalia",
+    "link": null,
+    "priceEur": 0,
+    "stock": 1,
+    "brand": "Melissa fina",
+    "weight": null
+  },
+  {
+    "name": "Lana rosa fucsia",
+    "category": "OTRO",
+    "location": "Casa Alba",
+    "link": null,
+    "priceEur": 0,
+    "stock": 1,
+    "weight": null
+  },
+  {
+    "name": "Lana negra",
+    "category": "LANA",
+    "location": "Casa Alba",
+    "link": null,
+    "priceEur": 0,
+    "stock": 1,
+    "brand": "AliExpress",
+    "weight": null
+  },
+  {
+    "name": "Lana verde menta",
+    "category": "LANA",
+    "location": "Casa Javi",
+    "link": null,
+    "priceEur": 0,
+    "stock": 1,
+    "brand": "Milk cotton",
+    "weight": "50 g · 70 m"
+  },
+  {
+    "name": "Lana roja chenilla",
+    "category": "LANA",
+    "location": "Casa Javi",
+    "link": null,
+    "priceEur": 0,
+    "stock": 1,
+    "brand": "No muy intensa / Marca snowball / Tamaño medio",
+    "weight": "50 g · 70 m"
+  },
+  {
+    "name": "Lana chenilla marrón",
+    "category": "LANA",
+    "location": "Casa Alba",
+    "link": null,
+    "priceEur": 0,
+    "stock": 1,
+    "weight": null
+  },
+  {
+    "name": "Lana negra",
+    "category": "LANA",
+    "location": "Casa Alba",
+    "link": null,
+    "priceEur": 0,
+    "stock": 1,
+    "brand": "Como Melissa pero mejor",
+    "weight": null
+  },
+  {
+    "name": "Lana azul claro",
+    "category": "LANA",
+    "location": "Casa Javi",
+    "link": null,
+    "priceEur": 0,
+    "stock": 1,
+    "brand": "Cotton Milk?",
+    "weight": null
+  },
+  {
+    "name": "Lana chenilla verde",
+    "category": "LANA",
+    "location": "Casa Javi",
+    "link": null,
+    "priceEur": 0,
+    "stock": 1,
+    "brand": "Chenilla gorda / Aliexpress",
+    "weight": "50 g · 70 m"
+  },
+  {
+    "name": "Lana amarilla breeze",
+    "category": "LANA",
+    "location": "Casa Javi",
+    "link": null,
+    "priceEur": 0,
+    "stock": 1,
+    "brand": "Melisa breeze",
+    "weight": "50 g · 70 m"
+  },
+  {
+    "name": "Lana Azul fina",
+    "category": "LANA",
+    "location": "Casa Javi",
+    "link": null,
+    "priceEur": 0,
+    "stock": 1,
+    "brand": "Melisa fina",
+    "weight": null
+  },
+  {
+    "name": "Lana verde claro",
+    "category": "OTRO",
+    "location": "Casa Alba",
+    "link": null,
+    "priceEur": 0,
+    "stock": 1,
+    "weight": null
+  },
+  {
+    "name": "Lana chenilla beige",
+    "category": "LANA",
+    "location": "Casa Alba",
+    "link": null,
+    "priceEur": 0,
+    "stock": 1,
+    "weight": null
+  },
+  {
+    "name": "Lana morada",
+    "category": "LANA",
+    "location": "Casa Javi",
+    "link": null,
+    "priceEur": 0,
+    "stock": 1,
+    "brand": "Aliexpress",
+    "weight": "50 g · 70 m"
+  },
+  {
+    "name": "Lana blanco roto?",
+    "category": "LANA",
+    "location": "Casa Javi",
+    "link": null,
+    "priceEur": 0,
+    "stock": 2,
+    "weight": "50 g · 70 m"
+  },
+  {
+    "name": "Lana rosa claro",
+    "category": "LANA",
+    "location": "Casa Javi",
+    "link": null,
+    "priceEur": 0,
+    "stock": 1,
+    "weight": "50 g · 70 m"
+  },
+  {
+    "name": "Lana blanca",
+    "category": "LANA",
+    "location": "Casa Alba",
+    "link": null,
+    "priceEur": 0,
+    "stock": 1,
+    "brand": "Tipo melissa fina pero mejor",
+    "weight": null
+  },
+  {
+    "name": "Lana gris",
+    "category": "LANA",
+    "location": "Casa Javi",
+    "link": null,
+    "priceEur": 0,
+    "stock": 1,
+    "brand": "Milk cotton",
+    "weight": "50 g · 70 m"
+  },
+  {
+    "name": "Lana verde lima claro",
+    "category": "LANA",
+    "location": "Casa Javi",
+    "link": null,
+    "priceEur": 0,
+    "stock": 1,
+    "brand": "Milk cotton",
+    "weight": "50 g · 70 m"
+  },
+  {
+    "name": "Lana naranja breeze",
+    "category": "LANA",
+    "location": "Casa Javi",
+    "link": null,
+    "priceEur": 0,
+    "stock": 1,
+    "brand": "Melisa brezze",
+    "weight": "50 g · 70 m"
+  },
+  {
+    "name": "Lana roja",
+    "category": "LANA",
+    "location": "Casa Javi",
+    "link": null,
+    "priceEur": 0,
+    "stock": 1,
+    "brand": "Cotton Milk?",
+    "weight": null
+  },
+  {
+    "name": "Lana marrón",
+    "category": "LANA",
+    "location": "Casa Alba",
+    "link": null,
+    "priceEur": 0,
+    "stock": 1,
+    "brand": "AliExpress",
+    "weight": null
+  },
+  {
+    "name": "Lana naranja",
+    "category": "LANA",
+    "location": "Casa Javi",
+    "link": null,
+    "priceEur": 0,
+    "stock": 1,
+    "brand": "Milk cotton",
+    "weight": "50 g · 70 m"
+  },
+  {
+    "name": "Lana crema/beige",
+    "category": "LANA",
+    "location": "Casa Javi",
+    "link": null,
+    "priceEur": 0,
+    "stock": 1,
+    "brand": "Tipo dura",
+    "weight": "50 g · 70 m"
+  },
+  {
+    "name": "Lana verde claro melissa fina",
+    "category": "OTRO",
+    "location": "Casa Alba",
+    "link": null,
+    "priceEur": 0,
+    "stock": 1,
+    "weight": null
+  }
+]

@@ -1,0 +1,167 @@
+[
+  {
+    "date": "2025-11-30",
+    "name": "Llavero muñeco nieve",
+    "quantity": 2,
+    "priceEur": 9,
+    "patternUrl": "https://www.mariskavos.nl/free-snowman-crochet-pattern/",
+    "customer": "Amigas Madre Javi",
+    "maker": "Javier Gimenez",
+    "status": "COBRADO",
+    "completedAt": "2025-11-29"
+  },
+  {
+    "date": "2025-11-29",
+    "name": "Loki Mini",
+    "quantity": 1,
+    "priceEur": 25,
+    "patternUrl": "https://www.etsy.com/es/listing/1036988849/patron-de-muneco-amigurumi-de-crochet?ls=s&ga_order=most_relevant&ga_search_type=all&ga_view_type=gallery&ga_search_query=loki+crochet+pattern&ref=sr_gallery-1-2&pro=1&dd=1&nob=1&content_source=06e4e5fb-2b8a-40be-8e99-10fb40cc965d%253ALTa4152d20ba9ae5cd87669a8a496b40285a55ef7f&organic_search_click=1&logging_key=06e4e5fb-2b8a-40be-8e99-10fb40cc965d%3ALTa4152d20ba9ae5cd87669a8a496b40285a55ef7f",
+    "customer": "Amiga Tio Javi",
+    "maker": "xr24alba@gmail.com",
+    "status": "COBRADO",
+    "completedAt": "2026-01-18"
+  },
+  {
+    "date": "2025-11-29",
+    "name": "Six Little Nigthmares",
+    "quantity": 1,
+    "priceEur": 20,
+    "patternUrl": "https://www.youtube.com/watch?v=w4rmmPR8-KE",
+    "customer": "Tio Javi",
+    "maker": "Javier Gimenez",
+    "status": "COBRADO",
+    "completedAt": "2026-01-05"
+  },
+  {
+    "date": "2025-11-11",
+    "name": "Desdentado Blanco",
+    "quantity": 1,
+    "priceEur": 80,
+    "patternUrl": "https://www.youtube.com/watch?v=e6ONTUiW9mk",
+    "customer": "Mikel",
+    "maker": "xr24alba@gmail.com",
+    "status": "COBRADO",
+    "completedAt": "2025-11-21"
+  },
+  {
+    "date": "2025-11-11",
+    "name": "Avispa",
+    "quantity": 1,
+    "priceEur": 0,
+    "patternUrl": "https://www.etsy.com/es/listing/1354642923/avengers-amigurumi-pattern-antman-and?ls=s&ga_order=most_relevant&ga_search_type=all&ga_view_type=gallery&ga_search_query=wasp+marvel+crochet+pattern&ref=sr_gallery-1-2&pro=1&sts=1&dd=1&nob=1&content_source=33b9b7c5-5171-4b50-8e53-82e131cfca72%253ALT2d705677c27231ef00582460667be20221ee9b3d&organic_search_click=1&logging_key=33b9b7c5-5171-4b50-8e53-82e131cfca72%3ALT2d705677c27231ef00582460667be20221ee9b3d",
+    "customer": "Jesus",
+    "maker": null,
+    "status": "SIN_EMPEZAR",
+    "completedAt": null
+  },
+  {
+    "date": "2025-11-10",
+    "name": "Desdentado",
+    "quantity": 1,
+    "priceEur": 0,
+    "patternUrl": "https://www.youtube.com/watch?v=e6ONTUiW9mk",
+    "customer": "Mikel",
+    "maker": "nataliachueca98@gmail.com",
+    "status": "COBRADO",
+    "completedAt": "2025-12-25"
+  },
+  {
+    "date": "2025-11-10",
+    "name": "Hulka",
+    "quantity": 1,
+    "priceEur": 0,
+    "patternUrl": null,
+    "customer": "Jesus",
+    "maker": null,
+    "status": "SIN_EMPEZAR",
+    "completedAt": null
+  },
+  {
+    "date": "2026-01-20",
+    "name": "Fantasma rojo gato",
+    "quantity": 1,
+    "priceEur": 10,
+    "patternUrl": "https://www.stitchbyfay.com/little-ghost-crochet-pattern/",
+    "customer": "Mery (Trabajo javi)",
+    "maker": "Javier Gimenez",
+    "status": "COBRADO",
+    "completedAt": "2026-01-25"
+  },
+  {
+    "date": "2026-01-27",
+    "name": "Cerveza Hermana Javi",
+    "quantity": 2,
+    "priceEur": 0,
+    "patternUrl": "https://onedrive.live.com/?redeem=aHR0cHM6Ly8xZHJ2Lm1zL2YvYy80Y2UwZWI3MTBjYzRjMjhlL0VvN0N4QXh4Ni1BZ2dFeEVJUUFBQUFBQlhNNGhmOHp1THoyS2p6R0p6TXViN2c&cid=4CE0EB710CC4C28E&sb=name&sd=1&id=4CE0EB710CC4C28E%21sdc009be25bbf47f18d817b678f36c259&parId=4CE0EB710CC4C28E%21s0e57e3d11d054114bd72100bf4edb222&o=OneUp",
+    "customer": "Hermana Javi",
+    "maker": "Javier Gimenez",
+    "status": "COBRADO",
+    "completedAt": "2026-03-09"
+  },
+  {
+    "date": "2026-02-02",
+    "name": "Fantasma naranja brujo",
+    "quantity": 1,
+    "priceEur": 10,
+    "patternUrl": "https://www.stitchbyfay.com/little-ghost-crochet-pattern/",
+    "customer": "Mery (Trabajo javi)",
+    "maker": "Javier Gimenez",
+    "status": "COBRADO",
+    "completedAt": "2026-02-14"
+  },
+  {
+    "date": "2026-04-25",
+    "name": "Obeja",
+    "quantity": 1,
+    "priceEur": 0,
+    "patternUrl": "https://www.passionatecrafter.com/no-sew-mini-sheep-free-crochet-pattern/",
+    "customer": "Tia Mari (javi)",
+    "maker": "Javier Gimenez",
+    "status": "TERMINADO",
+    "completedAt": "2026-05-21"
+  },
+  {
+    "date": "2026-04-25",
+    "name": "Vaca manchas marron",
+    "quantity": 1,
+    "priceEur": 0,
+    "patternUrl": "https://www.mariskavos.nl/free-cow-crochet-pattern/",
+    "customer": "Tia Mari (javi)",
+    "maker": "Javier Gimenez",
+    "status": "SIN_EMPEZAR",
+    "completedAt": null
+  },
+  {
+    "date": "2026-04-27",
+    "name": "Cabeza gato negro ojos verdes",
+    "quantity": 1,
+    "priceEur": 0,
+    "patternUrl": "https://www.youtube.com/watch?v=gcXwpALX8dk&t=1281s",
+    "customer": "Tia Mari (javi)",
+    "maker": "Javier Gimenez",
+    "status": "SIN_EMPEZAR",
+    "completedAt": null
+  },
+  {
+    "date": "2026-04-03",
+    "name": "Virgen del plialr",
+    "quantity": 1,
+    "priceEur": 8,
+    "patternUrl": "https://www.youtube.com/watch?v=-2pjzayPpn4",
+    "customer": "Wallapop",
+    "maker": "nataliachueca98@gmail.com",
+    "status": "COBRADO",
+    "completedAt": null
+  },
+  {
+    "date": "2026-05-25",
+    "name": "Virgen del plialr",
+    "quantity": 1,
+    "priceEur": 8,
+    "patternUrl": "https://www.youtube.com/watch?v=-2pjzayPpn4",
+    "customer": "Wallapop",
+    "maker": "nataliachueca98@gmail.com",
+    "status": "SIN_EMPEZAR",
+    "completedAt": null
+  }
+]

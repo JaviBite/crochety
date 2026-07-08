@@ -1,0 +1,65 @@
+[
+  {
+    "date": "2025-11-23",
+    "item": "Lana colo carne aliexpres",
+    "quantity": 1,
+    "unitPriceEur": 1.83,
+    "totalEur": 1.83,
+    "payer": "Javier Gimenez",
+    "received": true
+  },
+  {
+    "date": "2026-01-12",
+    "item": "Alambre tallo verde flores (22Gauge green)",
+    "quantity": 1,
+    "unitPriceEur": 2.99,
+    "totalEur": 2.99,
+    "payer": "xr24alba@gmail.com",
+    "received": true
+  },
+  {
+    "date": "2026-01-12",
+    "item": "Lana color rosa palido aliexpres (COLOR 49)",
+    "quantity": 1,
+    "unitPriceEur": 1.71,
+    "totalEur": 1.71,
+    "payer": "xr24alba@gmail.com",
+    "received": true
+  },
+  {
+    "date": "2026-01-12",
+    "item": "Alambre verde flores",
+    "quantity": 1,
+    "unitPriceEur": 1.89,
+    "totalEur": 1.89,
+    "payer": "xr24alba@gmail.com",
+    "received": true
+  },
+  {
+    "date": "2026-02-11",
+    "item": "Lanas varias",
+    "quantity": 5,
+    "unitPriceEur": 0.87,
+    "totalEur": 4.35,
+    "payer": "Alba Vallés",
+    "received": true
+  },
+  {
+    "date": "2026-05-20",
+    "item": "Lanas",
+    "quantity": 2,
+    "unitPriceEur": 5.58,
+    "totalEur": 5.58,
+    "payer": "Alba Vallés",
+    "received": true
+  },
+  {
+    "date": "2026-05-20",
+    "item": "Ganchos de colores (10 pzs)",
+    "quantity": 1,
+    "unitPriceEur": 1.93,
+    "totalEur": 1.93,
+    "payer": "Alba Vallés",
+    "received": true
+  }
+]

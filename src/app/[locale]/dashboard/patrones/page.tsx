@@ -1,6 +1,7 @@
 import { ExternalLink, FilePlus2, FileText, Plus, ScrollText } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import { cookies } from "next/headers";
+import { ListSearch } from "@/components/dashboard/list-search";
 import { RowActions } from "@/components/dashboard/row-actions";
 import { TagChips, TagFilter } from "@/components/dashboard/tag-filter";
 import { ViewToggle } from "@/components/dashboard/view-toggle";
@@ -13,7 +14,9 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Link } from "@/i18n/navigation";
+import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
+import { normalizeSearch } from "@/lib/search";
 import { parseView, viewCookieName } from "@/lib/view";
 import { deletePattern } from "./actions";
 import { AiStatusBadge } from "./ai-status-badge";
@@ -24,19 +27,25 @@ const SECTION = "patrones";
 export default async function PatternsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tag?: string }>;
+  searchParams: Promise<{ tag?: string; q?: string }>;
 }) {
-  const { tag } = await searchParams;
+  const { tag, q } = await searchParams;
   const activeTag = tag?.toLowerCase();
+  const search = normalizeSearch(q);
   const view = parseView(
     (await cookies()).get(viewCookieName(SECTION))?.value,
     "grid",
   );
 
+  const filters: Prisma.PatternWhereInput[] = [];
+  if (activeTag) filters.push({ tags: { some: { name: activeTag } } });
+  if (search) filters.push({ title: { contains: search, mode: "insensitive" } });
+  const hasFilters = filters.length > 0;
+
   const [t, patterns, filterTags] = await Promise.all([
     getTranslations("Patterns"),
     prisma.pattern.findMany({
-      where: activeTag ? { tags: { some: { name: activeTag } } } : undefined,
+      where: hasFilters ? { AND: filters } : undefined,
       orderBy: { createdAt: "desc" },
       include: { tags: { select: { name: true }, orderBy: { name: "asc" } } },
     }),
@@ -46,6 +55,8 @@ export default async function PatternsPage({
       select: { name: true },
     }),
   ]);
+
+  const preserve = { q: search, tag: activeTag };
 
   return (
     <div className="space-y-6">
@@ -70,22 +81,28 @@ export default async function PatternsPage({
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="flex-1">
-          <TagFilter
-            tags={filterTags.map((tag) => tag.name)}
-            activeTag={activeTag}
-            basePath={BASE_PATH}
-          />
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <ListSearch className="min-w-56 flex-1" />
+          {(patterns.length > 0 || hasFilters) && (
+            <ViewToggle section={SECTION} value={view} />
+          )}
         </div>
-        {patterns.length > 0 && <ViewToggle section={SECTION} value={view} />}
+        <TagFilter
+          tags={filterTags.map((tag) => tag.name)}
+          activeTag={activeTag}
+          basePath={BASE_PATH}
+          preserveQuery={preserve}
+        />
       </div>
 
       {patterns.length === 0 ? (
         <EmptyState
           icon={ScrollText}
-          title={t("emptyTitle")}
-          description={t("emptyDescription")}
+          title={hasFilters ? t("noResultsTitle") : t("emptyTitle")}
+          description={
+            hasFilters ? t("noResultsDescription") : t("emptyDescription")
+          }
         />
       ) : view === "grid" ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

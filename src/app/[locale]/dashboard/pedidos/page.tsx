@@ -1,6 +1,7 @@
 import { Package, Plus } from "lucide-react";
 import { getFormatter, getLocale, getTranslations } from "next-intl/server";
 import { cookies } from "next/headers";
+import { ListSearch } from "@/components/dashboard/list-search";
 import { RowActions } from "@/components/dashboard/row-actions";
 import { ViewToggle } from "@/components/dashboard/view-toggle";
 import { EmptyState } from "@/components/empty-state";
@@ -21,8 +22,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Link } from "@/i18n/navigation";
+import type { Prisma } from "@/generated/prisma/client";
 import { formatCents } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
+import { normalizeSearch } from "@/lib/search";
 import { parseView, viewCookieName } from "@/lib/view";
 import type { OrderStatus } from "@/lib/validations";
 import { deleteOrder } from "./actions";
@@ -45,7 +48,24 @@ function orderCover(order: {
   return order.photos[0]?.path ?? order.pattern?.coverImagePath ?? null;
 }
 
-export default async function OrdersPage() {
+export default async function OrdersPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string }>;
+}) {
+  const { q } = await searchParams;
+  const search = normalizeSearch(q);
+
+  const where: Prisma.OrderWhereInput | undefined = search
+    ? {
+        OR: [
+          { name: { contains: search, mode: "insensitive" } },
+          { description: { contains: search, mode: "insensitive" } },
+          { customer: { contains: search, mode: "insensitive" } },
+        ],
+      }
+    : undefined;
+
   const [t, tStatus, locale, format] = await Promise.all([
     getTranslations("Orders"),
     getTranslations("OrderStatus"),
@@ -54,6 +74,7 @@ export default async function OrdersPage() {
   ]);
 
   const orders = await prisma.order.findMany({
+    where,
     orderBy: { createdAt: "desc" },
     include: {
       assignedTo: { select: { name: true } },
@@ -75,7 +96,9 @@ export default async function OrdersPage() {
           <p className="text-muted-foreground">{t("description")}</p>
         </div>
         <div className="flex items-center gap-2">
-          {orders.length > 0 && <ViewToggle section={SECTION} value={view} />}
+          {(orders.length > 0 || search) && (
+            <ViewToggle section={SECTION} value={view} />
+          )}
           <Button asChild>
             <Link href="/dashboard/pedidos/nuevo">
               <Plus className="size-4" />
@@ -85,11 +108,15 @@ export default async function OrdersPage() {
         </div>
       </div>
 
+      <ListSearch className="max-w-sm" />
+
       {orders.length === 0 ? (
         <EmptyState
           icon={Package}
-          title={t("emptyTitle")}
-          description={t("emptyDescription")}
+          title={search ? t("noResultsTitle") : t("emptyTitle")}
+          description={
+            search ? t("noResultsDescription") : t("emptyDescription")
+          }
         />
       ) : view === "list" ? (
         <div className="overflow-x-auto rounded-2xl border bg-card shadow-sm">
