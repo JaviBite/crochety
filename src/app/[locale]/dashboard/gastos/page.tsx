@@ -141,6 +141,7 @@ export default async function ExpensesPage({
                     </TableCell>
                     <TableCell className="text-right">
                       <RowActions
+                        viewHref={`${BASE_PATH}/${expense.id}`}
                         editHref={`${BASE_PATH}/editar/${expense.id}`}
                         deleteAction={deleteExpense.bind(null, expense.id)}
                       />

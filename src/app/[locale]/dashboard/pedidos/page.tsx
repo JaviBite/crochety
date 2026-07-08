@@ -183,6 +183,7 @@ export default async function OrdersPage({
                   </TableCell>
                   <TableCell className="text-right">
                     <RowActions
+                      viewHref={`${BASE_PATH}/${order.id}`}
                       editHref={`${BASE_PATH}/editar/${order.id}`}
                       deleteAction={deleteOrder.bind(null, order.id)}
                     />
@@ -232,6 +233,7 @@ export default async function OrdersPage({
                       {tStatus(order.status)}
                     </Badge>
                     <RowActions
+                      viewHref={`${BASE_PATH}/${order.id}`}
                       editHref={`${BASE_PATH}/editar/${order.id}`}
                       deleteAction={deleteOrder.bind(null, order.id)}
                     />

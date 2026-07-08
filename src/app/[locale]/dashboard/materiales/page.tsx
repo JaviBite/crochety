@@ -186,6 +186,7 @@ export default async function MaterialsPage({
                       {tCategory(material.category)}
                     </Badge>
                     <RowActions
+                      viewHref={`${BASE_PATH}/${material.id}`}
                       editHref={`${BASE_PATH}/editar/${material.id}`}
                       deleteAction={deleteMaterial.bind(null, material.id)}
                     />
@@ -268,6 +269,7 @@ export default async function MaterialsPage({
                 <TagChips tags={material.tags} basePath={BASE_PATH} />
               </div>
               <RowActions
+                viewHref={`${BASE_PATH}/${material.id}`}
                 editHref={`${BASE_PATH}/editar/${material.id}`}
                 deleteAction={deleteMaterial.bind(null, material.id)}
               />

@@ -1,6 +1,6 @@
 "use client";
 
-import { Pencil, Trash2 } from "lucide-react";
+import { Eye, Pencil, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useState, useTransition } from "react";
 import {
@@ -77,15 +77,30 @@ export function DeleteButton({
 
 /** Editar (enlace) + Borrar (con confirmación) para una fila/tarjeta de listado. */
 export function RowActions({
+  viewHref,
   editHref,
   deleteAction,
 }: {
+  viewHref?: string;
   editHref: string;
   deleteAction: () => Promise<DeleteResult>;
 }) {
   const t = useTranslations("Forms");
   return (
     <div className="flex items-center justify-end gap-0.5">
+      {viewHref && (
+        <Button
+          asChild
+          variant="ghost"
+          size="icon-sm"
+          aria-label={t("view")}
+          className="text-muted-foreground hover:text-foreground"
+        >
+          <Link href={viewHref}>
+            <Eye />
+          </Link>
+        </Button>
+      )}
       <Button
         asChild
         variant="ghost"
