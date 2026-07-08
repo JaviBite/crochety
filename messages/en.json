@@ -307,6 +307,8 @@
     "fieldTitle": "Title",
     "fieldFile": "File (PDF or DOCX)",
     "fileHint": "It will be standardized automatically with AI on save.",
+    "fieldImages": "Pattern images",
+    "imagesHint": "Alternative to the file: upload photos or page screenshots and the AI will read them directly.",
     "fieldExternalUrl": "External link",
     "fieldCover": "Cover image",
     "coverHint": "If you don't upload one, it will be derived from the PDF or the link.",

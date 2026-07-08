@@ -307,6 +307,8 @@
     "fieldTitle": "Título",
     "fieldFile": "Fichero (PDF o DOCX)",
     "fileHint": "Se estandarizará automáticamente con IA al guardar.",
+    "fieldImages": "Imágenes del patrón",
+    "imagesHint": "Alternativa al fichero: sube fotos o capturas de las páginas y la IA las leerá directamente.",
     "fieldExternalUrl": "Enlace externo",
     "fieldCover": "Imagen de portada",
     "coverHint": "Si no subes una, se intentará derivar del PDF o del enlace.",
