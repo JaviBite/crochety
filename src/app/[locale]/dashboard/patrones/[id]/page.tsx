@@ -1,5 +1,6 @@
 import {
   ArrowLeft,
+  ChevronDown,
   ExternalLink,
   FileText,
   NotebookPen,
@@ -171,6 +172,7 @@ export default async function PatternDetailPage({
             colStitches: t("colStitches"),
             notes: t("sectionNotesLabel"),
             assembly: t("assemblyTitle"),
+            repeatRounds: t("repeatRounds"),
           }}
         />
       ) : aiStatus === "PENDING" || aiStatus === "PROCESSING" ? (
@@ -188,6 +190,25 @@ export default async function PatternDetailPage({
       )}
     </div>
   );
+}
+
+function compressRounds(rounds: StandardizedPattern["sections"][number]["rounds"]) {
+  if (rounds.length === 0) return [];
+  const groups: StandardizedPattern["sections"][number]["rounds"][] = [];
+  let current: StandardizedPattern["sections"][number]["rounds"] = [];
+  const key = (round: StandardizedPattern["sections"][number]["rounds"][number]) =>
+    `${round.instruction.trim()}::${round.stitchCount ?? "null"}`;
+
+  for (const round of rounds) {
+    if (current.length === 0 || key(round) === key(current[0]!)) {
+      current.push(round);
+    } else {
+      groups.push(current);
+      current = [round];
+    }
+  }
+  groups.push(current);
+  return groups;
 }
 
 function StandardizedView({
@@ -268,30 +289,64 @@ function StandardizedView({
             <CardTitle className="text-base">{section.name}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-24">{labels.colRound}</TableHead>
-                  <TableHead>{labels.colInstruction}</TableHead>
-                  <TableHead className="w-20 text-right">
-                    {labels.colStitches}
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {section.rounds.map((round) => (
-                  <TableRow key={round.label}>
-                    <TableCell className="font-medium">{round.label}</TableCell>
-                    <TableCell className="whitespace-normal">
-                      {round.instruction}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums text-muted-foreground">
-                      {round.stitchCount ?? "—"}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            <div className="space-y-2">
+              {compressRounds(section.rounds).map((group, groupIndex) => {
+                if (group.length === 1) {
+                  const round = group[0];
+                  return (
+                    <div
+                      key={`${section.name}-${round.label}-${groupIndex}`}
+                      className="grid gap-2 rounded-xl border px-3 py-2 sm:grid-cols-[90px_minmax(0,1fr)_80px]"
+                    >
+                      <div className="font-medium">{round.label}</div>
+                      <div className="whitespace-normal">{round.instruction}</div>
+                      <div className="text-right tabular-nums text-muted-foreground">
+                        {round.stitchCount ?? "—"}
+                      </div>
+                    </div>
+                  );
+                }
+
+                const summaryLabel =
+                  group[0]?.label && group[group.length - 1]?.label
+                    ? `${group[0].label}–${group[group.length - 1].label}`
+                    : `${group.length}x`;
+
+                return (
+                  <details
+                    key={`${section.name}-${group[0]?.label ?? groupIndex}-${groupIndex}`}
+                    className="rounded-xl border px-3 py-2"
+                  >
+                    <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="font-medium">{summaryLabel}</div>
+                        <div className="text-sm text-muted-foreground">
+                          {group[0]?.instruction}
+                        </div>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-2 text-sm text-muted-foreground">
+                        <span>{labels.repeatRounds?.replace("{count}", `${group.length}`)}</span>
+                        <ChevronDown className="size-4 transition-transform group-open:rotate-180" />
+                      </div>
+                    </summary>
+                    <div className="mt-3 space-y-2 border-t pt-3">
+                      {group.map((round) => (
+                        <div
+                          key={`${section.name}-${round.label}-${round.instruction}`}
+                          className="grid gap-2 rounded-lg bg-muted/40 px-3 py-2 sm:grid-cols-[90px_minmax(0,1fr)_80px]"
+                        >
+                          <div className="font-medium">{round.label}</div>
+                          <div className="whitespace-normal">{round.instruction}</div>
+                          <div className="text-right tabular-nums text-muted-foreground">
+                            {round.stitchCount ?? "—"}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                );
+              })}
+            </div>
             {section.notes && (
               <p className="text-sm text-muted-foreground">
                 <span className="font-medium text-foreground">

@@ -343,6 +343,7 @@
     "colRound": "Ronda",
     "colInstruction": "Instrucción",
     "colStitches": "Puntos",
+    "repeatRounds": "{count, plural, one {# ronda igual} other {# rondas iguales}}",
     "sectionNotesLabel": "Notas",
     "assemblyTitle": "Montaje y acabado",
     "editContent": "Editar contenido",

@@ -22,7 +22,10 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Link } from "@/i18n/navigation";
-import type { StandardizedPattern } from "@/lib/ai/standardize-pattern";
+import {
+  normalizeStandardizedPattern,
+  type StandardizedPattern,
+} from "@/lib/ai/standardize-pattern";
 import { NONE_VALUE } from "@/lib/forms";
 import { updatePatternContent } from "../../actions";
 
@@ -42,7 +45,7 @@ function moveItem<T>(list: T[], from: number, to: number): T[] {
 
 /** Limpia filas vacías antes de serializar (el contrato no las necesita). */
 function cleaned(doc: StandardizedPattern): StandardizedPattern {
-  return {
+  return normalizeStandardizedPattern({
     ...doc,
     title: doc.title.trim(),
     materials: doc.materials.map((m) => m.trim()).filter(Boolean),
@@ -59,7 +62,7 @@ function cleaned(doc: StandardizedPattern): StandardizedPattern {
       }))
       .filter((section) => section.name || section.rounds.length > 0),
     assemblyNotes: doc.assemblyNotes?.trim() || null,
-  };
+  });
 }
 
 /**

@@ -343,6 +343,7 @@
     "colRound": "Round",
     "colInstruction": "Instruction",
     "colStitches": "Stitches",
+    "repeatRounds": "{count, plural, one {# identical round} other {# identical rounds}}",
     "sectionNotesLabel": "Notes",
     "assemblyTitle": "Assembly & finishing",
     "editContent": "Edit content",

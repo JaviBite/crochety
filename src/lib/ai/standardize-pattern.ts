@@ -46,6 +46,55 @@ export const standardizedPatternSchema = z.object({
 
 export type StandardizedPattern = z.infer<typeof standardizedPatternSchema>;
 
+/** Quita abreviaturas repetidas (el LLM las repite a menudo entre secciones). */
+function dedupeAbbreviations(
+  abbreviations: StandardizedPattern["abbreviations"],
+): StandardizedPattern["abbreviations"] {
+  const seen = new Map<string, StandardizedPattern["abbreviations"][number]>();
+  for (const entry of abbreviations) {
+    const key = entry.abbr.trim().toLowerCase();
+    if (key && !seen.has(key)) {
+      seen.set(key, {
+        abbr: entry.abbr.trim().toLowerCase(),
+        meaning: entry.meaning.trim(),
+      });
+    }
+  }
+  return [...seen.values()];
+}
+
+export function normalizeStandardizedPattern(
+  pattern: StandardizedPattern,
+): StandardizedPattern {
+  return {
+    ...pattern,
+    title: pattern.title.trim(),
+    materials: pattern.materials.map((material) => material.trim()).filter(Boolean),
+    abbreviations: dedupeAbbreviations(
+      pattern.abbreviations
+        .map((entry) => ({
+          abbr: entry.abbr.trim(),
+          meaning: entry.meaning.trim(),
+        }))
+        .filter((entry) => entry.abbr || entry.meaning),
+    ),
+    sections: pattern.sections
+      .map((section) => ({
+        name: section.name.trim(),
+        notes: section.notes?.trim() || null,
+        rounds: section.rounds
+          .map((round) => ({
+            label: round.label.trim(),
+            instruction: round.instruction.trim(),
+            stitchCount: round.stitchCount,
+          }))
+          .filter((round) => round.label || round.instruction),
+      }))
+      .filter((section) => section.name || section.rounds.length > 0),
+    assemblyNotes: pattern.assemblyNotes?.trim() || null,
+  };
+}
+
 /** JSON persistido → contrato tipado; null si no hay o no valida (corrupto). */
 export function parseStandardizedContent(
   raw: string | null,
@@ -53,7 +102,7 @@ export function parseStandardizedContent(
   if (!raw) return null;
   try {
     const parsed = standardizedPatternSchema.safeParse(JSON.parse(raw));
-    return parsed.success ? parsed.data : null;
+    return parsed.success ? normalizeStandardizedPattern(parsed.data) : null;
   } catch {
     return null;
   }
@@ -95,7 +144,7 @@ export async function standardizePattern(
     system: SYSTEM_PROMPT,
     prompt: rawText,
   });
-  return object;
+  return normalizeStandardizedPattern(object);
 }
 
 const MIXED_SYSTEM_PROMPT = `${SYSTEM_PROMPT}
@@ -132,7 +181,7 @@ export async function standardizePatternFromContent(input: {
     system: MIXED_SYSTEM_PROMPT,
     messages: [{ role: "user", content }],
   });
-  return object;
+  return normalizeStandardizedPattern(object);
 }
 
 /**
