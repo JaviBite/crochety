@@ -57,7 +57,8 @@ Credenciales de dev en `.env` (ver `.env.example`). Login en `/login`.
 
 - `src/app/[locale]/(public)/` — galería pública + login
 - `src/app/[locale]/dashboard/{pedidos,gastos,materiales,patrones}/` — cada sección: `page.tsx` (listado), `nuevo/page.tsx` (alta), `*-form.tsx` (client, `useActionState`), `actions.ts` (server action con guard de sesión + parser de `lib/forms.ts`)
-- `src/lib/` — `prisma` (singleton), `auth`, `forms` (parsers FormData→datos), `files` (uploads), `money`, `validations`, `theme`, `ai/` (provider multi-LLM + contrato del patrón estandarizado)
+- `src/app/[locale]/dashboard/{perfil,usuarios,ajustes}/` — cuenta y administración (usuarios y ajustes con guard de rol admin en página **y** action)
+- `src/lib/` — `prisma` (singleton + helpers de errores P2002/P2003), `auth` (+ `isAdmin`), `settings` (ajustes BD→env), `forms` (parsers FormData→datos), `files` (uploads), `money`, `balance` (quién debe a quién), `pricing` (precio sugerido), `validations`, `theme`, `ai/` (provider multi-LLM + contrato del patrón estandarizado)
 - `messages/{es,en}.json` — TODA cadena de UI pasa por aquí (ambos ficheros siempre a la vez)
 - `deploy/README.md` — guía de despliegue (Vercel + Neon + Blob + OpenRouter)
 
@@ -135,21 +136,40 @@ Organizado en fases para implementación incremental. `✅` = ya hecho.
   redirect); PROCESSING→DONE/ERROR, con botón estandarizar/reintentar en el
   detalle (`standardizePatternAction`). Requiere modelo con *structured outputs*
   (trampa #11).
-- **Editor de patrones online** para los estandarizados.
-- **Permitir añadir patrones en batch** a partir de varios ficheros
-- **Calculadora de precio sugerido** por materiales del pedido (`OrderMaterial` ya
-  existe).
-- **Perfil de usuario**: apartado para modificar el propio perfil.
-- **Gestor de usuarios** (admin): crear usuarios desde la app. Introduce el rol
-  `admin` en `User`.
-- **Panel de administración / ajustes** (solo admin): configuración editable en
-  runtime que hoy vive en `.env`: proveedor y modelo de IA (`AI_PROVIDER` /
-  `AI_MODEL`, claves API enmascaradas y nunca expuestas al cliente), datos del
-  taller (nombre/tagline de la landing, hoy hardcodeados), idioma y acento por
-  defecto, y ajustes de la galería pública. Requiere un modelo `Setting`
-  (clave-valor) leído en servidor con *fallback* a env, de forma que
-  `getAiProvider()`/`getModel()` consulten la BD primero.
-- **Balance fino "quién debe a quién"** en el dashboard.
+- ✅ **Editor de patrones online**: `patrones/[id]/editor` edita campo a campo el
+  JSON estandarizado (metadatos, materiales, abreviaturas, secciones/rondas con
+  reordenación) y lo revalida contra el contrato al guardar
+  (`updatePatternContent`, deja `aiStatus: DONE`). Sin versión estandarizada
+  parte de un esqueleto vacío (sirve para escribir patrones a mano).
+- ✅ **Patrones en batch** (`patrones/batch`): multi-fichero PDF/DOCX; cada uno se
+  sube a `/api/uploads` al elegirlo (título editable derivado del nombre de
+  fichero), la action crea N patrones PENDING y la portada + estandarización
+  van en `after()` patrón a patrón. Etiquetas compartidas para todo el lote.
+- ✅ **Calculadora de precio sugerido**: sección "materiales usados" en el form
+  de pedido (persiste `OrderMaterial`; al editar se reemplazan las líneas) +
+  calculadora en cliente: coste × multiplicador (default ×3) redondeado ↑ a
+  0,50 €, con botón "aplicar" sobre el precio (`lib/pricing.ts`).
+- ✅ **Perfil de usuario** (`/dashboard/perfil`): nombre, correo y contraseña
+  (pide la actual). Refresca el JWT con `unstable_update` para no re-loguear.
+  OJO: el seed ya NO machaca usuarios existentes (solo bootstrap si faltan),
+  para que los cambios de perfil sobrevivan a los deploys.
+- ✅ **Gestor de usuarios** (`/dashboard/usuarios`, solo admin): `User.role` =
+  `ADMIN | USER` (viaja en el JWT → los cambios de rol/nombre se ven al
+  re-loguear; la migración pone ADMIN a los usuarios existentes). Crear/editar/
+  borrar con salvaguardas (no auto-borrarse, no quitarse el propio rol admin,
+  la FK de gastos bloquea el borrado).
+- ✅ **Panel de administración / ajustes** (`/dashboard/ajustes`, solo admin):
+  modelo `Setting` (clave-valor) + `lib/settings.ts` (BD → env → default, una
+  sola query por petición con `cache()` de React). Cubre: nombre/tagline del
+  taller (landing, sidebar y `<title>`), galería pública on/off, acento por
+  defecto (si no hay cookie `accent`) y proveedor/modelo/clave API de IA
+  (claves enmascaradas, nunca llegan al cliente; `getModel()` ahora es async
+  vía `getAiConfig()`). El idioma por defecto NO es configurable a propósito:
+  el default locale de next-intl se compila en el routing y el proxy no puede
+  leer la BD.
+- ✅ **Balance fino "quién debe a quién"** en el dashboard: `lib/balance.ts`
+  (gastos e ingresos a medias, greedy para N usuarios, redondeo saneado); los
+  pedidos cobrados sin asignar no se reparten.
 
 ### Ya hecho
 

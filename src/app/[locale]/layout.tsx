@@ -7,6 +7,7 @@ import { notFound } from "next/navigation";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 import { routing } from "@/i18n/routing";
+import { getDefaultAccent, getWorkshopSettings } from "@/lib/settings";
 import { parseAccent } from "@/lib/theme";
 import "../globals.css";
 
@@ -20,13 +21,16 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-export const metadata: Metadata = {
-  title: {
-    default: "Zgz Stitches",
-    template: "%s · Zgz Stitches",
-  },
-  description: "Amigurumis y crochet hechos a mano · Handmade crochet",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const { name } = await getWorkshopSettings();
+  return {
+    title: {
+      default: name,
+      template: `%s · ${name}`,
+    },
+    description: "Amigurumis y crochet hechos a mano · Handmade crochet",
+  };
+}
 
 export default async function LocaleLayout({
   children,
@@ -42,7 +46,11 @@ export default async function LocaleLayout({
 
   const messages = await getMessages();
   const cookieStore = await cookies();
-  const accent = parseAccent(cookieStore.get("accent")?.value);
+  // La cookie del visitante manda; sin cookie, el acento por defecto de ajustes.
+  const accentCookie = cookieStore.get("accent")?.value;
+  const accent = accentCookie
+    ? parseAccent(accentCookie)
+    : await getDefaultAccent();
 
   return (
     <html

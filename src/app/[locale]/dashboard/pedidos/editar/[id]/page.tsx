@@ -9,12 +9,13 @@ export default async function EditOrderPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [t, order, users, patterns] = await Promise.all([
+  const [t, order, users, patterns, materials] = await Promise.all([
     getTranslations("Orders"),
     prisma.order.findUnique({
       where: { id },
       include: {
         photos: { where: { isCover: true }, take: 1, select: { path: true } },
+        materials: { select: { materialId: true, quantity: true } },
       },
     }),
     prisma.user.findMany({
@@ -24,6 +25,10 @@ export default async function EditOrderPage({
     prisma.pattern.findMany({
       select: { id: true, title: true },
       orderBy: { title: "asc" },
+    }),
+    prisma.material.findMany({
+      select: { id: true, name: true, priceCents: true },
+      orderBy: { name: "asc" },
     }),
   ]);
 
@@ -38,6 +43,7 @@ export default async function EditOrderPage({
       <OrderForm
         users={users}
         patterns={patterns}
+        materials={materials}
         order={{
           id: order.id,
           name: order.name,
@@ -51,6 +57,7 @@ export default async function EditOrderPage({
           dueDate: order.dueDate,
           isPublic: order.isPublic,
           coverPhotoPath: order.photos[0]?.path ?? null,
+          materials: order.materials,
         }}
       />
     </div>

@@ -2,66 +2,48 @@ import { createAnthropic } from "@ai-sdk/anthropic";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import type { LanguageModel } from "ai";
+import { getAiConfig, type AiConfig } from "@/lib/settings";
+import { DEFAULT_AI_MODEL } from "@/lib/validations";
 
-// Proveedor de LLM configurable por entorno — SOLO se usa en el servidor.
-//   AI_PROVIDER: anthropic | openai | openrouter | ollama
-//   AI_MODEL:    id del modelo (default: claude-opus-4-8 con anthropic)
-// Las API keys (ANTHROPIC_API_KEY / OPENAI_API_KEY / OPENROUTER_API_KEY)
-// nunca llegan al cliente.
+// Proveedor de LLM configurable — SOLO se usa en el servidor.
+// La configuración sale de los ajustes en BD con fallback a env (lib/settings):
+//   aiProvider (AI_PROVIDER): anthropic | openai | openrouter | ollama
+//   aiModel    (AI_MODEL):    id del modelo (default por proveedor)
+// Las claves API (ajustes enmascarados o *_API_KEY) nunca llegan al cliente.
 
-export const AI_PROVIDERS = [
-  "anthropic",
-  "openai",
-  "openrouter",
-  "ollama",
-] as const;
-export type AiProvider = (typeof AI_PROVIDERS)[number];
+export { AI_PROVIDERS, type AiProvider } from "@/lib/validations";
 
-const DEFAULT_MODEL: Record<AiProvider, string> = {
-  anthropic: "claude-opus-4-8",
-  openai: "gpt-5.2",
-  // Router de OpenRouter que elige automáticamente un modelo gratuito
-  // disponible; para fijar uno concreto, usar AI_MODEL (ids ":free").
-  openrouter: "openrouter/free",
-  ollama: "llama3.2",
-};
+/** Construye el LanguageModel a partir de una config ya resuelta (puro, testeable). */
+export function buildModel(config: AiConfig): LanguageModel {
+  const modelId = config.modelId || DEFAULT_AI_MODEL[config.provider];
 
-export function getAiProvider(): AiProvider {
-  // `||` a propósito: una variable vacía ("") también cae al valor por defecto.
-  const value = process.env.AI_PROVIDER || "anthropic";
-  if (!(AI_PROVIDERS as readonly string[]).includes(value)) {
-    throw new Error(
-      `AI_PROVIDER inválido: "${value}" (esperado: ${AI_PROVIDERS.join(" | ")})`,
-    );
-  }
-  return value as AiProvider;
-}
-
-export function getModel(): LanguageModel {
-  const provider = getAiProvider();
-  const modelId = process.env.AI_MODEL || DEFAULT_MODEL[provider];
-
-  switch (provider) {
+  switch (config.provider) {
     case "anthropic": {
-      if (!process.env.ANTHROPIC_API_KEY) {
-        throw new Error("Falta ANTHROPIC_API_KEY para AI_PROVIDER=anthropic");
+      if (!config.apiKey) {
+        throw new Error(
+          "Falta la clave API de Anthropic (ajustes o ANTHROPIC_API_KEY)",
+        );
       }
-      return createAnthropic({ apiKey: process.env.ANTHROPIC_API_KEY })(modelId);
+      return createAnthropic({ apiKey: config.apiKey })(modelId);
     }
     case "openai": {
-      if (!process.env.OPENAI_API_KEY) {
-        throw new Error("Falta OPENAI_API_KEY para AI_PROVIDER=openai");
+      if (!config.apiKey) {
+        throw new Error(
+          "Falta la clave API de OpenAI (ajustes o OPENAI_API_KEY)",
+        );
       }
-      return createOpenAI({ apiKey: process.env.OPENAI_API_KEY })(modelId);
+      return createOpenAI({ apiKey: config.apiKey })(modelId);
     }
     case "openrouter": {
-      if (!process.env.OPENROUTER_API_KEY) {
-        throw new Error("Falta OPENROUTER_API_KEY para AI_PROVIDER=openrouter");
+      if (!config.apiKey) {
+        throw new Error(
+          "Falta la clave API de OpenRouter (ajustes o OPENROUTER_API_KEY)",
+        );
       }
       const openrouter = createOpenAICompatible({
         name: "openrouter",
         baseURL: "https://openrouter.ai/api/v1",
-        apiKey: process.env.OPENROUTER_API_KEY,
+        apiKey: config.apiKey,
         // Sin esto, generateObject no envía el json_schema (response_format)
         // y cae a "JSON por prompt", que los modelos flojos no cumplen.
         supportsStructuredOutputs: true,
@@ -73,10 +55,15 @@ export function getModel(): LanguageModel {
       // salida estructurada vía response_format en versiones recientes).
       const ollama = createOpenAICompatible({
         name: "ollama",
-        baseURL: process.env.OLLAMA_BASE_URL ?? "http://localhost:11434/v1",
+        baseURL: config.ollamaBaseUrl ?? "http://localhost:11434/v1",
         supportsStructuredOutputs: true,
       });
       return ollama(modelId);
     }
   }
+}
+
+/** Modelo activo según los ajustes (BD → env → defaults). */
+export async function getModel(): Promise<LanguageModel> {
+  return buildModel(await getAiConfig());
 }

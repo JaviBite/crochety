@@ -1,10 +1,13 @@
 import { z } from "zod";
 import { eurToCents } from "@/lib/money";
 import { parseTagNames } from "@/lib/tags";
+import { ACCENTS } from "@/lib/theme";
 import {
+  aiProviderSchema,
   materialCategorySchema,
   orderStatusSchema,
   colorHexSchema,
+  userRoleSchema,
 } from "@/lib/validations";
 
 // ---------------------------------------------------------------------------
@@ -75,8 +78,35 @@ const orderFormSchema = z.object({
   isPublic: z.boolean(),
 });
 
+// Materiales usados en el pedido (base de la calculadora de precio). Llegan
+// serializados en el campo oculto `materials` como JSON; tolerante con
+// cantidades raras (caen a 1).
+const orderMaterialSchema = z.object({
+  materialId: z.string().trim().min(1),
+  quantity: z.coerce.number().positive().catch(1),
+});
+
+export type OrderMaterialInput = z.infer<typeof orderMaterialSchema>;
+
+/** Líneas válidas y sin duplicados (mismo material → se suman cantidades). */
+function parseOrderMaterials(raw: FormDataEntryValue | null): OrderMaterialInput[] {
+  const byId = new Map<string, OrderMaterialInput>();
+  for (const entry of parseItemsJson(raw)) {
+    const parsed = orderMaterialSchema.safeParse(entry);
+    if (!parsed.success) continue;
+    const existing = byId.get(parsed.data.materialId);
+    if (existing) {
+      existing.quantity += parsed.data.quantity;
+    } else {
+      byId.set(parsed.data.materialId, parsed.data);
+    }
+  }
+  return [...byId.values()];
+}
+
 export type OrderInput = Omit<z.infer<typeof orderFormSchema>, "priceEur"> & {
   priceCents: number;
+  materials: OrderMaterialInput[];
 };
 
 export function parseOrderForm(formData: FormData): ParseResult<OrderInput> {
@@ -95,7 +125,14 @@ export function parseOrderForm(formData: FormData): ParseResult<OrderInput> {
   if (!parsed.success) return { ok: false, error: firstIssue(parsed.error) };
 
   const { priceEur, ...rest } = parsed.data;
-  return { ok: true, data: { ...rest, priceCents: eurToCents(priceEur) } };
+  return {
+    ok: true,
+    data: {
+      ...rest,
+      priceCents: eurToCents(priceEur),
+      materials: parseOrderMaterials(formData.get("materials")),
+    },
+  };
 }
 
 // --- Gasto (compra/recibo con varias líneas) --------------------------------
@@ -292,4 +329,119 @@ export function parsePatternForm(
 /** Un File de un input vacío llega con size 0: se trata como "sin fichero". */
 export function optionalFile(value: FormDataEntryValue | null): File | null {
   return value instanceof File && value.size > 0 ? value : null;
+}
+
+// --- Perfil y usuarios --------------------------------------------------------
+
+const MIN_PASSWORD_LENGTH = 8;
+
+/** Contraseña opcional: sin trim (los espacios pueden ser intencionados). */
+function optPassword(value: FormDataEntryValue | null): string | null {
+  return typeof value === "string" && value !== "" ? value : null;
+}
+
+const emailSchema = z
+  .email("El correo no es válido")
+  .transform((email) => email.toLowerCase());
+
+const newPasswordSchema = z.union([
+  z.null(),
+  z
+    .string()
+    .min(
+      MIN_PASSWORD_LENGTH,
+      `La contraseña debe tener al menos ${MIN_PASSWORD_LENGTH} caracteres`,
+    ),
+]);
+
+const profileFormSchema = z.object({
+  name: z.string().min(1, "El nombre es obligatorio"),
+  email: emailSchema,
+  currentPassword: z.string().nullable(),
+  newPassword: newPasswordSchema,
+});
+
+export type ProfileInput = z.infer<typeof profileFormSchema>;
+
+export function parseProfileForm(
+  formData: FormData,
+): ParseResult<ProfileInput> {
+  const parsed = profileFormSchema.safeParse({
+    name: str(formData.get("name")),
+    email: str(formData.get("email")),
+    currentPassword: optPassword(formData.get("currentPassword")),
+    newPassword: optPassword(formData.get("newPassword")),
+  });
+  if (!parsed.success) return { ok: false, error: firstIssue(parsed.error) };
+
+  if (parsed.data.newPassword && !parsed.data.currentPassword) {
+    return {
+      ok: false,
+      error: "Introduce tu contraseña actual para cambiarla",
+    };
+  }
+  return { ok: true, data: parsed.data };
+}
+
+const userFormSchema = z.object({
+  name: z.string().min(1, "El nombre es obligatorio"),
+  email: emailSchema,
+  role: userRoleSchema,
+  password: newPasswordSchema,
+});
+
+export type UserInput = z.infer<typeof userFormSchema>;
+
+/** Alta/edición de usuario (admin). En el alta la contraseña es obligatoria. */
+export function parseUserForm(
+  formData: FormData,
+  { requirePassword }: { requirePassword: boolean },
+): ParseResult<UserInput> {
+  const parsed = userFormSchema.safeParse({
+    name: str(formData.get("name")),
+    email: str(formData.get("email")),
+    role: str(formData.get("role")) || "USER",
+    password: optPassword(formData.get("password")),
+  });
+  if (!parsed.success) return { ok: false, error: firstIssue(parsed.error) };
+
+  if (requirePassword && !parsed.data.password) {
+    return { ok: false, error: "La contraseña es obligatoria" };
+  }
+  return { ok: true, data: parsed.data };
+}
+
+// --- Ajustes (panel de administración) ---------------------------------------
+
+const settingsFormSchema = z.object({
+  workshopName: z.string().nullable(),
+  workshopTagline: z.string().nullable(),
+  galleryEnabled: z.boolean(),
+  defaultAccent: z.enum(ACCENTS),
+  aiProvider: aiProviderSchema,
+  aiModel: z.string().nullable(),
+  // Solo del proveedor seleccionado; en blanco = conservar la guardada.
+  apiKey: z.string().nullable(),
+  clearApiKey: z.boolean(),
+  ollamaBaseUrl: z.union([z.null(), z.url("El enlace no es una URL válida")]),
+});
+
+export type SettingsInput = z.infer<typeof settingsFormSchema>;
+
+export function parseSettingsForm(
+  formData: FormData,
+): ParseResult<SettingsInput> {
+  const parsed = settingsFormSchema.safeParse({
+    workshopName: opt(formData.get("workshopName")),
+    workshopTagline: opt(formData.get("workshopTagline")),
+    galleryEnabled: checkbox(formData.get("galleryEnabled")),
+    defaultAccent: str(formData.get("defaultAccent")),
+    aiProvider: str(formData.get("aiProvider")),
+    aiModel: opt(formData.get("aiModel")),
+    apiKey: optPassword(formData.get("apiKey")),
+    clearApiKey: checkbox(formData.get("clearApiKey")),
+    ollamaBaseUrl: opt(formData.get("ollamaBaseUrl")),
+  });
+  if (!parsed.success) return { ok: false, error: firstIssue(parsed.error) };
+  return { ok: true, data: parsed.data };
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { SubmitButton } from "@/components/form/submit-button";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -20,6 +20,11 @@ import { NONE_VALUE } from "@/lib/forms";
 import { centsToEur } from "@/lib/money";
 import { ORDER_STATUSES } from "@/lib/validations";
 import { createOrder, updateOrder } from "./actions";
+import {
+  OrderMaterialsField,
+  type MaterialOption,
+  type OrderMaterialLine,
+} from "./order-materials-field";
 
 type Option = { id: string; name: string };
 type PatternOption = { id: string; title: string };
@@ -37,6 +42,7 @@ export type OrderFormValues = {
   dueDate: Date | null;
   isPublic: boolean;
   coverPhotoPath: string | null;
+  materials: OrderMaterialLine[];
 };
 
 /** Date -> "YYYY-MM-DD" en la zona local (evita el desfase de toISOString). */
@@ -50,10 +56,12 @@ function toDateInputValue(date: Date): string {
 export function OrderForm({
   users,
   patterns,
+  materials,
   order,
 }: {
   users: Option[];
   patterns: PatternOption[];
+  materials: MaterialOption[];
   order?: OrderFormValues;
 }) {
   const t = useTranslations("Orders");
@@ -62,6 +70,10 @@ export function OrderForm({
   const [state, formAction] = useActionState(
     order ? updateOrder : createOrder,
     null,
+  );
+  // Controlado para que la calculadora pueda aplicar el precio sugerido.
+  const [priceEur, setPriceEur] = useState(
+    order ? String(centsToEur(order.priceCents)) : "",
   );
 
   return (
@@ -113,7 +125,8 @@ export function OrderForm({
             min={0}
             step="0.01"
             placeholder="0.00"
-            defaultValue={order ? centsToEur(order.priceCents) : undefined}
+            value={priceEur}
+            onChange={(event) => setPriceEur(event.target.value)}
           />
         </div>
         <div className="col-span-2 space-y-2 sm:col-span-1">
@@ -196,6 +209,12 @@ export function OrderForm({
           />
         </div>
       </div>
+
+      <OrderMaterialsField
+        materials={materials}
+        initialLines={order?.materials}
+        onApplySuggested={(eur) => setPriceEur(eur.toFixed(2))}
+      />
 
       <div className="space-y-2">
         <Label htmlFor="photo">

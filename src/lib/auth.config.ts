@@ -7,12 +7,24 @@ export const authConfig = {
   pages: { signIn: "/login" },
   providers: [],
   callbacks: {
-    jwt({ token, user }) {
-      if (user?.id) token.id = user.id;
+    jwt({ token, user, trigger, session }) {
+      if (user?.id) {
+        token.id = user.id;
+        token.role = user.role ?? "USER";
+      }
+      // El perfil llama a updateSession() tras guardar cambios: se refresca
+      // el nombre/correo del JWT sin obligar a re-loguearse.
+      if (trigger === "update" && session) {
+        const updated = (session as { user?: { name?: string; email?: string } })
+          .user;
+        if (updated?.name) token.name = updated.name;
+        if (updated?.email) token.email = updated.email;
+      }
       return token;
     },
     session({ session, token }) {
-      if (token.id) session.user.id = token.id as string;
+      if (token.id) session.user.id = token.id;
+      session.user.role = token.role ?? "USER";
       return session;
     },
   },

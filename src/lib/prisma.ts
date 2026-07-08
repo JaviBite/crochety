@@ -15,3 +15,22 @@ function createClient() {
 export const prisma = globalForPrisma.prisma ?? createClient();
 
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
+
+function hasErrorCode(error: unknown, code: string): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code?: unknown }).code === code
+  );
+}
+
+/** Violación de una restricción única (P2002), p. ej. email repetido. */
+export function isUniqueViolation(error: unknown): boolean {
+  return hasErrorCode(error, "P2002");
+}
+
+/** Violación de clave foránea (P2003), p. ej. borrar un usuario con gastos. */
+export function isForeignKeyViolation(error: unknown): boolean {
+  return hasErrorCode(error, "P2003");
+}

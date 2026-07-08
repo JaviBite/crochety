@@ -2,6 +2,7 @@ import {
   ArrowLeft,
   ExternalLink,
   FileText,
+  NotebookPen,
   Pencil,
   ScrollText,
   Sparkles,
@@ -28,7 +29,7 @@ import {
 } from "@/components/ui/table";
 import { Link } from "@/i18n/navigation";
 import {
-  standardizedPatternSchema,
+  parseStandardizedContent,
   type StandardizedPattern,
 } from "@/lib/ai/standardize-pattern";
 import { prisma } from "@/lib/prisma";
@@ -37,17 +38,6 @@ import { AiStatusBadge } from "../ai-status-badge";
 import { StandardizeButton } from "./standardize-button";
 
 const BASE_PATH = "/dashboard/patrones";
-
-/** JSON persistido → contrato tipado; null si no hay o no valida (corrupto). */
-function parseStandardized(raw: string | null): StandardizedPattern | null {
-  if (!raw) return null;
-  try {
-    const parsed = standardizedPatternSchema.safeParse(JSON.parse(raw));
-    return parsed.success ? parsed.data : null;
-  } catch {
-    return null;
-  }
-}
 
 export default async function PatternDetailPage({
   params,
@@ -67,7 +57,7 @@ export default async function PatternDetailPage({
 
   if (!pattern) notFound();
 
-  const standardized = parseStandardized(pattern.standardizedContent);
+  const standardized = parseStandardizedContent(pattern.standardizedContent);
   const hasSource = Boolean(pattern.filePath || pattern.externalUrl);
   const aiStatus = pattern.aiStatus as PatternAiStatus;
 
@@ -129,12 +119,20 @@ export default async function PatternDetailPage({
           </div>
           <TagChips tags={pattern.tags} basePath={BASE_PATH} />
         </div>
-        <Button variant="outline" asChild>
-          <Link href={`${BASE_PATH}/editar/${pattern.id}`}>
-            <Pencil className="size-4" />
-            {t("editTitle")}
-          </Link>
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" asChild>
+            <Link href={`${BASE_PATH}/editar/${pattern.id}`}>
+              <Pencil className="size-4" />
+              {t("editTitle")}
+            </Link>
+          </Button>
+          <Button variant="outline" asChild>
+            <Link href={`${BASE_PATH}/${pattern.id}/editor`}>
+              <NotebookPen className="size-4" />
+              {t("editContent")}
+            </Link>
+          </Button>
+        </div>
       </div>
 
       <StandardizeButton id={pattern.id} aiStatus={aiStatus} hasSource={hasSource} />

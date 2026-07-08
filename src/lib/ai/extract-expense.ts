@@ -122,7 +122,7 @@ export async function extractExpense(input: {
   }
 
   const { object } = await generateObject({
-    model: getModel(),
+    model: await getModel(),
     schema: extractedExpenseSchema,
     system: SYSTEM_PROMPT,
     messages: [{ role: "user", content }],

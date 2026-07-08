@@ -13,7 +13,13 @@ import {
 } from "@/components/ui/sheet";
 import { DashboardNav } from "./nav";
 
-export function MobileNav() {
+export function MobileNav({
+  brand,
+  isAdmin = false,
+}: {
+  brand: string;
+  isAdmin?: boolean;
+}) {
   const t = useTranslations("Nav");
   const [open, setOpen] = useState(false);
 
@@ -26,9 +32,9 @@ export function MobileNav() {
       </SheetTrigger>
       <SheetContent side="left" className="w-64 p-4">
         <SheetHeader className="p-0 pb-4">
-          <SheetTitle>🧶 Zgz Stitches</SheetTitle>
+          <SheetTitle>🧶 {brand}</SheetTitle>
         </SheetHeader>
-        <DashboardNav onNavigate={() => setOpen(false)} />
+        <DashboardNav isAdmin={isAdmin} onNavigate={() => setOpen(false)} />
       </SheetContent>
     </Sheet>
   );

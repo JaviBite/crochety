@@ -1,24 +1,31 @@
 import { getTranslations } from "next-intl/server";
 import { prisma } from "@/lib/prisma";
+import { getWorkshopSettings } from "@/lib/settings";
 import { PUBLIC_ORDER_STATUSES } from "@/lib/validations";
 
 export default async function LandingPage() {
-  const t = await getTranslations("Landing");
+  const [t, workshop] = await Promise.all([
+    getTranslations("Landing"),
+    getWorkshopSettings(),
+  ]);
 
   // Portfolio de solo lectura: pedidos públicos ya terminados/cobrados. Cada
   // pedido aporta sus fotos; si no tiene ninguna, la portada de su patrón
-  // (fallback). Sin precios ni datos de clientes.
-  const orders = await prisma.order.findMany({
-    where: {
-      isPublic: true,
-      status: { in: [...PUBLIC_ORDER_STATUSES] },
-    },
-    orderBy: { createdAt: "desc" },
-    include: {
-      photos: { orderBy: { isCover: "desc" } },
-      pattern: { select: { coverImagePath: true } },
-    },
-  });
+  // (fallback). Sin precios ni datos de clientes. Con la galería desactivada
+  // en ajustes solo queda el hero con el estado vacío.
+  const orders = workshop.galleryEnabled
+    ? await prisma.order.findMany({
+        where: {
+          isPublic: true,
+          status: { in: [...PUBLIC_ORDER_STATUSES] },
+        },
+        orderBy: { createdAt: "desc" },
+        include: {
+          photos: { orderBy: { isCover: "desc" } },
+          pattern: { select: { coverImagePath: true } },
+        },
+      })
+    : [];
 
   const tiles = orders.flatMap((order) => {
     if (order.photos.length > 0) {
@@ -40,9 +47,11 @@ export default async function LandingPage() {
     <div className="space-y-10">
       <section className="pt-8 text-center">
         <h1 className="text-4xl font-extrabold tracking-tight sm:text-5xl">
-          Zgz Stitches
+          {workshop.name}
         </h1>
-        <p className="mt-3 text-lg text-muted-foreground">{t("tagline")}</p>
+        <p className="mt-3 text-lg text-muted-foreground">
+          {workshop.tagline ?? t("tagline")}
+        </p>
       </section>
 
       {tiles.length === 0 ? (

@@ -38,3 +38,28 @@ export type PatternAiStatus = z.infer<typeof patternAiStatusSchema>;
 export const colorHexSchema = z
   .string()
   .regex(/^#[0-9a-fA-F]{6}$/, "Color hex inválido (formato #RRGGBB)");
+
+export const USER_ROLES = ["ADMIN", "USER"] as const;
+export const userRoleSchema = z.enum(USER_ROLES);
+export type UserRole = z.infer<typeof userRoleSchema>;
+
+// Proveedor de LLM. Las constantes viven aquí (y no en lib/ai/provider.ts)
+// porque también las necesita el panel de ajustes en el cliente, sin arrastrar
+// los SDKs de IA al bundle.
+export const AI_PROVIDERS = [
+  "anthropic",
+  "openai",
+  "openrouter",
+  "ollama",
+] as const;
+export const aiProviderSchema = z.enum(AI_PROVIDERS);
+export type AiProvider = z.infer<typeof aiProviderSchema>;
+
+export const DEFAULT_AI_MODEL: Record<AiProvider, string> = {
+  anthropic: "claude-opus-4-8",
+  openai: "gpt-5.2",
+  // Router de OpenRouter que elige automáticamente un modelo gratuito
+  // disponible; para fijar uno concreto, usar el ajuste de modelo (ids ":free").
+  openrouter: "openrouter/free",
+  ollama: "llama3.2",
+};

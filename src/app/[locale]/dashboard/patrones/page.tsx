@@ -1,4 +1,4 @@
-import { ExternalLink, FileText, Plus, ScrollText } from "lucide-react";
+import { ExternalLink, FilePlus2, FileText, Plus, ScrollText } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import { cookies } from "next/headers";
 import { RowActions } from "@/components/dashboard/row-actions";
@@ -54,12 +54,20 @@ export default async function PatternsPage({
           <h1 className="text-2xl font-bold tracking-tight">{t("title")}</h1>
           <p className="text-muted-foreground">{t("description")}</p>
         </div>
-        <Button asChild>
-          <Link href="/dashboard/patrones/nuevo">
-            <Plus className="size-4" />
-            {t("add")}
-          </Link>
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" asChild>
+            <Link href="/dashboard/patrones/batch">
+              <FilePlus2 className="size-4" />
+              {t("addBatch")}
+            </Link>
+          </Button>
+          <Button asChild>
+            <Link href="/dashboard/patrones/nuevo">
+              <Plus className="size-4" />
+              {t("add")}
+            </Link>
+          </Button>
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-3">

@@ -5,6 +5,9 @@ import {
   parseMaterialForm,
   parseOrderForm,
   parsePatternForm,
+  parseProfileForm,
+  parseSettingsForm,
+  parseUserForm,
 } from "./forms";
 
 function fd(entries: Record<string, string>): FormData {
@@ -229,5 +232,182 @@ describe("optionalFile", () => {
   it("devuelve el fichero cuando tiene contenido", () => {
     const file = new File(["datos"], "foto.png", { type: "image/png" });
     expect(optionalFile(file)).toBe(file);
+  });
+});
+
+describe("parseOrderForm (materiales)", () => {
+  it("parsea las líneas de material y suma duplicados", () => {
+    const result = parseOrderForm(
+      fd({
+        name: "Pulpo",
+        materials: JSON.stringify([
+          { materialId: "m1", quantity: 2 },
+          { materialId: "m2", quantity: 0.5 },
+          { materialId: "m1", quantity: 1 },
+        ]),
+      }),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.materials).toEqual([
+      { materialId: "m1", quantity: 3 },
+      { materialId: "m2", quantity: 0.5 },
+    ]);
+  });
+
+  it("ignora líneas inválidas y JSON corrupto", () => {
+    const broken = parseOrderForm(fd({ name: "x", materials: "{{{" }));
+    expect(broken.ok).toBe(true);
+    if (!broken.ok) return;
+    expect(broken.data.materials).toEqual([]);
+
+    const invalid = parseOrderForm(
+      fd({
+        name: "x",
+        materials: JSON.stringify([
+          { materialId: "", quantity: 2 },
+          { materialId: "ok", quantity: "raro" },
+        ]),
+      }),
+    );
+    expect(invalid.ok).toBe(true);
+    if (!invalid.ok) return;
+    // La cantidad no numérica cae a 1; la línea sin material se descarta.
+    expect(invalid.data.materials).toEqual([{ materialId: "ok", quantity: 1 }]);
+  });
+});
+
+describe("parseProfileForm", () => {
+  it("normaliza el correo y acepta el cambio de contraseña completo", () => {
+    const result = parseProfileForm(
+      fd({
+        name: "Ana",
+        email: "  Ana@Taller.ES ",
+        currentPassword: "la-actual",
+        newPassword: "nueva-clave-larga",
+      }),
+    );
+    expect(result).toEqual({
+      ok: true,
+      data: {
+        name: "Ana",
+        email: "ana@taller.es",
+        currentPassword: "la-actual",
+        newPassword: "nueva-clave-larga",
+      },
+    });
+  });
+
+  it("exige la contraseña actual para cambiarla", () => {
+    const result = parseProfileForm(
+      fd({ name: "Ana", email: "ana@taller.es", newPassword: "12345678" }),
+    );
+    expect(result.ok).toBe(false);
+  });
+
+  it("rechaza contraseñas nuevas cortas y correos inválidos", () => {
+    expect(
+      parseProfileForm(
+        fd({
+          name: "Ana",
+          email: "ana@taller.es",
+          currentPassword: "x",
+          newPassword: "corta",
+        }),
+      ).ok,
+    ).toBe(false);
+    expect(parseProfileForm(fd({ name: "Ana", email: "noesmail" })).ok).toBe(
+      false,
+    );
+  });
+});
+
+describe("parseUserForm", () => {
+  it("en el alta la contraseña es obligatoria", () => {
+    const sinClave = parseUserForm(
+      fd({ name: "Bea", email: "bea@taller.es", role: "USER" }),
+      { requirePassword: true },
+    );
+    expect(sinClave.ok).toBe(false);
+
+    const conClave = parseUserForm(
+      fd({
+        name: "Bea",
+        email: "bea@taller.es",
+        role: "ADMIN",
+        password: "12345678",
+      }),
+      { requirePassword: true },
+    );
+    expect(conClave).toEqual({
+      ok: true,
+      data: {
+        name: "Bea",
+        email: "bea@taller.es",
+        role: "ADMIN",
+        password: "12345678",
+      },
+    });
+  });
+
+  it("en edición la contraseña es opcional y el rol se valida", () => {
+    const result = parseUserForm(
+      fd({ name: "Bea", email: "bea@taller.es", role: "USER" }),
+      { requirePassword: false },
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.password).toBeNull();
+
+    expect(
+      parseUserForm(
+        fd({ name: "Bea", email: "bea@taller.es", role: "JEFA" }),
+        { requirePassword: false },
+      ).ok,
+    ).toBe(false);
+  });
+});
+
+describe("parseSettingsForm", () => {
+  it("parsea el formulario completo de ajustes", () => {
+    const result = parseSettingsForm(
+      fd({
+        workshopName: "Taller Lanero",
+        workshopTagline: "",
+        galleryEnabled: "on",
+        defaultAccent: "lavender",
+        aiProvider: "openrouter",
+        aiModel: "openrouter/free",
+        apiKey: "sk-or-123",
+        ollamaBaseUrl: "",
+      }),
+    );
+    expect(result).toEqual({
+      ok: true,
+      data: {
+        workshopName: "Taller Lanero",
+        workshopTagline: null,
+        galleryEnabled: true,
+        defaultAccent: "lavender",
+        aiProvider: "openrouter",
+        aiModel: "openrouter/free",
+        apiKey: "sk-or-123",
+        clearApiKey: false,
+        ollamaBaseUrl: null,
+      },
+    });
+  });
+
+  it("rechaza proveedores y acentos desconocidos", () => {
+    const base = {
+      defaultAccent: "mint",
+      aiProvider: "anthropic",
+    };
+    expect(
+      parseSettingsForm(fd({ ...base, aiProvider: "gemini" })).ok,
+    ).toBe(false);
+    expect(
+      parseSettingsForm(fd({ ...base, defaultAccent: "fucsia" })).ok,
+    ).toBe(false);
   });
 });

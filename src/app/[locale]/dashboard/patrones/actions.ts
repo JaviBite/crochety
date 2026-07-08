@@ -4,7 +4,10 @@ import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { getLocale } from "next-intl/server";
 import { redirect } from "@/i18n/navigation";
-import { standardizePattern } from "@/lib/ai/standardize-pattern";
+import {
+  standardizedPatternSchema,
+  standardizePattern,
+} from "@/lib/ai/standardize-pattern";
 import { auth } from "@/lib/auth";
 import { deleteUpload, isValidUploadPath } from "@/lib/files";
 import { parsePatternForm } from "@/lib/forms";
@@ -15,7 +18,8 @@ import {
   type PatternSource,
 } from "@/lib/pattern-source";
 import { prisma } from "@/lib/prisma";
-import { tagsCreateInput, tagsUpdateInput } from "@/lib/tags";
+import { parseTagNames, tagsCreateInput, tagsUpdateInput } from "@/lib/tags";
+import { z } from "zod";
 
 export type ActionState = { error: string } | null;
 
@@ -47,20 +51,33 @@ async function standardizeAndSave(id: string, source: PatternSource) {
  * Ejecuta la estandarización fuera de la respuesta (with `after`): el alta
  * redirige al instante y el estado avanza en segundo plano. Cualquier fallo
  * (incluido que el patrón ya no exista) deja ERROR y se reintenta a mano
- * desde la página del patrón.
+ * desde la página del patrón. En el alta en batch la portada también se deriva
+ * aquí (hacerlo en la respuesta multiplicaría la espera por cada fichero).
  */
-function schedulePatternStandardization(id: string) {
+function schedulePatternStandardization(
+  id: string,
+  { deriveCover = false }: { deriveCover?: boolean } = {},
+) {
   after(async () => {
     try {
       const pattern = await prisma.pattern.findUnique({
         where: { id },
-        select: { filePath: true, externalUrl: true },
+        select: { filePath: true, externalUrl: true, coverImagePath: true },
       });
       if (!pattern) return;
       await prisma.pattern.update({
         where: { id },
         data: { aiStatus: "PROCESSING" },
       });
+      if (deriveCover && !pattern.coverImagePath) {
+        const cover = await derivePatternCover(pattern);
+        if (cover) {
+          await prisma.pattern.update({
+            where: { id },
+            data: { coverImagePath: cover },
+          });
+        }
+      }
       await standardizeAndSave(id, pattern);
     } catch {
       await prisma.pattern
@@ -106,6 +123,55 @@ export async function standardizePatternAction(
   revalidatePath("/", "layout");
 }
 
+/**
+ * Guarda el contenido estandarizado editado online. El editor manda el JSON
+ * completo en el campo `content`; se revalida contra el contrato antes de
+ * persistirlo (lo que se guarda siempre cumple el esquema).
+ */
+export async function updatePatternContent(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const session = await auth();
+  if (!session?.user) return { error: "No autorizado" };
+
+  const id = String(formData.get("id") ?? "");
+  if (!id) return { error: "Falta el identificador" };
+
+  const raw = formData.get("content");
+  let json: unknown;
+  try {
+    json = JSON.parse(typeof raw === "string" ? raw : "");
+  } catch {
+    return { error: "Contenido inválido" };
+  }
+  const parsed = standardizedPatternSchema.safeParse(json);
+  if (!parsed.success) {
+    return { error: "El patrón no cumple el formato estandarizado" };
+  }
+
+  const existing = await prisma.pattern.findUnique({
+    where: { id },
+    select: { id: true },
+  });
+  if (!existing) return { error: "Patrón no encontrado" };
+
+  await prisma.pattern.update({
+    where: { id },
+    data: {
+      standardizedContent: JSON.stringify(parsed.data),
+      aiStatus: "DONE",
+    },
+  });
+
+  revalidatePath("/", "layout");
+  redirect({
+    href: `/dashboard/patrones/${id}`,
+    locale: await getLocale(),
+  });
+  return null;
+}
+
 export async function createPattern(
   _prev: ActionState,
   formData: FormData,
@@ -143,6 +209,59 @@ export async function createPattern(
   revalidatePath("/", "layout");
   redirect({ href: "/dashboard/patrones", locale: await getLocale() });
   return null; // inalcanzable: redirect() lanza NEXT_REDIRECT
+}
+
+// Cada fichero del alta en batch llega ya subido a /api/uploads: aquí solo
+// viajan título + pathname, serializados en el campo oculto `entries`.
+const batchEntrySchema = z.object({
+  title: z.string().trim().min(1),
+  filePath: z.string(),
+});
+
+export async function createPatternsBatch(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const session = await auth();
+  if (!session?.user) return { error: "No autorizado" };
+
+  let rawEntries: unknown;
+  try {
+    rawEntries = JSON.parse(String(formData.get("entries") ?? ""));
+  } catch {
+    rawEntries = null;
+  }
+  if (!Array.isArray(rawEntries) || rawEntries.length === 0) {
+    return { error: "Añade al menos un fichero" };
+  }
+
+  const entries: { title: string; filePath: string }[] = [];
+  for (const raw of rawEntries) {
+    const parsed = batchEntrySchema.safeParse(raw);
+    if (!parsed.success) return { error: "Hay un fichero sin título" };
+    const filePath = uploadedPath(parsed.data.filePath);
+    if (!filePath) return { error: "Hay un fichero inválido" };
+    entries.push({ title: parsed.data.title, filePath });
+  }
+
+  const tags = parseTagNames(formData.get("tags"));
+
+  for (const entry of entries) {
+    const pattern = await prisma.pattern.create({
+      data: {
+        title: entry.title,
+        filePath: entry.filePath,
+        aiStatus: "PENDING",
+        tags: tagsCreateInput(tags),
+      },
+    });
+    // Portada y estandarización en segundo plano, patrón a patrón.
+    schedulePatternStandardization(pattern.id, { deriveCover: true });
+  }
+
+  revalidatePath("/", "layout");
+  redirect({ href: "/dashboard/patrones", locale: await getLocale() });
+  return null;
 }
 
 export async function updatePattern(

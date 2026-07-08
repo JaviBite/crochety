@@ -35,13 +35,28 @@ async function main() {
   );
 
   for (const user of users) {
-    const passwordHash = hashSync(user.password, 12);
-    await prisma.user.upsert({
+    // Solo bootstrap: si el usuario ya existe NO se toca — su nombre y
+    // contraseña se gestionan desde la app (perfil / gestor de usuarios) y el
+    // seed corre en cada deploy (vercel-build), no debe machacarlos.
+    const existing = await prisma.user.findUnique({
       where: { email: user.email },
-      update: { name: user.name, passwordHash },
-      create: { name: user.name, email: user.email, passwordHash },
+      select: { id: true },
     });
-    console.log(`✅ Usuario listo: ${user.name} <${user.email}>`);
+    if (existing) {
+      console.log(`↩️  Usuario ya existente (no se toca): <${user.email}>`);
+      continue;
+    }
+    const passwordHash = hashSync(user.password, 12);
+    // Las fundadoras (usuarios del .env) administran el taller.
+    await prisma.user.create({
+      data: {
+        name: user.name,
+        email: user.email,
+        passwordHash,
+        role: "ADMIN",
+      },
+    });
+    console.log(`✅ Usuario creado: ${user.name} <${user.email}>`);
   }
 
   if (users.length === 0) {

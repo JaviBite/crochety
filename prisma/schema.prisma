@@ -12,9 +12,18 @@ model User {
   name           String
   email          String    @unique
   passwordHash   String
+  role           String    @default("USER") // ADMIN | USER (constantes en src/lib/validations.ts)
   createdAt      DateTime  @default(now())
   ordersAssigned Order[]   @relation("AssignedOrders")
   expensesPaid   Expense[]
+}
+
+// Configuración editable en runtime (clave-valor). Se lee en servidor con
+// fallback a las variables de entorno; ver src/lib/settings.ts.
+model Setting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
 }
 
 // Pedido. Estados/categorías como String validado con las constantes zod de

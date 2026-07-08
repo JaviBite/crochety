@@ -6,7 +6,7 @@ import { redirect } from "@/i18n/navigation";
 import { auth } from "@/lib/auth";
 import { deleteUpload, saveUpload, UploadError } from "@/lib/files";
 import { optionalFile, parseOrderForm } from "@/lib/forms";
-import { prisma } from "@/lib/prisma";
+import { isForeignKeyViolation, prisma } from "@/lib/prisma";
 
 export type ActionState = { error: string } | null;
 
@@ -29,14 +29,24 @@ export async function createOrder(
     throw error;
   }
 
-  await prisma.order.create({
-    data: {
-      ...parsed.data,
-      photos: photoPath
-        ? { create: { path: photoPath, isCover: true } }
-        : undefined,
-    },
-  });
+  const { materials, ...data } = parsed.data;
+  try {
+    await prisma.order.create({
+      data: {
+        ...data,
+        photos: photoPath
+          ? { create: { path: photoPath, isCover: true } }
+          : undefined,
+        materials: materials.length ? { create: materials } : undefined,
+      },
+    });
+  } catch (error) {
+    // Un material seleccionado pudo borrarse entre abrir el form y guardar.
+    if (isForeignKeyViolation(error)) {
+      return { error: "Alguno de los materiales ya no existe" };
+    }
+    throw error;
+  }
 
   revalidatePath("/", "layout");
   redirect({ href: "/dashboard/pedidos", locale: await getLocale() });
@@ -84,15 +94,25 @@ export async function updateOrder(
     });
   }
 
-  await prisma.order.update({
-    where: { id },
-    data: {
-      ...parsed.data,
-      ...(newPhotoPath
-        ? { photos: { create: { path: newPhotoPath, isCover: true } } }
-        : {}),
-    },
-  });
+  const { materials, ...data } = parsed.data;
+  try {
+    await prisma.order.update({
+      where: { id },
+      data: {
+        ...data,
+        // Se reemplazan por completo las líneas de material del pedido.
+        materials: { deleteMany: {}, create: materials },
+        ...(newPhotoPath
+          ? { photos: { create: { path: newPhotoPath, isCover: true } } }
+          : {}),
+      },
+    });
+  } catch (error) {
+    if (isForeignKeyViolation(error)) {
+      return { error: "Alguno de los materiales ya no existe" };
+    }
+    throw error;
+  }
 
   for (const path of oldCoverPaths) await deleteUpload(path);
 

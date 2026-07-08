@@ -46,6 +46,33 @@ export const standardizedPatternSchema = z.object({
 
 export type StandardizedPattern = z.infer<typeof standardizedPatternSchema>;
 
+/** JSON persistido → contrato tipado; null si no hay o no valida (corrupto). */
+export function parseStandardizedContent(
+  raw: string | null,
+): StandardizedPattern | null {
+  if (!raw) return null;
+  try {
+    const parsed = standardizedPatternSchema.safeParse(JSON.parse(raw));
+    return parsed.success ? parsed.data : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Esqueleto vacío para escribir un patrón a mano en el editor online. */
+export function emptyStandardizedPattern(title: string): StandardizedPattern {
+  return {
+    title,
+    language: "es",
+    difficulty: null,
+    hookSizeMm: null,
+    materials: [],
+    abbreviations: [],
+    sections: [{ name: "", rounds: [], notes: null }],
+    assemblyNotes: null,
+  };
+}
+
 const SYSTEM_PROMPT = `Eres un experto en patrones de crochet y amigurumi.
 Recibirás el texto extraído de un patrón (de un PDF, DOCX o página web) que
 puede venir en cualquier idioma y con cualquier formato o notación.
@@ -68,7 +95,7 @@ export async function standardizePattern(
   rawText: string,
 ): Promise<StandardizedPattern> {
   const { object } = await generateObject({
-    model: getModel(),
+    model: await getModel(),
     schema: standardizedPatternSchema,
     system: SYSTEM_PROMPT,
     prompt: rawText,

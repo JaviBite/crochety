@@ -1,3 +1,4 @@
+import { HeartHandshake } from "lucide-react";
 import { getLocale, getTranslations } from "next-intl/server";
 import {
   Card,
@@ -7,6 +8,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { auth } from "@/lib/auth";
+import { computeSettlements } from "@/lib/balance";
 import { formatCents } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 
@@ -51,6 +53,17 @@ export default async function DashboardHome() {
     return { user, paid, earned, net: earned - paid };
   });
 
+  // Quién debe a quién: gastos e ingresos a medias (los pedidos cobrados sin
+  // asignar no se reparten porque no se sabe quién tiene el dinero).
+  const settlements = computeSettlements(
+    balances.map(({ user, paid, earned }) => ({
+      id: user.id,
+      name: user.name,
+      paidCents: paid,
+      earnedCents: earned,
+    })),
+  );
+
   return (
     <div className="space-y-8">
       <div>
@@ -81,7 +94,34 @@ export default async function DashboardHome() {
           <CardTitle>{t("balanceTitle")}</CardTitle>
           <CardDescription>{t("balanceDescription")}</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          <div className="rounded-xl border bg-accent/30 p-4">
+            {settlements.length === 0 ? (
+              <p className="flex items-center gap-2 text-sm font-medium">
+                <HeartHandshake className="size-4 text-primary" />
+                {t("settledUp")}
+              </p>
+            ) : (
+              <ul className="space-y-1">
+                {settlements.map((settlement) => (
+                  <li
+                    key={`${settlement.from.id}-${settlement.to.id}`}
+                    className="text-sm font-medium"
+                  >
+                    {t("owes", {
+                      from: settlement.from.name,
+                      to: settlement.to.name,
+                      amount: formatCents(settlement.amountCents, locale),
+                    })}
+                  </li>
+                ))}
+              </ul>
+            )}
+            <p className="mt-1 text-xs text-muted-foreground">
+              {t("settlementHint")}
+            </p>
+          </div>
+
           <div className="grid gap-4 sm:grid-cols-2">
             {balances.map(({ user, paid, earned, net }) => (
               <div key={user.id} className="rounded-xl border p-4">
