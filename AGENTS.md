@@ -190,6 +190,16 @@ Organizado en fases para implementación incremental. `✅` = ya hecho.
   el menú Usuarios/Ajustes puede parecer "ausente"). Leer el rol de la BD en el
   layout y en los guards para que aparezca al instante.
 
+### TODOS
+
+- Filtros en las busquedas de pedidos (por asigancion, precio, etc)
+- Poder borrar la imagen asociada a un pedido/patroin etc y que se borre en el storage
+- Las ubicaciones deberian ser desplegable, no texto libre y poder añadir más desde administración
+- Arreglar en los patrones cuando hay rondas que se hace lo mismo que aparece un mensaje a la derecha raro
+- Permitir añadir notas entre rondas (para añadir ojos, relleno, etc)
+- Paginacion
+- En la vista publica que las iamgenes hagan animacion de aprecer mientras se scrollea hacia abajo
+
 ### Ya hecho
 
 - ✅ Galería pública tipo mampostería (Pinterest) con CSS columns en `/`.
