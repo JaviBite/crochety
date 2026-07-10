@@ -19,7 +19,7 @@ import { Link } from "@/i18n/navigation";
 import type { Prisma } from "@/generated/prisma/client";
 import { formatCents } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
-import { colorFromParam, normalizeSearch } from "@/lib/search";
+import { colorFromParam, normalizeSearch, sortByColorSimilarity } from "@/lib/search";
 import { parseView, viewCookieName } from "@/lib/view";
 import { deleteMaterial } from "./actions";
 
@@ -63,7 +63,6 @@ export default async function MaterialsPage({
 
   const filters: Prisma.MaterialWhereInput[] = [];
   if (activeTag) filters.push({ tags: { some: { name: activeTag } } });
-  if (colorHex) filters.push({ colorHex });
   if (search) {
     filters.push({
       OR: [
@@ -74,7 +73,7 @@ export default async function MaterialsPage({
       ],
     });
   }
-  const hasFilters = filters.length > 0;
+  const hasFilters = filters.length > 0 || Boolean(colorHex);
 
   const [t, tCategory, locale, materials, filterTags, colorRows] =
     await Promise.all([
@@ -98,6 +97,8 @@ export default async function MaterialsPage({
         select: { colorHex: true },
       }),
     ]);
+
+  const materialsBySimilarity = sortByColorSimilarity(materials, colorHex);
 
   // Filtros a conservar en los enlaces de tag/color (no perder la búsqueda).
   const preserve = { q: search, tag: activeTag, color };
@@ -143,7 +144,7 @@ export default async function MaterialsPage({
         </div>
       </div>
 
-      {materials.length === 0 ? (
+      {materialsBySimilarity.length === 0 ? (
         <EmptyState
           icon={Boxes}
           title={hasFilters ? t("noResultsTitle") : t("emptyTitle")}
@@ -153,7 +154,7 @@ export default async function MaterialsPage({
         />
       ) : view === "grid" ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {materials.map((material) => (
+          {materialsBySimilarity.map((material) => (
             <Card key={material.id} className="overflow-hidden rounded-2xl pt-0 shadow-sm">
               {material.photoPath ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -226,7 +227,7 @@ export default async function MaterialsPage({
         </div>
       ) : (
         <div className="divide-y overflow-hidden rounded-2xl border bg-card shadow-sm">
-          {materials.map((material) => (
+          {materialsBySimilarity.map((material) => (
             <div key={material.id} className="flex items-center gap-3 p-3">
               {material.photoPath ? (
                 // eslint-disable-next-line @next/next/no-img-element
