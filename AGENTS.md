@@ -199,6 +199,7 @@ Organizado en fases para implementación incremental. `✅` = ya hecho.
 - Permitir añadir notas entre rondas (para añadir ojos, relleno, etc)
 - Paginacion
 - En la vista publica que las iamgenes hagan animacion de aprecer mientras se scrollea hacia abajo
+- Ver porque da error al subir un pdf (añadir mas datos al mensaje de error de subida)
 
 ### Ya hecho
 
