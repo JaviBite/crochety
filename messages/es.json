@@ -414,6 +414,8 @@
     "textHint": "Puedes combinar varios orígenes. Si el contenido contiene varios patrones, se detectan todos.",
     "convert": "Convertir",
     "converting": "Convirtiendo…",
+    "convertingTitle": "La IA está estandarizando el patrón…",
+    "convertingHint": "Puede tardar entre 1 y 3 minutos. Si el origen contiene varios patrones, algo más.",
     "allDetected": "{count} patrones detectados",
     "downloadMd": "Markdown",
     "downloadEpub": "EPUB",

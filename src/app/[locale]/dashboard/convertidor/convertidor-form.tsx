@@ -14,6 +14,7 @@ import {
 import { useTranslations } from "next-intl";
 import {
   type ChangeEvent,
+  useEffect,
   useRef,
   useState,
   useTransition,
@@ -73,6 +74,31 @@ function ConvertButton({
       <WandSparkles />
       {pending ? t("converting") : t("convert")}
     </Button>
+  );
+}
+
+/** Segundos → "m:ss" para el cronómetro de conversión. */
+function formatElapsed(seconds: number): string {
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+}
+
+/**
+ * Panel de progreso durante la conversión: la IA tarda 1-3 min por patrón
+ * (recopilatorios, más) y sin feedback parece colgado.
+ */
+function ConvertingPanel({ seconds }: { seconds: number }) {
+  const t = useTranslations("Convertidor");
+  return (
+    <div className="flex items-center gap-3 rounded-2xl border border-dashed p-4">
+      <LoaderCircle className="size-5 shrink-0 animate-spin text-primary" />
+      <div className="min-w-0">
+        <p className="text-sm font-medium">{t("convertingTitle")}</p>
+        <p className="text-xs text-muted-foreground">{t("convertingHint")}</p>
+      </div>
+      <span className="ml-auto shrink-0 tabular-nums text-sm text-muted-foreground">
+        {formatElapsed(seconds)}
+      </span>
+    </div>
   );
 }
 
@@ -399,8 +425,18 @@ export function ConvertidorForm() {
   const editsRef = useRef<Map<number, StandardizedPattern>>(new Map());
   // Contador de conversiones: repone el árbol de resultados entre intentos.
   const [conversionCount, setConversionCount] = useState(0);
+  // Cronómetro de conversión (feedback de actividad). El reset va en el event
+  // handler; el effect solo programa el tictac mientras la conversión corre.
+  const [elapsed, setElapsed] = useState(0);
+
+  useEffect(() => {
+    if (!pending) return;
+    const timer = setInterval(() => setElapsed((s) => s + 1), 1000);
+    return () => clearInterval(timer);
+  }, [pending]);
 
   function onSubmit(formData: FormData) {
+    setElapsed(0);
     startTransition(async () => {
       const next = await convertPattern(null, formData);
       if (next && "patterns" in next) {
@@ -478,6 +514,15 @@ export function ConvertidorForm() {
 
   return (
     <form action={onSubmit} className="max-w-2xl space-y-5">
+      {/* Los ficheros ya están subidos a /api/uploads: la action solo recibe
+          los pathnames (el input file no viaja en el FormData de la action). */}
+      <input type="hidden" name="filePath" value={filePath ?? ""} />
+      <input
+        type="hidden"
+        name="imagePaths"
+        value={JSON.stringify(imagePaths)}
+      />
+
       <div className="space-y-2">
         <Label htmlFor="file">
           {t("fieldFile")}{" "}
@@ -578,6 +623,7 @@ export function ConvertidorForm() {
           {tForms("uploading")}
         </p>
       )}
+      {pending && <ConvertingPanel seconds={elapsed} />}
       {result && "error" in result && (
         <p
           role="alert"

@@ -414,6 +414,8 @@
     "textHint": "You can combine several sources. If the content contains several patterns, all of them are detected.",
     "convert": "Convert",
     "converting": "Converting…",
+    "convertingTitle": "The AI is standardizing the pattern…",
+    "convertingHint": "It can take 1 to 3 minutes. If the source contains several patterns, a bit longer.",
     "allDetected": "{count} patterns detected",
     "downloadMd": "Markdown",
     "downloadEpub": "EPUB",
