@@ -55,6 +55,28 @@ export function isValidUploadPath(relPath: string): boolean {
 
 export class UploadError extends Error {}
 
+/**
+ * MIME efectivo de un File: usa el type declarado si es válido y si no lo
+ * infiere de la extensión del nombre (algunos navegadores mandan type vacío).
+ */
+export function resolveUploadMime(file: { type: string; name: string }): string {
+  const declared = file.type.split(";")[0]?.trim().toLowerCase() ?? "";
+  if (declared && declared in EXT_TO_MIME) return declared;
+  const dot = file.name.lastIndexOf(".");
+  if (dot < 0) return "";
+  return EXT_TO_MIME[file.name.slice(dot).toLowerCase()] ?? "";
+}
+
+// Las subidas viajan por /api/uploads (una función de Vercel): su body tiene
+// un tope duro de ~4,5 MB. El margen cubre la codificación multipart.
+export const UPLOAD_BODY_LIMIT_BYTES = 4.4 * 1024 * 1024;
+
+/** Error accionable si el fichero no puede llegar a la función de subida. */
+export function uploadBodyLimitError(file: File): string | null {
+  if (file.size <= UPLOAD_BODY_LIMIT_BYTES) return null;
+  return `«${file.name}» ocupa ${(file.size / 1024 / 1024).toFixed(1)} MB y la web admite hasta ~4,4 MB por fichero. Comprímelo, pega el texto o sube una foto.`;
+}
+
 // Re-export server-only functions for use in server actions and API routes.
 // This prevents them from being bundled into Client Components.
 export {

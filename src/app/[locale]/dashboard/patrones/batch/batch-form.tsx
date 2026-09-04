@@ -10,6 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Link } from "@/i18n/navigation";
+import { uploadBodyLimitError } from "@/lib/files";
 import { createPatternsBatch } from "../actions";
 
 type BatchFile = {
@@ -78,6 +79,22 @@ export function PatternBatchForm({
   function onPickFiles(event: ChangeEvent<HTMLInputElement>) {
     const picked = Array.from(event.target.files ?? []);
     if (picked.length === 0) return;
+    const oversize = picked.find((file) => uploadBodyLimitError(file));
+    if (oversize) {
+      const entries = [
+        {
+          key: crypto.randomUUID(),
+          fileName: oversize.name,
+          title: oversize.name,
+          path: null,
+          error: uploadBodyLimitError(oversize),
+          uploading: false,
+        },
+      ];
+      setFiles((current) => [...current, ...entries]);
+      event.target.value = "";
+      return;
+    }
     const entries = picked.map((file) => ({
       key: crypto.randomUUID(),
       fileName: file.name,

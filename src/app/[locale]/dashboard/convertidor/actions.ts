@@ -6,31 +6,20 @@ import {
   normalizeStandardizedPattern,
   standardizedPatternSchema,
   standardizedPatternsSchema,
-  standardizePattern,
-  standardizePatternFromImages,
   type StandardizedPattern,
 } from "@/lib/ai/standardize-pattern";
+import type { SourceProgress } from "@/lib/ai/standardize-source";
 import { auth } from "@/lib/auth";
-import {
-  EXT_TO_MIME,
-  IMAGE_MIME_TO_EXT,
-  isValidUploadPath,
-} from "@/lib/files";
+import { EXT_TO_MIME, IMAGE_MIME_TO_EXT, isValidUploadPath } from "@/lib/files";
 import { deleteUpload, readUpload } from "@/lib/files.server";
-import {
-  collectCoverCandidates,
-  extractPatternContent,
-  PatternSourceError,
-  saveChosenCover,
-  type PatternSource,
-} from "@/lib/pattern-source";
+import { saveChosenCover } from "@/lib/pattern-source";
 import { toEpub, toEpubAnthology } from "@/lib/pattern-export.server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 
-// Convertidor efímero: el origen se estandariza con IA (structured outputs)
-// y se devuelve al cliente SIN tocar la BD. Los ficheros subidos al elegirlos
-// (trampa #10) se borran al terminar: solo viven durante la conversión.
+// Convertidor efímero: la conversión en sí corre en POST /api/convert (con
+// progreso en streaming); aquí quedan las acciones posteriores — guardar el
+// patrón, exportar EPUB y limpiar portadas descartadas.
 
 export type ConvertResult = {
   patterns: StandardizedPattern[];
@@ -44,103 +33,12 @@ export type ConvertState = ConvertResult | { error: string } | null;
 
 export type ExportState = { base64: string } | { error: string };
 
-const MAX_TEXT_CHARS = 60_000;
+/** Evento NDJSON que el route /api/convert emite durante la conversión. */
+export type ConvertStreamEvent =
+  | SourceProgress
+  | ({ type: "done" } & ConvertResult)
+  | { type: "error"; message: string };
 
-function uploadedPath(value: FormDataEntryValue | null): string | null {
-  const s = typeof value === "string" ? value.trim() : "";
-  return s && isValidUploadPath(s) && s.startsWith("patterns/") ? s : null;
-}
-
-function uploadedImagePaths(value: FormDataEntryValue | null): string[] {
-  if (typeof value !== "string" || !value.trim()) return [];
-  try {
-    const parsed: unknown = JSON.parse(value);
-    if (!Array.isArray(parsed)) return [];
-    return parsed
-      .map((p) => uploadedPath(typeof p === "string" ? p : null))
-      .filter((p): p is string => p !== null)
-      .slice(0, 12);
-  } catch {
-    return [];
-  }
-}
-
-/** Limpia los ficheros temporales de la conversión (best-effort). */
-async function cleanupTempUploads(paths: (string | null)[]) {
-  await Promise.allSettled(
-    paths.filter((p): p is string => Boolean(p)).map((p) => deleteUpload(p)),
-  );
-}
-
-export async function convertPattern(
-  _prev: ConvertState,
-  formData: FormData,
-): Promise<ConvertState> {
-  const session = await auth();
-  if (!session?.user) return { error: "No autorizado" };
-
-  const filePath = uploadedPath(formData.get("filePath"));
-  const imagePaths = uploadedImagePaths(formData.get("imagePaths"));
-  const rawUrl = String(formData.get("externalUrl") ?? "").trim();
-  const text = String(formData.get("text") ?? "").trim().slice(0, MAX_TEXT_CHARS);
-
-  const urlSchema = z.union([z.null(), z.url("El enlace no es una URL válida")]);
-  const parsedUrl = urlSchema.safeParse(rawUrl || null);
-  if (!parsedUrl.success) return { error: "El enlace no es una URL válida" };
-
-  if (!filePath && !parsedUrl.data && !text && imagePaths.length === 0) {
-    return { error: "Añade un fichero, un enlace, texto o imágenes" };
-  }
-
-  const source: PatternSource = {
-    filePath,
-    externalUrl: parsedUrl.data,
-    imagePaths,
-  };
-
-  try {
-    // El parsing a patrón estandarizado SIEMPRE lo hace el LLM; solo se
-    // decide qué contenido enviarle (texto o imágenes).
-    const content = await extractPatternContent(source);
-    const patterns =
-      content.type === "images"
-        ? await standardizePatternFromImages(content.images)
-        : await standardizePattern(content.text);
-
-    if (patterns.length === 0) {
-      return { error: "No se detectó ningún patrón en el contenido" };
-    }
-
-    // Portadas: candidatas del origen (PDF/web), la primera es la propuesta.
-    let coverCandidates: string[] = [];
-    try {
-      coverCandidates = await collectCoverCandidates(source);
-    } catch {
-      coverCandidates = [];
-    }
-
-    return {
-      patterns,
-      autoCover: coverCandidates[0] ?? null,
-      coverCandidates,
-    };
-  } catch (error) {
-    return {
-      error:
-        error instanceof PatternSourceError
-          ? error.message
-          : "La conversión falló, vuelve a intentarlo",
-    };
-  } finally {
-    await cleanupTempUploads([filePath, ...imagePaths]);
-  }
-}
-
-/**
- * Guarda un patrón convertido en la biblioteca: valida el documento contra
- * el contrato y crea el Pattern (aiStatus DONE). Si hay portada (data-URL,
- * URL remota o pathname ya subido al storage) se persiste como coverImagePath.
- */
 export async function saveConvertedPattern(
   pattern: StandardizedPattern,
   coverSrc?: string | null,

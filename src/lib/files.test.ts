@@ -84,7 +84,7 @@ describe("validación de saveUpload (común a ambos drivers)", () => {
     const big = new File([new ArrayBuffer(MAX_IMAGE_BYTES + 1)], "enorme.png", {
       type: "image/png",
     });
-    await expect(saveUpload("orders", big)).rejects.toThrow(/demasiado grande/);
+    await expect(saveUpload("orders", big)).rejects.toThrow(/ocupa .*máx\./);
     expect(putMock).not.toHaveBeenCalled();
   });
 });

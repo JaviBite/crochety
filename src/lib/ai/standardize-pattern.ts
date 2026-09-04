@@ -36,10 +36,22 @@ repeticiones: no inventes rondas ni omitas ninguna. Si un dato no aparece en
 el original, usa null. Si la entrada no contiene ningún patrón de crochet,
 devuelve una lista vacía.
 
-Además de las rondas de puntos, marca con kind "step" los pasos que no son
-rondas y van intercalados en su punto exacto del original: añadir ojos de
-seguridad, empezar a rellenar, cortar hilo, cambiar de color, coser piezas,
-dejar hilo largo, etc. (esas filas no llevan conteo de puntos).`;
+REGLA GENERAL — incluye TODO el texto relevante del patrón, sin borrar, ni
+resumir, ni perder nada que aporte información. Cada trozo del original tiene
+un hueco en el esquema:
+- Rondas y filas de puntos → las filas de su sección, con su label, conteo y
+  nota de repeticiones (p. ej. "x6", "por 4 rondas") si la lleva.
+- Instrucciones que NO son rondas (añadir ojos de seguridad, empezar a
+  rellenar, cortar hilo, cambiar de color, coser piezas, dejar hilo largo,
+  marcar puntos…) → filas kind "step" en su punto exacto, sin conteo.
+- "Tips", notas, avisos y observaciones que aparecen entre rondas o al final
+  de una sección → filas kind "step" en su punto exacto (p. ej. "Tip: usa un
+  marcador de puntos") o el campo notes de la sección si son generales.
+- Materiales, aguja, medidas, dificultad, nivel → los campos de metadatos.
+- Montaje, acabado, lavado, costura, trucos generales → assemblyNotes.
+Solo puedes omitir el ruido ajeno al patrón: menús, cabeceras de "compartir",
+publicidad, cookies, paginación y elementos de maquetación de la web o del
+PDF escaneado.`;
 
 /**
  * Agente de estandarización: texto crudo del origen → patrones estandarizados
@@ -78,6 +90,11 @@ recortar ni mezclar contenido de otros patrones. Las instrucciones sueltas que
 no pertenezcan a ninguna ronda (montaje, acabados) van con su patrón. Si el
 documento solo contiene un patrón, devuélvelo como único segmento.`;
 
+export type StandardizeProgress =
+  | { type: "standardizing" }
+  | { type: "segmenting" }
+  | { type: "segment"; index: number; total: number };
+
 async function segmentPatternText(
   rawText: string,
 ): Promise<{ title: string; text: string }[]> {
@@ -92,10 +109,12 @@ async function segmentPatternText(
 
 export async function standardizePattern(
   rawText: string,
+  onProgress?: (event: StandardizeProgress) => void,
 ): Promise<StandardizedPattern[]> {
   let segments: { title: string; text: string }[] | null = null;
   if (rawText.length > SEGMENTATION_THRESHOLD) {
     try {
+      onProgress?.({ type: "segmenting" });
       segments = await segmentPatternText(rawText);
     } catch {
       // Sin segmentación fiable: un único intento con todo el texto.
@@ -103,6 +122,7 @@ export async function standardizePattern(
     }
   }
   if (!segments || segments.length <= 1) {
+    onProgress?.({ type: "standardizing" });
     return standardizePatternFromContent({ text: rawText });
   }
 
@@ -110,9 +130,12 @@ export async function standardizePattern(
   // reventar el rate limit de los modelos gratuitos.
   const results: StandardizedPattern[] = [];
   const queue = [...segments];
+  let started = 0;
   async function worker(): Promise<void> {
     while (queue.length > 0) {
       const segment = queue.shift()!;
+      started += 1;
+      onProgress?.({ type: "segment", index: started, total: segments!.length });
       try {
         const patterns = await standardizePatternFromContent({
           text: segment.text,

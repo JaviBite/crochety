@@ -19,14 +19,15 @@ const path = await import("node:path");
 const {
   extractPatternContent,
   looksLikePatternText,
-} = await import("@/lib/pattern-source");
-const {
-  parseStandardizedPatternsContent,
-  standardizePattern,
-  standardizePatternFromImages,
-} = await import("@/lib/ai/standardize-pattern");
-const { deleteUpload, saveUpload } = await import("@/lib/files.server");
-const { getAiConfig } = await import("@/lib/settings");
+} = await import("../src/lib/pattern-source");
+const { parseStandardizedPatternsContent } = await import(
+  "../src/lib/ai/standardize-pattern"
+);
+const { standardizePatternSource } = await import(
+  "../src/lib/ai/standardize-source"
+);
+const { deleteUpload, saveUpload } = await import("../src/lib/files.server");
+const { getAiConfig } = await import("../src/lib/settings");
 
 import type { PatternSource } from "@/lib/pattern-source";
 import type { StandardizedPattern } from "@/lib/ai/standardize-pattern";
@@ -82,10 +83,8 @@ async function runCase(label: string, source: PatternSource, uploads: string[]) 
       log(label, `imágenes para visión: ${content.images.length}`);
     }
     const t0 = Date.now();
-    const patterns =
-      content.type === "images"
-        ? await standardizePatternFromImages(content.images)
-        : await standardizePattern(content.text);
+    // Pipeline completo (texto → visión con reintento), igual que producción.
+    const patterns = await standardizePatternSource(source);
     log(
       label,
       `IA: ${patterns.length} patrón(es) en ${((Date.now() - t0) / 1000).toFixed(1)}s`,
@@ -145,6 +144,12 @@ async function main() {
 
   if (!only || only === "mini") {
     await casePdf("MiniBeerPattern.pdf", "mini");
+  }
+  if (!only || only === "loki") {
+    await casePdf("LOKIFunSizePattern-1.pdf", "loki");
+  }
+  if (!only || only === "cat") {
+    await casePdf("cat in pumpkin crochet pattern.pdf", "cat");
   }
   if (!only || only === "halloween") {
     await casePdf("Halloween recopilation.pdf", "halloween");

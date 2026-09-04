@@ -1,7 +1,13 @@
 {
   "Common": {
     "appName": "Zgz Stitches",
-    "loading": "Loading…"
+    "loading": "Cargando…"
+  },
+  "Errors": {
+    "title": "This page couldn't load",
+    "description": "An unexpected error occurred. Try again in a few seconds.",
+    "digest": "Reference",
+    "retry": "Retry"
   },
   "Landing": {
     "tagline": "Handmade amigurumi & crochet from Zaragoza",
@@ -416,6 +422,14 @@
     "converting": "Converting…",
     "convertingTitle": "The AI is standardizing the pattern…",
     "convertingHint": "It can take 1 to 3 minutes. If the source contains several patterns, a bit longer.",
+    "stepExtract": "Extracting the source content…",
+    "stepTextReady": "Text extracted ({chars} characters) · calling the AI…",
+    "stepImagesReady": "{count} images ready · calling the AI…",
+    "stepStandardizing": "The AI is standardizing…",
+    "stepSegmenting": "The source seems to contain several patterns: splitting them…",
+    "stepSegment": "Standardizing pattern {index} of {total}…",
+    "stepRasterizing": "The PDF yields no useful text: rendering pages for the AI…",
+    "stepVisionRetry": "The text does not contain the pattern: retrying with vision…",
     "allDetected": "{count} patterns detected",
     "downloadMd": "Markdown",
     "downloadEpub": "EPUB",

@@ -6,12 +6,11 @@ import path from "node:path";
 import { del, get, put } from "@vercel/blob";
 import {
   DOCUMENT_MIME_TO_EXT,
-  EXT_TO_MIME,
   IMAGE_MIME_TO_EXT,
-  isUploadKind,
   isValidUploadPath,
   MAX_DOCUMENT_BYTES,
   MAX_IMAGE_BYTES,
+  resolveUploadMime,
   type UploadKind,
   UploadError,
 } from "./files";
@@ -63,24 +62,34 @@ function uploadRoot(): string {
  * — es lo que se persiste en la BD.
  */
 export async function saveUpload(kind: UploadKind, file: File): Promise<string> {
-  const isImage = file.type in IMAGE_MIME_TO_EXT;
-  const isDocument = file.type in DOCUMENT_MIME_TO_EXT;
+  // Algunos navegadores/OS mandan File.type vacío o con parámetros (drag&drop,
+  // PDFs locales): se infiere del nombre antes de dar el fichero por no válido.
+  const mime = resolveUploadMime(file);
+
+  const isImage = mime in IMAGE_MIME_TO_EXT;
+  const isDocument = mime in DOCUMENT_MIME_TO_EXT;
 
   if (!isImage && !isDocument) {
-    throw new UploadError(`Tipo de fichero no permitido: ${file.type}`);
+    throw new UploadError(
+      `«${file.name || "fichero"}» no es un tipo admitido (${mime || "tipo no reconocido"}). `
+        + "Imágenes: JPG/PNG/WEBP/GIF · documentos de patrón: PDF/DOCX/HTML.",
+    );
   }
   // Los documentos (PDF/DOCX) solo tienen sentido en la biblioteca de patrones.
   if (isDocument && kind !== "patterns") {
-    throw new UploadError("Solo se admiten documentos en patrones");
+    throw new UploadError(
+      "Solo se admiten documentos (PDF/DOCX/HTML) en la biblioteca de patrones",
+    );
   }
   const maxBytes = isImage ? MAX_IMAGE_BYTES : MAX_DOCUMENT_BYTES;
   if (file.size > maxBytes) {
     throw new UploadError(
-      `Fichero demasiado grande (máx. ${Math.round(maxBytes / 1024 / 1024)} MB)`,
+      `«${file.name}» ocupa ${(file.size / 1024 / 1024).toFixed(1)} MB `
+        + `(máx. ${Math.round(maxBytes / 1024 / 1024)} MB)`,
     );
   }
 
-  const ext = isImage ? IMAGE_MIME_TO_EXT[file.type] : DOCUMENT_MIME_TO_EXT[file.type];
+  const ext = isImage ? IMAGE_MIME_TO_EXT[mime] : DOCUMENT_MIME_TO_EXT[mime];
   const relPath = path.posix.join(kind, `${randomUUID()}${ext}`);
 
   if (hasBlobToken()) {
@@ -91,7 +100,7 @@ export async function saveUpload(kind: UploadKind, file: File): Promise<string> 
       put(relPath, file, {
         access,
         addRandomSuffix: false,
-        contentType: file.type,
+        contentType: mime,
         cacheControlMaxAge: 31536000,
       }),
     );

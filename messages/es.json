@@ -3,6 +3,12 @@
     "appName": "Zgz Stitches",
     "loading": "Cargando…"
   },
+  "Errors": {
+    "title": "Esta página no se ha podido cargar",
+    "description": "Ha ocurrido un error inesperado. Inténtalo de nuevo en unos segundos.",
+    "digest": "Referencia",
+    "retry": "Reintentar"
+  },
   "Landing": {
     "tagline": "Amigurumis y crochet hechos a mano en Zaragoza",
     "emptyTitle": "Aún estamos tejiendo…",
@@ -416,6 +422,14 @@
     "converting": "Convirtiendo…",
     "convertingTitle": "La IA está estandarizando el patrón…",
     "convertingHint": "Puede tardar entre 1 y 3 minutos. Si el origen contiene varios patrones, algo más.",
+    "stepExtract": "Extrayendo el contenido del origen…",
+    "stepTextReady": "Texto extraído ({chars} caracteres) · llamando a la IA…",
+    "stepImagesReady": "{count} imágenes listas · llamando a la IA…",
+    "stepStandardizing": "La IA está estandarizando…",
+    "stepSegmenting": "El origen parece contener varios patrones: separándolos…",
+    "stepSegment": "Estandarizando patrón {index} de {total}…",
+    "stepRasterizing": "El PDF no da texto útil: renderizando páginas para la IA…",
+    "stepVisionRetry": "El texto no contiene el patrón: reintentando por visión…",
     "allDetected": "{count} patrones detectados",
     "downloadMd": "Markdown",
     "downloadEpub": "EPUB",

@@ -10,6 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Link } from "@/i18n/navigation";
+import { uploadBodyLimitError } from "@/lib/files";
 import { createPattern, updatePattern } from "./actions";
 
 export type PatternFormValues = {
@@ -52,6 +53,11 @@ export function PatternForm({
     const files = Array.from(event.target.files ?? []);
     event.target.value = "";
     if (files.length === 0) return;
+    const oversize = files.find((file) => uploadBodyLimitError(file));
+    if (oversize) {
+      setUploadError(uploadBodyLimitError(oversize));
+      return;
+    }
     setUploadError(null);
     setUploading(true);
     void (async () => {
@@ -86,6 +92,12 @@ export function PatternForm({
     const input = event.target;
     const file = input.files?.[0];
     if (!file) return;
+    const limitError = uploadBodyLimitError(file);
+    if (limitError) {
+      input.value = "";
+      setUploadError(limitError);
+      return;
+    }
     setUploadError(null);
     setUploading(true);
     void (async () => {

@@ -162,6 +162,32 @@
     pasos ✓ (78s, vía Jina).
   - oombawkadesigncrochet.com → 2 patrones (2 variantes de lana del gorro) ✓.
 
+## Registro de progreso (novedades del 2026-09-04, sesión 3)
+
+- **Progreso en tiempo real**: la conversión va por streaming (`POST /api/convert`,
+  NDJSON) — el panel muestra el paso actual en vivo (extrayendo → texto listo →
+  separando patrones → estandarizando patrón i/n → rasterizando…) + cronómetro.
+  `standardizePattern`/`standardizePatternSource` aceptan `onProgress`.
+- **PDF escaneado resuelto (Cat in Pumpkin)**: si el texto "parecía" patrón pero
+  el LLM no encuentra nada, `standardizePatternSource` reintenta rasterizando el
+  PDF y procesándolo por visión. Fix crítico: el documento debe crearse CON el
+  `CanvasFactory` inyectado (`getDocumentProxy(bytes, { CanvasFactory })`), si no
+  el pdf.js interno usa su stub y lanza "@napi-rs/canvas is not available".
+  E2E: cat → 1 patrón, 8 secciones, 92 rondas, 9 pasos (158s).
+- **LOKI**: subida fallida por MIME vacío del navegador → `resolveUploadMime`
+  infiere el MIME de la extensión; errores de subida con motivo concreto
+  («fichero», tipo, tamaño) + aviso cliente del límite de ~4,4 MB de Vercel.
+  E2E: loki → 1 patrón, 9 secciones, 74 rondas (188s).
+- **Prompt "todo el texto relevante"**: regla general explícita — nada relevante
+  se descarta; mapa de qué va a cada sitio (rondas/steps/tips→notas de sección/
+  metadatos/assemblyNotes); solo se omite ruido de maquetación.
+- **error.tsx** en `[locale]`: los fallos muestran el mensaje real con digest y
+  botón de reintentar (antes: página pelada de Vercel). Guardar/exportar en el
+  convertidor con try/catch + mensajes en cliente.
+- Pendiente de reproducir: "This page couldn't load" de Vercel al guardar (la
+  fila NO llegó a crearse en BD). Sin acceso a logs de Vercel (token CLI
+  inválido); tras este deploy el error real se verá en la app si persiste.
+
 ## Registro de progreso (novedades del 2026-09-04, sesión 2)
 
 - **minimax-m3:free descartado con evidencia** (inventa schema + fences; solo

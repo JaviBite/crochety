@@ -7,11 +7,10 @@ import { redirect } from "@/i18n/navigation";
 import {
   parseStandardizedPatternsContent,
   standardizedPatternSchema,
-  standardizePattern,
   standardizePatternFromContent,
-  standardizePatternFromImages,
   type StandardizedPattern,
 } from "@/lib/ai/standardize-pattern";
+import { standardizePatternSource } from "@/lib/ai/standardize-source";
 import { auth } from "@/lib/auth";
 import { isValidUploadPath } from "@/lib/files";
 import { deleteUpload } from "@/lib/files.server";
@@ -19,7 +18,6 @@ import { checkbox, parsePatternForm } from "@/lib/forms";
 import {
   collectCoverCandidates,
   derivePatternCover,
-  extractPatternContent,
   loadPatternImages,
   parseImagePaths,
   PatternSourceError,
@@ -147,14 +145,9 @@ async function standardizeAndSave(
   source: PatternSource,
   origin?: SiblingOrigin,
 ): Promise<void> {
-  // Con imágenes (subidas o páginas rasterizadas de un PDF escaneado) va por
-  // visión; si no, por texto. El parsing a patrón estandarizado SIEMPRE lo
-  // hace el LLM (structured outputs); nada se extrae a mano.
-  const content = await extractPatternContent(source);
-  const patterns =
-    content.type === "images"
-      ? await standardizePatternFromImages(content.images)
-      : await standardizePattern(content.text);
+  // Pipeline completo (texto → visión con reintento por rasterizado). El
+  // parsing SIEMPRE lo hace el LLM; nada se extrae a mano.
+  const patterns = await standardizePatternSource(source);
 
   if (patterns.length === 0) {
     throw new PatternSourceError("No se detectó ningún patrón en el contenido");

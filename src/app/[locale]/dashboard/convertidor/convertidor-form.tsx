@@ -31,19 +31,60 @@ import {
   type StandardizedPattern,
 } from "@/lib/ai/standardize-pattern";
 import {
+  uploadBodyLimitError,
+} from "@/lib/files";
+import {
   slugifyFileName,
   toMarkdown,
   toMarkdownAll,
 } from "@/lib/pattern-export";
 import { PatternEditorFields } from "../patrones/[id]/editor/pattern-editor-fields";
 import {
-  convertPattern,
   deleteConvertCover,
   exportPatternEpub,
   saveConvertedPattern,
   type ConvertResult,
   type ConvertState,
+  type ConvertStreamEvent,
 } from "./actions";
+
+/**
+ * Llama a POST /api/convert y reparte los eventos NDJSON de progreso en vivo.
+ */
+async function convertViaStream(
+  formData: FormData,
+  onEvent: (event: ConvertStreamEvent) => void,
+): Promise<void> {
+  let res: Response;
+  try {
+    res = await fetch("/api/convert", { method: "POST", body: formData });
+  } catch {
+    onEvent({ type: "error", message: "La conversión falló, vuelve a intentarlo" });
+    return;
+  }
+  if (!res.ok || !res.body) {
+    onEvent({ type: "error", message: "La conversión falló, vuelve a intentarlo" });
+    return;
+  }
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      try {
+        onEvent(JSON.parse(line) as ConvertStreamEvent);
+      } catch {
+        // Línea corrupta: se ignora.
+      }
+    }
+  }
+}
 
 type Covers = { auto: string | null; candidates: string[] };
 
@@ -111,16 +152,25 @@ async function coverForMarkdown(
 }
 
 /**
- * Panel de progreso durante la conversión: la IA tarda 1-3 min por patrón
- * (recopilatorios, más) y sin feedback parece colgado.
+ * Panel de progreso con el paso actual en vivo (el pipeline emite eventos por
+ * streaming) más cronómetro: la IA tarda 1-3 min por patrón y sin feedback
+ * parece colgado.
  */
-function ConvertingPanel({ seconds }: { seconds: number }) {
+function ConvertingPanel({
+  seconds,
+  step,
+}: {
+  seconds: number;
+  step: string | null;
+}) {
   const t = useTranslations("Convertidor");
   return (
     <div className="flex items-center gap-3 rounded-2xl border border-dashed p-4">
       <LoaderCircle className="size-5 shrink-0 animate-spin text-primary" />
-      <div className="min-w-0">
-        <p className="text-sm font-medium">{t("convertingTitle")}</p>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-medium">
+          {step ?? t("convertingTitle")}
+        </p>
         <p className="text-xs text-muted-foreground">{t("convertingHint")}</p>
       </div>
       <span className="ml-auto shrink-0 tabular-nums text-sm text-muted-foreground">
@@ -128,6 +178,33 @@ function ConvertingPanel({ seconds }: { seconds: number }) {
       </span>
     </div>
   );
+}
+
+/** Traduce un evento del pipeline a un mensaje de paso para la UI. */
+function useStepLabel(): (event: ConvertStreamEvent) => string | null {
+  const t = useTranslations("Convertidor");
+  return (event) => {
+    switch (event.type) {
+      case "extract":
+        return t("stepExtract");
+      case "text-ready":
+        return t("stepTextReady", { chars: event.chars.toLocaleString() });
+      case "images-ready":
+        return t("stepImagesReady", { count: event.count });
+      case "standardizing":
+        return t("stepStandardizing");
+      case "segmenting":
+        return t("stepSegmenting");
+      case "segment":
+        return t("stepSegment", { index: event.index, total: event.total });
+      case "rasterizing":
+        return t("stepRasterizing");
+      case "vision-retry":
+        return t("stepVisionRetry");
+      default:
+        return null;
+    }
+  };
 }
 
 function uploadOne(file: File): Promise<string | null> {
@@ -191,16 +268,24 @@ function PatternResultCard({
   function downloadEpub() {
     setError(null);
     startTransition(async () => {
-      const result = await exportPatternEpub({
-        patterns: [doc],
-        coverSrc: coverPath ?? coverSrc,
-        anthology: false,
-      });
-      if ("error" in result) {
-        setError(result.error);
-        return;
+      try {
+        const result = await exportPatternEpub({
+          patterns: [doc],
+          coverSrc: coverPath ?? coverSrc,
+          anthology: false,
+        });
+        if ("error" in result) {
+          setError(result.error);
+          return;
+        }
+        downloadBase64(
+          result.base64,
+          `${baseName}.epub`,
+          "application/epub+zip",
+        );
+      } catch {
+        setError("No se pudo generar el EPUB, vuelve a intentarlo");
       }
-      downloadBase64(result.base64, `${baseName}.epub`, "application/epub+zip");
     });
   }
 
@@ -209,16 +294,20 @@ function PatternResultCard({
   function save() {
     setError(null);
     startTransition(async () => {
-      const result = await saveConvertedPattern(doc, coverPath ?? coverSrc);
-      if ("error" in result) {
-        setError(result.error);
-        return;
+      try {
+        const result = await saveConvertedPattern(doc, coverPath ?? coverSrc);
+        if ("error" in result) {
+          setError(result.error);
+          return;
+        }
+        // La portada subida ya pertenece al patrón: no hay que limpiarla.
+        coverCleanupRef.current = null;
+        setSavedId(result.id);
+        toast.success(t("savedToast"));
+        router.refresh();
+      } catch {
+        setError("No se pudo guardar el patrón, vuelve a intentarlo");
       }
-      // La portada subida ya pertenece al patrón: no hay que limpiarla.
-      coverCleanupRef.current = null;
-      setSavedId(result.id);
-      toast.success(t("savedToast"));
-      router.refresh();
     });
   }
 
@@ -227,6 +316,11 @@ function PatternResultCard({
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
+    const limitError = uploadBodyLimitError(file);
+    if (limitError) {
+      setError(limitError);
+      return;
+    }
     setUploadingCover(true);
     setError(null);
     try {
@@ -534,6 +628,9 @@ export function ConvertidorForm() {
   const [imagePaths, setImagePaths] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  // Paso actual del pipeline (progreso en vivo vía streaming).
+  const [step, setStep] = useState<string | null>(null);
+  const toStepLabel = useStepLabel();
   // Ediciones de las cards por índice (el resultado base vive en `result`).
   const editsRef = useRef<Map<number, StandardizedPattern>>(new Map());
   // Contador de conversiones: repone el árbol de resultados entre intentos.
@@ -550,12 +647,29 @@ export function ConvertidorForm() {
 
   function onSubmit(formData: FormData) {
     setElapsed(0);
+    setStep(null);
     startTransition(async () => {
-      const next = await convertPattern(null, formData);
+      let next: ConvertState = null;
+      await convertViaStream(formData, (event) => {
+        if (event.type === "done") {
+          next = {
+            patterns: event.patterns,
+            autoCover: event.autoCover,
+            coverCandidates: event.coverCandidates,
+          };
+          return;
+        }
+        if (event.type === "error") {
+          next = { error: event.message };
+          return;
+        }
+        setStep(toStepLabel(event));
+      });
       if (next && "patterns" in next) {
         setConversionCount((count) => count + 1);
         editsRef.current = new Map();
       }
+      setStep(null);
       setResult(next);
     });
   }
@@ -567,6 +681,12 @@ export function ConvertidorForm() {
     const input = event.target;
     const file = input.files?.[0];
     if (!file) return;
+    const limitError = uploadBodyLimitError(file);
+    if (limitError) {
+      input.value = "";
+      setUploadError(limitError);
+      return;
+    }
     setUploadError(null);
     setUploading(true);
     void (async () => {
@@ -588,6 +708,11 @@ export function ConvertidorForm() {
     const files = Array.from(event.target.files ?? []);
     event.target.value = "";
     if (files.length === 0) return;
+    const oversize = files.find((file) => uploadBodyLimitError(file));
+    if (oversize) {
+      setUploadError(uploadBodyLimitError(oversize));
+      return;
+    }
     setUploadError(null);
     setUploading(true);
     void (async () => {
@@ -736,7 +861,7 @@ export function ConvertidorForm() {
           {tForms("uploading")}
         </p>
       )}
-      {pending && <ConvertingPanel seconds={elapsed} />}
+      {pending && <ConvertingPanel seconds={elapsed} step={step} />}
       {result && "error" in result && (
         <p
           role="alert"

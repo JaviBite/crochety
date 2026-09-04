@@ -249,13 +249,23 @@ const MAX_RENDERED_PAGES = 10;
  * Rasteriza las primeras páginas del PDF a data-URLs PNG (visión). Requiere
  * @napi-rs/canvas (binario precompilado); cualquier fallo se propaga y el
  * llamador decide (best-effort: si hay texto, se usa el texto).
+ *
+ * OJO: el documento debe crearse CON el CanvasFactory inyectado — si se pasa
+ * un proxy ya creado, renderPageAsImage no lo reconfigura y el pdf.js interno
+ * usa su stub que siempre lanza "@napi-rs/canvas is not available".
  */
-async function rasterizePdfPages(filePath: string): Promise<string[]> {
-  const [{ renderPageAsImage, getDocumentProxy }, bytes] = await Promise.all([
+export async function rasterizePdfPages(filePath: string): Promise<string[]> {
+  const [
+    { renderPageAsImage, getDocumentProxy, createIsomorphicCanvasFactory },
+    bytes,
+  ] = await Promise.all([
     import("unpdf"),
     uploadBytes(filePath),
   ]);
-  const pdf = await getDocumentProxy(bytes);
+  const CanvasFactory = await createIsomorphicCanvasFactory(() =>
+    import("@napi-rs/canvas"),
+  );
+  const pdf = await getDocumentProxy(bytes, { CanvasFactory });
   const dataUrls: string[] = [];
   for (let page = 1; page <= Math.min(pdf.numPages, MAX_RENDERED_PAGES); page++) {
     const dataUrl = await renderPageAsImage(pdf, page, {

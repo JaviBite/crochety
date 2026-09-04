@@ -6,6 +6,7 @@ import { type ChangeEvent, useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { uploadBodyLimitError } from "@/lib/files";
 import { standardizePatternManual } from "../actions";
 
 function SubmitButton({ disabled, label }: { disabled?: boolean; label: string }) {
@@ -36,6 +37,11 @@ export function ManualStandardize({ id }: { id: string }) {
     const files = Array.from(event.target.files ?? []);
     event.target.value = "";
     if (files.length === 0) return;
+    const oversize = files.find((file) => uploadBodyLimitError(file));
+    if (oversize) {
+      setUploadError(uploadBodyLimitError(oversize));
+      return;
+    }
     setUploadError(null);
     setUploading(true);
     void (async () => {
