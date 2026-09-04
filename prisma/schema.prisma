@@ -148,7 +148,10 @@ model Pattern {
   imagePaths          String? // JSON array de pathnames de imágenes: fuente alternativa que la IA lee por visión
   externalUrl         String? // alternativa: link externo
   standardizedContent String? // JSON producido por el agente IA (contrato en src/lib/ai)
-  aiStatus            String   @default("NONE") // NONE | PENDING | PROCESSING | DONE | ERROR
+  aiStatus            String   @default("NONE") // NONE | PENDING | PROCESSING | DONE | ERROR | MULTIPLE
+  // Si el origen contiene varios patrones: true = crear un Pattern por cada
+  // uno automáticamente; false = parar en MULTIPLE y que el usuario elija.
+  autoSplit           Boolean  @default(false)
   createdAt           DateTime @default(now())
   orders              Order[]
   tags                Tag[]    @relation("PatternTags")

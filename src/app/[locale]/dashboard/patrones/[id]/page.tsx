@@ -1,6 +1,7 @@
 import {
   ArrowLeft,
   ChevronDown,
+  Download,
   ExternalLink,
   FileText,
   NotebookPen,
@@ -31,6 +32,7 @@ import {
 import { Link } from "@/i18n/navigation";
 import {
   parseStandardizedContent,
+  parseStandardizedPatternsContent,
   type StandardizedPattern,
 } from "@/lib/ai/standardize-pattern";
 import { parseImagePaths } from "@/lib/pattern-source";
@@ -39,6 +41,7 @@ import type { PatternAiStatus } from "@/lib/validations";
 import { AiStatusBadge } from "../ai-status-badge";
 import { CoverPicker } from "./cover-picker";
 import { ManualStandardize } from "./manual-standardize";
+import { MultiPatternReview } from "./multi-pattern-review";
 import { StandardizeButton } from "./standardize-button";
 
 const BASE_PATH = "/dashboard/patrones";
@@ -68,6 +71,12 @@ export default async function PatternDetailPage({
       parseImagePaths(pattern.imagePaths).length,
   );
   const aiStatus = pattern.aiStatus as PatternAiStatus;
+  // En MULTIPLE el JSON guardado es la lista completa de detectados: se muestra
+  // la revisión para que el usuario elija (human-in-the-loop).
+  const detected =
+    aiStatus === "MULTIPLE"
+      ? parseStandardizedPatternsContent(pattern.standardizedContent)
+      : [];
 
   return (
     <div className="space-y-6">
@@ -140,10 +149,29 @@ export default async function PatternDetailPage({
               {t("editContent")}
             </Link>
           </Button>
+          {standardized && (
+            <>
+              <Button variant="outline" asChild>
+                <a href={`/api/patterns/${pattern.id}/export?format=md`}>
+                  <Download className="size-4" />
+                  Markdown
+                </a>
+              </Button>
+              <Button variant="outline" asChild>
+                <a href={`/api/patterns/${pattern.id}/export?format=epub`}>
+                  <Download className="size-4" />
+                  EPUB
+                </a>
+              </Button>
+            </>
+          )}
         </div>
       </div>
 
       <StandardizeButton id={pattern.id} aiStatus={aiStatus} hasSource={hasSource} />
+      {detected.length > 0 && (
+        <MultiPatternReview id={pattern.id} patterns={detected} />
+      )}
       <ManualStandardize id={pattern.id} />
 
       {hasSource && <CoverPicker id={pattern.id} />}
@@ -192,23 +220,38 @@ export default async function PatternDetailPage({
   );
 }
 
-function compressRounds(rounds: StandardizedPattern["sections"][number]["rounds"]) {
-  if (rounds.length === 0) return [];
-  const groups: StandardizedPattern["sections"][number]["rounds"][] = [];
-  let current: StandardizedPattern["sections"][number]["rounds"] = [];
-  const key = (round: StandardizedPattern["sections"][number]["rounds"][number]) =>
+type Round = StandardizedPattern["sections"][number]["rounds"][number];
+
+type RenderItem = { type: "group"; rounds: Round[] } | { type: "step"; round: Round };
+
+/**
+ * Agrupa rondas consecutivas idénticas (compresión visual) pero deja los
+ * pasos intercalados (kind "step") como items sueltos, que se pintan distinto.
+ */
+function buildRenderItems(rounds: Round[]): RenderItem[] {
+  const items: RenderItem[] = [];
+  let current: Round[] = [];
+  const key = (round: Round) =>
     `${round.instruction.trim()}::${round.stitchCount ?? "null"}`;
 
   for (const round of rounds) {
+    if (round.kind === "step") {
+      if (current.length > 0) {
+        items.push({ type: "group", rounds: current });
+        current = [];
+      }
+      items.push({ type: "step", round });
+      continue;
+    }
     if (current.length === 0 || key(round) === key(current[0]!)) {
       current.push(round);
     } else {
-      groups.push(current);
+      items.push({ type: "group", rounds: current });
       current = [round];
     }
   }
-  groups.push(current);
-  return groups;
+  if (current.length > 0) items.push({ type: "group", rounds: current });
+  return items;
 }
 
 function StandardizedView({
@@ -290,12 +333,29 @@ function StandardizedView({
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="space-y-2">
-              {compressRounds(section.rounds).map((group, groupIndex) => {
+              {buildRenderItems(section.rounds).map((item, itemIndex) => {
+                if (item.type === "step") {
+                  return (
+                    <div
+                      key={`${section.name}-step-${itemIndex}`}
+                      className="rounded-xl border-l-2 border-l-primary bg-muted/40 px-3 py-2 text-sm italic"
+                    >
+                      {item.round.label && (
+                        <span className="mr-2 font-medium not-italic">
+                          {item.round.label}:
+                        </span>
+                      )}
+                      {item.round.instruction}
+                    </div>
+                  );
+                }
+
+                const group = item.rounds;
                 if (group.length === 1) {
                   const round = group[0];
                   return (
                     <div
-                      key={`${section.name}-${round.label}-${groupIndex}`}
+                      key={`${section.name}-${round.label}-${itemIndex}`}
                       className="grid gap-2 rounded-xl border px-3 py-2 sm:grid-cols-[90px_minmax(0,1fr)_80px]"
                     >
                       <div className="font-medium">{round.label}</div>
@@ -314,7 +374,7 @@ function StandardizedView({
 
                 return (
                   <details
-                    key={`${section.name}-${group[0]?.label ?? groupIndex}-${groupIndex}`}
+                    key={`${section.name}-${group[0]?.label ?? itemIndex}-${itemIndex}`}
                     className="rounded-xl border px-3 py-2"
                   >
                     <summary className="flex cursor-pointer list-none items-center justify-between gap-3">

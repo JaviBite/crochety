@@ -3,8 +3,34 @@ import {
   collectHtmlImageUrls,
   findOgImage,
   htmlToText,
+  looksLikeBotChallenge,
+  looksLikePatternText,
   pickCoverImage,
 } from "./pattern-source";
+
+describe("looksLikeBotChallenge", () => {
+  it("detecta retos reales (página intermedia de Cloudflare)", () => {
+    expect(looksLikeBotChallenge("<title>Just a moment...</title>")).toBe(true);
+    expect(looksLikeBotChallenge("Enable JavaScript and cookies to continue")).toBe(
+      true,
+    );
+    expect(looksLikeBotChallenge("var s={c:(window._cf_chl_opt={})};")).toBe(true);
+    expect(looksLikeBotChallenge("/cdn-cgi/challenge-platform/h/b/orchestrate/chl_page/v1")).toBe(
+      true,
+    );
+  });
+
+  it("no marca como reto el script JSD normal de sitios tras Cloudflare", () => {
+    expect(
+      looksLikeBotChallenge(
+        "a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js'",
+      ),
+    ).toBe(false);
+    expect(looksLikeBotChallenge("<html><body>Patrón normal</body></html>")).toBe(
+      false,
+    );
+  });
+});
 
 describe("htmlToText", () => {
   it("quita scripts/estilos y convierte bloques en saltos de línea", () => {
@@ -119,5 +145,39 @@ describe("collectHtmlImageUrls", () => {
     expect(collectHtmlImageUrls(html, base)).toEqual([
       "https://blog.example.com/small.jpg",
     ]);
+  });
+});
+
+describe("looksLikePatternText", () => {
+  it("detecta rondas numeradas en español e inglés", () => {
+    expect(looksLikePatternText("R1: 6 pb en anillo mágico")).toBe(true);
+    expect(looksLikePatternText("Ronda 5: aum en cada punto (12)")).toBe(true);
+    expect(looksLikePatternText("Row 3: dc in each st")).toBe(true);
+    expect(looksLikePatternText("R4-R7\n12 sc")).toBe(true);
+  });
+
+  it("detecta conteos de puntos y abreviaturas", () => {
+    expect(looksLikePatternText("haz 6 pb y luego 2 aum")).toBe(true);
+    expect(looksLikePatternText("12sc in next st")).toBe(true);
+    expect(looksLikePatternText("trabaja 18 pa")).toBe(true);
+  });
+
+  it("detecta el anillo mágico y el amigurumi", () => {
+    expect(looksLikePatternText("empieza con un anillo mágico")).toBe(true);
+    expect(looksLikePatternText("make a magic ring")).toBe(true);
+  });
+
+  it("rechaza texto que no es un patrón", () => {
+    expect(
+      looksLikePatternText(
+        "Ingredientes: 500 g de harina, 200 ml de leche y 3 huevos. Precalienta el horno a 180 grados.",
+      ),
+    ).toBe(false);
+    expect(
+      looksLikePatternText(
+        "Bienvenido a mi blog. Hoy hablamos de cómo plantar rosales y del abonado de primavera.",
+      ),
+    ).toBe(false);
+    expect(looksLikePatternText("")).toBe(false);
   });
 });

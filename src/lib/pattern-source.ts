@@ -69,9 +69,12 @@ const FETCH_TIMEOUT_MS = 15_000;
 /**
  * Detecta la página intermedia de un reto anti-bots (Cloudflare "Just a
  * moment", etc.): un fetch de servidor no ejecuta JS y no puede superarlo.
+ * OJO: no marcar el script JSD normal de Cloudflare
+ * (/cdn-cgi/challenge-platform/scripts/jsd/main.js), presente en cualquier
+ * sitio tras Cloudflare sin reto — solo los marcadores del reto real.
  */
 export function looksLikeBotChallenge(html: string): boolean {
-  return /cf_chl|challenge-platform|Just a moment|Enable JavaScript (?:&|and) cookies/i.test(
+  return /cf_chl|orchestrate\/chl_page|Just a moment|Enable JavaScript (?:&|and) cookies/i.test(
     html,
   );
 }
@@ -122,6 +125,34 @@ async function fetchWithTimeout(url: string): Promise<Response> {
   });
 }
 
+// Proxy lector (Jina Reader): renderiza la página con un navegador real y
+// devuelve el texto/markdown. Workaround para retos anti-bots sin montar un
+// headless propio. Gratuito con rate limit; solo se usa si el fetch directo
+// está bloqueado.
+const READER_PROXY = "https://r.jina.ai/";
+const PROXY_TIMEOUT_MS = 90_000;
+
+async function fetchViaReaderProxy(url: string): Promise<string | null> {
+  // Un reintento: el primer render de una página (en frío) puede agotar el
+  // timeout; las siguientes salen de caché y son rápidas. SIN User-Agent de
+  // navegador: r.jina.ai responde 403 a clientes suplantados.
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const res = await fetch(READER_PROXY + url, {
+        signal: AbortSignal.timeout(PROXY_TIMEOUT_MS),
+      });
+      if (res.ok) {
+        const text = await res.text();
+        if (text.trim()) return text.trim();
+      }
+    } catch {
+      // Reintenta; si tampoco, null.
+    }
+    if (attempt === 0) await new Promise((r) => setTimeout(r, 2_000));
+  }
+  return null;
+}
+
 /**
  * Extrae el texto crudo del origen del patrón: PDF con unpdf, DOCX con
  * mammoth, página web con fetch + htmlToText. Lanza PatternSourceError con
@@ -143,23 +174,35 @@ export async function extractPatternText(source: PatternSource): Promise<string>
       uploadBytes(source.filePath),
     ]);
     text = (await mammoth.extractRawText({ buffer: Buffer.from(bytes) })).value;
+  } else if (source.filePath?.endsWith(".html")) {
+    // Página guardada desde el navegador ("Guardar como HTML"): el usuario ya
+    // pasó el reto anti-bots, aquí solo hay que limpiar el HTML.
+    const bytes = await uploadBytes(source.filePath);
+    text = htmlToText(new TextDecoder("utf-8", { fatal: false }).decode(bytes));
   } else if (source.externalUrl) {
-    let res: Response;
+    let html: string | null = null;
     try {
-      res = await fetchWithTimeout(source.externalUrl);
+      const res = await fetchWithTimeout(source.externalUrl);
+      const body = await res.text().catch(() => "");
+      if (res.ok && !looksLikeBotChallenge(body)) {
+        html = body;
+      }
     } catch {
-      throw new PatternSourceError("No se pudo descargar la página del patrón");
+      html = null;
     }
-    if (!res.ok) {
-      throw new PatternSourceError("No se pudo descargar la página del patrón");
+    if (html) {
+      text = htmlToText(html);
+    } else {
+      // Bloqueado (403, reto anti-bots o red): intenta el proxy lector antes
+      // de rendirse — renderiza la página con navegador real y sortea el reto.
+      const proxied = await fetchViaReaderProxy(source.externalUrl);
+      if (!proxied) {
+        throw new PatternSourceError(
+          "La web bloquea la descarga automática (protección anti-bots). Sube el PDF del patrón o pega el texto.",
+        );
+      }
+      text = proxied;
     }
-    const html = await res.text();
-    if (looksLikeBotChallenge(html)) {
-      throw new PatternSourceError(
-        "La web bloquea la descarga automática (protección anti-bots). Sube el PDF del patrón o pega el texto.",
-      );
-    }
-    text = htmlToText(html);
   } else {
     throw new PatternSourceError("El patrón no tiene fichero ni enlace");
   }
@@ -169,6 +212,110 @@ export async function extractPatternText(source: PatternSource): Promise<string>
     throw new PatternSourceError("No se pudo extraer texto del patrón");
   }
   return text.length > MAX_TEXT_CHARS ? text.slice(0, MAX_TEXT_CHARS) : text;
+}
+
+// ---------------------------------------------------------------------------
+// Contenido del origen para el LLM: texto "con pinta de patrón" o imágenes.
+// Un PDF escaneado no da texto útil (vacío o basura sin "R1", "6 pb"…): en ese
+// caso se rasterizan las páginas a buena resolución y se procesa por visión,
+// igual que las imágenes subidas a mano.
+// ---------------------------------------------------------------------------
+
+export type ExtractedContent =
+  | { type: "text"; text: string }
+  | { type: "images"; images: string[] };
+
+// Indicios de que un texto contiene un patrón de crochet: rondas numeradas,
+// abreviaturas de puntos con conteo, anillo mágico o totales "(12)".
+const PATTERN_TEXT_HINTS: RegExp[] = [
+  /(?:^|\n)\s*(?:R\s*\d+|rnd\.?\s*\d+|ronda\s*\d+|round\s*\d+|row\.?\s*\d+|fila\s*\d+|vuelta\s*\d+)/i,
+  /\b\d+\s*(?:pb|pa|pc|sc|dc|hdc|tr|dtr)\b/i,
+  /\b(?:anillo m[áa]gico|magic (?:ring|circle)|amigurumi)\b/i,
+  /\b(?:aum|dism|inc|dec|inv ?dec)\b/i,
+  /\b\d+\s*[[(]\s*\d+\s*[\])]/,
+];
+
+/** Heurística: ¿este texto parece contener un patrón de crochet? */
+export function looksLikePatternText(text: string): boolean {
+  return PATTERN_TEXT_HINTS.some((re) => re.test(text));
+}
+
+// Escala de renderizado: x2 da páginas nítidas para que el modelo de visión
+// lea las tablas de puntos sin disparar el peso de las imágenes.
+const PDF_RENDER_SCALE = 2;
+const MAX_RENDERED_PAGES = 10;
+
+/**
+ * Rasteriza las primeras páginas del PDF a data-URLs PNG (visión). Requiere
+ * @napi-rs/canvas (binario precompilado); cualquier fallo se propaga y el
+ * llamador decide (best-effort: si hay texto, se usa el texto).
+ */
+async function rasterizePdfPages(filePath: string): Promise<string[]> {
+  const [{ renderPageAsImage, getDocumentProxy }, bytes] = await Promise.all([
+    import("unpdf"),
+    uploadBytes(filePath),
+  ]);
+  const pdf = await getDocumentProxy(bytes);
+  const dataUrls: string[] = [];
+  for (let page = 1; page <= Math.min(pdf.numPages, MAX_RENDERED_PAGES); page++) {
+    const dataUrl = await renderPageAsImage(pdf, page, {
+      canvasImport: () => import("@napi-rs/canvas"),
+      scale: PDF_RENDER_SCALE,
+      toDataURL: true,
+    });
+    dataUrls.push(dataUrl);
+  }
+  return dataUrls;
+}
+
+/**
+ * Extrae el contenido del origen listo para el LLM:
+ * 1. Imágenes del patrón → visión.
+ * 2. Texto con indicios de patrón → texto.
+ * 3. PDF cuyo texto no parece un patrón (escaneado) → páginas rasterizadas.
+ *    Si el render falla pero hay texto, se envía el texto tal cual (mejor
+ *    intentarlo que quedarse sin nada).
+ */
+export async function extractPatternContent(
+  source: PatternSource,
+): Promise<ExtractedContent> {
+  if (source.imagePaths?.length) {
+    return {
+      type: "images",
+      images: await loadPatternImages(source.imagePaths),
+    };
+  }
+
+  if (source.filePath?.endsWith(".pdf")) {
+    let text: string | null = null;
+    try {
+      text = await extractPatternText(source);
+    } catch {
+      // Sin texto utilizable (PDF escaneado): pasa al renderizado de páginas.
+    }
+    if (text && looksLikePatternText(text)) {
+      return { type: "text", text };
+    }
+    let images: string[] = [];
+    try {
+      images = await rasterizePdfPages(source.filePath);
+    } catch {
+      images = [];
+    }
+    if (images.length) return { type: "images", images };
+    if (text) return { type: "text", text };
+    throw new PatternSourceError(
+      "No se pudo leer el PDF (parece escaneado y falló el renderizado de páginas). Sube fotos del patrón o pega el texto.",
+    );
+  }
+
+  const text = await extractPatternText(source);
+  if (looksLikePatternText(text)) {
+    return { type: "text", text };
+  }
+  throw new PatternSourceError(
+    "El contenido no parece un patrón de crochet. Comprueba el enlace o el texto, o pega directamente el texto/fotos del patrón.",
+  );
 }
 
 // Una portada tiene que ser una imagen "de verdad", no un icono o separador.

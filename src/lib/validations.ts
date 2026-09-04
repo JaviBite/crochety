@@ -31,6 +31,8 @@ export const PATTERN_AI_STATUSES = [
   "PROCESSING",
   "DONE",
   "ERROR",
+  // La IA detectó varios patrones en el origen; el usuario elige cuáles guardar.
+  "MULTIPLE",
 ] as const;
 export const patternAiStatusSchema = z.enum(PATTERN_AI_STATUSES);
 export type PatternAiStatus = z.infer<typeof patternAiStatusSchema>;

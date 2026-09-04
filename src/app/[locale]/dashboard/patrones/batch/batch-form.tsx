@@ -6,6 +6,7 @@ import { type ChangeEvent, useActionState, useState } from "react";
 import { SubmitButton } from "@/components/form/submit-button";
 import { TagInput } from "@/components/form/tag-input";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Link } from "@/i18n/navigation";
@@ -173,6 +174,16 @@ export function PatternBatchForm({
         </Label>
         <TagInput id="tags" suggestions={suggestions} />
         <p className="text-xs text-muted-foreground">{t("batchTagsHint")}</p>
+      </div>
+
+      <div className="flex items-start gap-2 space-y-0">
+        <Checkbox id="autoSplit" name="autoSplit" className="mt-1" />
+        <div className="space-y-1">
+          <Label htmlFor="autoSplit" className="cursor-pointer font-normal">
+            {t("autoSplitLabel")}
+          </Label>
+          <p className="text-xs text-muted-foreground">{t("autoSplitHint")}</p>
+        </div>
       </div>
 
       {state?.error && (

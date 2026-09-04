@@ -36,6 +36,7 @@ export default async function EditPatternPage({
           imagePaths: parseImagePaths(pattern.imagePaths),
           coverImagePath: pattern.coverImagePath,
           tags: pattern.tags,
+          autoSplit: pattern.autoSplit,
         }}
         suggestions={tags.map((tag) => tag.name)}
       />

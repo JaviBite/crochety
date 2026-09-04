@@ -39,7 +39,7 @@ function optId(value: FormDataEntryValue | null): string | null {
   return s && s !== NONE_VALUE ? s : null;
 }
 
-function checkbox(value: FormDataEntryValue | null): boolean {
+export function checkbox(value: FormDataEntryValue | null): boolean {
   return value === "on" || value === "true";
 }
 
@@ -306,10 +306,12 @@ export function parseMaterialForm(
 const patternFormSchema = z.object({
   title: z.string().min(1, "El título es obligatorio"),
   externalUrl: z.union([z.null(), z.url("El enlace no es una URL válida")]),
+  autoSplit: z.boolean(),
 });
 
 export type PatternInput = z.infer<typeof patternFormSchema> & {
   tags: string[];
+  autoSplit: boolean;
 };
 
 export function parsePatternForm(
@@ -318,6 +320,7 @@ export function parsePatternForm(
   const parsed = patternFormSchema.safeParse({
     title: str(formData.get("title")),
     externalUrl: opt(formData.get("externalUrl")),
+    autoSplit: checkbox(formData.get("autoSplit")),
   });
   if (!parsed.success) return { ok: false, error: firstIssue(parsed.error) };
   return {

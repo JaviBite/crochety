@@ -1,0 +1,240 @@
+# Spec — Pattern Parser (convertidor de patrones + exportación MD/EPUB)
+
+> Estado general: 🚧 backend completo y probado; pendiente verificación visual
+> del convertidor (Playwright) · Última actualización: 2026-09-04
+>
+> Página del dashboard que convierte **imagen / PDF / web / texto** en patrones de
+> crochet **estandarizados** (JSON con secciones, rondas, stitches, abreviaturas y
+> pasos custom), con exportación a **Markdown** y **EPUB**. Reutiliza el pipeline
+> existente (`lib/pattern-source.ts` + `lib/ai/standardize-pattern.ts`) y añade
+> soporte multi-patrón, human-in-the-loop y exportadores.
+
+## Decisiones tomadas (con el usuario)
+
+| Tema | Decisión |
+|---|---|
+| Ubicación | Sección protegida del dashboard: `/dashboard/convertidor` (no pública, consume claves LLM) |
+| Persistencia | Conversión **efímera** (en memoria, sin tocar BD) + botón opcional "guardar en mis patrones" |
+| Exportación | **Markdown + EPUB** (`epub-gen-memory`, genera en memoria). Individual + **recopilatorio** (un EPUB con un capítulo por patrón + MD concatenado) |
+| Pasos custom | Instrucciones intercaladas sin conteo ("Ronda X: inserta los ojos…") vía `kind: "step"` en las rondas |
+| Multi-patrón | El LLM devuelve **array** (máx. 10); un PDF/web puede contener varios |
+| Flujo dashboard | Human-in-the-loop: checkbox "si contiene varios, crear todos / preguntarme" (default: preguntar) |
+| PDF escaneado | Si el texto extraído **no tiene indicios de patrón** → rasterizar páginas del PDF a buena resolución y procesar por **visión** |
+| Portadas | Automática (la más representativa, `pickCoverImage` existente) salvo human-in-the-loop (CoverPicker ya existe); el EPUB lleva la portada si hay |
+
+## Reutilización (no reinventar)
+
+- `lib/pattern-source.ts`: PDF (unpdf) / DOCX (mammoth) / scraping web + anti-bot,
+  `pickCoverImage`, `collectCoverCandidates`, `loadPatternImages`, `saveChosenCover`.
+- `lib/ai/standardize-pattern.ts`: LLM con `generateObject` + esquema zod.
+- Editor online (`PatternEditor`) → se extrae a componente reutilizable con `onSave`.
+- Subidas `/api/uploads` (kind `patterns`, trampa #10) y `CoverPicker`.
+- Ajustes IA multi-proveedor (`lib/ai/provider.ts`, trampa #11: structured outputs).
+
+---
+
+## Fase 1 — Contrato multi-patrón + pasos custom ✅
+
+- [x] `standardize-pattern.shared.ts`:
+  - [x] `kind: z.enum(["round","step"]).nullish()` en rondas (`"step"` = instrucción
+    intercalada sin conteo; ausente/`"round"` = ronda normal → retrocompatible).
+  - [x] `standardizedPatternsSchema` = `{ patterns: StandardizedPattern[] }`.
+  - [x] `normalizeStandardizedPatterns()`: descarta patrones vacíos (bug conocido),
+    cap 10 (`MAX_PATTERNS_PER_CALL`), normaliza cada uno.
+  - [x] `parseStandardizedPatternsContent()`: lee `{patterns:[…]}`, array plano o
+    patrón único legado (→ array).
+- [x] `standardize-pattern.ts`: prompts multi-patrón ("devuelve TODOS los que
+  encuentres en orden, cada uno completo; si no hay, array vacío; no inventes") y
+  explicación de `kind:"step"`. `standardizePattern` / `standardizePatternFromContent`
+  / `standardizePatternFromImages` devuelven `StandardizedPattern[]`.
+- [x] `actions.ts`: `standardizeAndSave` y `standardizePatternManual` adaptados
+  (0 → ERROR "no se detectó ningún patrón"; 1 → DONE con JSON individual; N>1 →
+  `aiStatus: "MULTIPLE"` con `{patterns:[…]}` en `standardizedContent`).
+- [x] `PatternAiStatus` + `AiStatusBadge` + i18n para el estado MULTIPLE.
+- [x] Tests actualizados en `standardize-pattern.test.ts`.
+
+## Fase 2 — Fallback PDF→visión (PDF escaneado) ✅
+
+- [x] `looksLikePatternText(text)`: heurística regex (rondas `R\d+`/`ronda N`,
+  abreviaturas pb/pa/sc/dc/hdc/aum/dism, anillo mágico, puntadas totales…). Pura + test.
+  SOLO decide qué contenido enviar al LLM: el parsing SIEMPRE es IA.
+- [x] `extractPatternContent(source)`: extrae texto → si hay indicios o no es PDF,
+  devuelve `{ text }`; si no hay indicios y es PDF → rasteriza páginas
+  (`renderPageAsImage` de unpdf, scale ~2, máx ~10 págs, `@napi-rs/canvas`) y
+  devuelve `{ images }` (data-URLs) para el camino de visión.
+- [x] `standardizeAndSave` / convertidor usan `extractPatternContent`.
+- [x] Webs sin indicios: error accionable ("pega el texto o sube imágenes") — sin
+  headless browser (cero sobre-ingeniería).
+- [x] ⚠️ Riesgo resuelto: `renderPageAsImage` funciona en Node con
+  `@napi-rs/canvas` (añadido a serverExternalPackages); en Vercel queda pendiente
+  verificar el deploy.
+
+## Fase 3 — Flujo dashboard human-in-the-loop ✅
+
+- [x] Checkbox en `pattern-form.tsx` y `batch-form.tsx`:
+  **"si contiene varios patrones: crearlos todos / preguntarme"** (default: preguntar).
+  Columna `autoSplit` (migración `20260904173828_pattern_auto_split`).
+- [x] `standardizeAndSave` con origen:
+  - N>1 + "crear todos" → crea Patterns hermanos (título `" (2)"`…). Los ficheros
+    (PDF/imágenes/portada) se COMPARTEN con el origen (sin copias de Blob);
+    `deleteUploadIfUnreferenced` protege todos los borrados (update/delete/cover).
+  - N>1 + "preguntar" → `aiStatus: MULTIPLE` + array JSON.
+- [x] Componente de revisión `MultiPatternReview` en `[id]/page.tsx` cuando
+  `MULTIPLE`: lista los detectados (título, secciones, rondas/pasos) con
+  **"guardar todos"** (`keepAllPatterns`) y **"elegir uno"** (`keepPattern`).
+- [x] Editor: `PatternEditorFields` reutilizable con soporte de filas
+  `kind:"step"` (toggle ronda↔paso, añadir paso, sin columna de puntos); la vista
+  de detalle pinta steps como línea en cursiva sin compresión de rondas.
+- [x] Nada se auto-guarda sin revisión cuando hay N>1 y autoSplit off.
+
+## Fase 4 — Exportación ✅
+
+- [x] `lib/pattern-export.ts` (puro, cliente+servidor): `toMarkdown(pattern)`
+  (rondas `- **R1**: … (12)`, steps en cursiva, tabla de abreviaturas),
+  `toMarkdownAll` (concatenado con `---`), `slugifyFileName`.
+- [x] `lib/pattern-export.server.ts` (server-only): `toEpub(pattern, cover?)`
+  (capítulo por sección) y `toEpubAnthology(patterns, cover?)` (capítulo por
+  patrón) con `epub-gen-memory` importado bajo demanda.
+- [x] Portada EPUB: `File` con bytes del storage (patrones guardados) o data-URL
+  / URL remota descargada (convertidor); sin portada si no hay (best-effort).
+- [x] Descarga MD en cliente (Blob); EPUB vía server action (base64) en el
+  convertidor y vía route handler en patrones guardados.
+- [x] Tests: `pattern-export.test.ts` + `pattern-export.server.test.ts`.
+
+## Fase 5 — Página `/dashboard/convertidor` (efímera) ✅
+
+- [x] `page.tsx` + `convertidor-form.tsx` (client): 4 orígenes combinables —
+  PDF/DOCX (sube a `/api/uploads` al elegirlo), URL web, texto pegado, imágenes
+  (mismo mecanismo que `manual-standardize.tsx`).
+- [x] Server action `convertPattern`: guard `auth()` → `extractPatternContent` →
+  estandarizar → borrar ficheros temporales → **devuelve lista de patrones**
+  (sin BD) + portada propuesta y candidatas del origen.
+- [x] Resultado: cards 1..N, cada una con editor reutilizable, descarga MD/EPUB
+  individual, portada propuesta + "cambiar portada" (candidatas) y "guardar en
+  mis patrones" (validación + redirect al detalle).
+- [x] Botones globales cuando N>1: "todo en Markdown" + "EPUB recopilatorio".
+- [x] Nav item en `nav.tsx` (icono `WandSparkles`).
+
+## Fase 6 — Export en patrones guardados ✅
+
+- [x] `GET /api/patterns/[id]/export?format=md|epub` con guard de sesión,
+  lee `standardizedContent` + `coverImagePath`, filename slugificado; MULTIPLE
+  exporta la colección completa.
+- [x] Botones en `[id]/page.tsx` cuando hay versión estandarizada.
+
+## Fase 7 — Transversal ✅ (excepto verificación visual)
+
+- [x] `npm i epub-gen-memory @napi-rs/canvas server-only` (+ alias
+  `server-only/empty` en vitest.config.ts que arregla 2 suites pre-existentes).
+- [x] Textos nuevos en `messages/es.json` **Y** `messages/en.json`.
+- [x] Verificación: `npm run test` (163 ✓), `npm run typecheck` ✓,
+  `npx eslint src` ✓ (solo warnings pre-existentes), `npm run build` ✓.
+- [ ] Verificación visual Playwright del convertidor: 1280×800 y 390×844.
+
+## Notas / límites
+
+- Máx. 10 patrones por llamada; PDFs enormes podrían truncarse. **Mitigado**:
+  textos >10k chars van en 2 fases (segmentación LLM → estandarizar cada
+  segmento, concurrencia 3); comprobado con el recopilatorio de Halloween:
+  10 patrones detectados (9 reales + 1 duplicado de calabaza).
+- Webs protegidas por reto JS (Cloudflare): el fetch directo falla → **fallback
+  automático vía proxy lector Jina** (`r.jina.ai`, renderiza con navegador real;
+  SIN User-Agent: devuelve 403 a clientes suplantados; timeout 90s + 1 retry).
+  Si aun así falla, el usuario puede **guardar la página como HTML (Ctrl+S) y
+  subirla** — `.html` aceptado en converter y form de patrones.
+- `minimax/minimax-m3:free` **NO es válido** para este pipeline: acepta imágenes
+  pero ignora el json_schema e inventa campos propios + fences ```json
+  (evidencia: debug raw con el schema real). Revertido a
+  `dots-studio/dots-3-note-preview:free` (texto+visión+schema, el único free que
+  cumple los tres). Trampa #11 aplicada.
+- Los errores de las server actions van como strings en español (convención
+  existente en este repo); solo la UI pasa por `messages/`.
+
+## Verificación final
+
+- `npm run test`: **163/163 ✓** (21 ficheros) · `typecheck` ✓ · `eslint` ✓
+  (solo warnings pre-existentes) · `npm run build` ✓ (Turbopack, 2.5min).
+- E2E con patrones reales (`scratchpad/pattern-parser-e2e.mts`):
+  - MiniBeer PDF → 1 patrón ✓ (56s, texto).
+  - Halloween PDF → **10 patrones** ✓ (411s, segmentación en 2 fases).
+  - 2 imágenes mushroom → 1 patrón ✓ (112s, visión, modelo dots).
+  - stitchbyfay (CF-blocked) → 1 patrón "Bell Bag Ornament", 21 rondas + 4
+    pasos ✓ (78s, vía Jina).
+  - oombawkadesigncrochet.com → 2 patrones (2 variantes de lana del gorro) ✓.
+
+## Registro de progreso (novedades del 2026-09-04, sesión 2)
+
+- **minimax-m3:free descartado con evidencia** (inventa schema + fences; solo
+  acepta imágenes). Modelo activo en BD: `dots-studio/dots-3-note-preview:free`.
+- **Segmentación en 2 fases** para textos largos (>10k chars): Halloween pasa de
+  1 patrón colapsado a **10 patrones**.
+- **Fallback Cloudflare**: proxy lector Jina automático al estar bloqueado; fix
+  del UA (403 a clientes suplantados). URL real de stitchbyfay → convierte ✓.
+- **Plan B manual**: subida de `.html` (página guardada con Ctrl+S) aceptada en
+  converter y form de patrones (`text/html` en DOCUMENT_MIME_TO_EXT).
+
+## Registro de progreso
+
+- 2026-09-04 — Spec creado.
+- 2026-09-04 — **Fase 1 completada** ✅: contrato multi-patrón (`standardizedPatternsSchema`,
+  `MAX_PATTERNS_PER_CALL = 10`, `normalizeStandardizedPatterns`, `parseStandardizedPatternsContent`),
+  `kind:"step"` en rondas (retrocompatible), prompts multi-patrón, `aiStatus: MULTIPLE`
+  (validations + badge + i18n es/en), actions `standardizeAndSave`/`standardizePatternManual`
+  adaptadas (0→ERROR, 1→DONE individual, N→MULTIPLE). Tests: 10/10 ok, typecheck + lint limpios.
+  Fallos pre-existentes NO relacionados: `files.test.ts`/`pattern-source.test.ts`
+  (paquete `server-only` no resuelto en vitest), 1 timeout en `settings.test.ts`
+  y 2 workers lentos (máquina lenta).
+- 2026-09-04 — **Fase 2 completada** ✅: `looksLikePatternText` (heurística solo como
+  ROUTER texto-vs-visión, el parsing SIEMPRE es IA), `rasterizePdfPages` (unpdf
+  `renderPageAsImage` + `@napi-rs/canvas`, scale 2, máx 10 págs), `extractPatternContent`
+  unificado (imágenes → visión; texto con indicios → texto; PDF escaneado → render;
+  si el render falla pero hay texto → texto tal cual; webs/DOCX sin indicios → error
+  accionable). Deps instaladas: `@napi-rs/canvas`, `epub-gen-memory`, `server-only` (dev,
+  arregla 2 suites pre-existentes) + alias `server-only/empty` en vitest.config.ts.
+  Tests 37/37 ok. NOTA: el parsing del patrón es 100% LLM (generateObject) — la
+  heurística solo decide QUÉ contenido enviar, no extrae datos.
+- 2026-09-04 — **Modelo IA recomendado** (OpenRouter, gratuito, estructurado+visión
+  verificado contra el catálogo real): `dots-studio/dots-3-note-preview:free` (el único
+  free con imagen + structured_outputs, ctx 512k). Fallback text-only:
+  `nvidia/nemotron-3-super-120b-a12b:free` (ya validado en trampa #11). Configurable
+  en /dashboard/ajustes o env `AI_MODEL`.
+- 2026-09-04 — **Fase 3 completada** ✅: columna `autoSplit` (migración
+  `20260904173828_pattern_auto_split`), checkbox en `pattern-form` y `batch-form`,
+  `standardizeAndSave` con origen (autoSplit→hermanos compartiendo ficheros,
+  `deleteUploadIfUnreferenced` protege los borrados), acciones `keepPattern`/
+  `keepAllPatterns` + componente `MultiPatternReview` en el detalle, badge MULTIPLE,
+  editor extraído a `PatternEditorFields` (reutilizable, con soporte de pasos:
+  toggle ronda↔paso, añadir paso) y vista de detalle pinta `kind:"step"` en cursiva
+  sin compresión. Typecheck + lint limpios, tests 26/26.
+- 2026-09-04 — **Fase 5 completada** ✅: página `/dashboard/convertidor` (form con
+  4 orígenes combinables + vista de resultados 1..N). Action `convertPattern`
+  (efímero, borra uploads temporales, devuelve patrones + portada propuesta +
+  candidatas), `saveConvertedPattern` (valida contrato, crea Pattern DONE) y
+  `exportPatternEpub` (EPUB en memoria → base64). Cada card: editor reutilizable
+  (`PatternEditorFields`), descarga MD en cliente, EPUB vía action, portada
+  cambiable entre candidatas, guardar→redirect al detalle. Barra global con MD
+  concatenado + EPUB recopilatorio cuando N>1. Nav `Convertidor` + i18n es/en.
+- 2026-09-04 — **Fase 6 completada** ✅: `GET /api/patterns/[id]/export?format=md|epub`
+  (guard de sesión, MULTIPLE → colección, portada del Blob, filename slugificado)
+  + botones Markdown/EPUB en el detalle del patrón.
+- 2026-09-04 — **Fix de bundling**: `epub-gen-memory` arrastra `ejs`/`fs` → los
+  constructores EPUB se separaron a `pattern-export.server.ts` (con `server-only`);
+  `pattern-export.ts` queda puro (Markdown/slug) para el cliente. Añadido
+  `serverExternalPackages: ["@napi-rs/canvas"]` en next.config.ts. Build de
+  producción OK. Suite completa: 21 ficheros / 163 tests ✓.
+- 2026-09-04 — **PRUEBA REAL con /patterns** ✅ (script `scratchpad/pattern-parser-e2e.mts`):
+  - `MiniBeerPattern.pdf` (texto): 1 patrón "Mini Beer Mug", 18 rondas, aguja 5mm ✓ (56s).
+  - `Halloween recopilation.pdf` (texto): 1 patrón "Medium-size Pumpkin", 22 rondas
+    + 2 pasos; el modelo colapsa variantes en uno — coincide con la limitación de
+    robustez ya anotada (plan B: segmentación en 2 fases) ⚠️.
+  - `image_mushroom_part1/2.png` (visión): 1 patrón "Seta Toadstool", 20 rondas ✓ (112s)
+    — requiere modelo con visión: el actual de BD (`nemotron…:free`) NO tiene imagen
+    ("No endpoints found that support image input"); probado con
+    `dots-studio/dots-3-note-preview:free` y restaurado. Cambiar en /dashboard/ajustes.
+  - Web (link_web_pattern.txt): stitchbyfay.com está tras reto Cloudflare (403) →
+    error accionable correcto. En un sitio CF sin reto se detectó un FALSO POSITIVO
+    en `looksLikeBotChallenge` (el script JSD normal de CF: `challenge-platform/
+    scripts/jsd/main.js`); corregido el regex (solo `cf_chl`, `orchestrate/chl_page`,
+    "Just a moment", "Enable JavaScript and cookies") + cabecera `cf-mitigated`.
+    Retest con oombawkadesigncrochet.com: **2 patrones detectados** (variantes del
+    gorro) con 20/17 rondas y 17/14 pasos ✓ (148s).

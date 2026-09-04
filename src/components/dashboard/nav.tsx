@@ -6,6 +6,7 @@ import {
   Receipt,
   Boxes,
   ScrollText,
+  WandSparkles,
   Settings,
   UserRound,
   Users,
@@ -23,6 +24,7 @@ type NavItem = {
     | "expenses"
     | "materials"
     | "patterns"
+    | "converter"
     | "profile"
     | "users"
     | "settings";
@@ -36,6 +38,7 @@ const MAIN_ITEMS: NavItem[] = [
   { href: "/dashboard/gastos", key: "expenses", icon: Receipt },
   { href: "/dashboard/materiales", key: "materials", icon: Boxes },
   { href: "/dashboard/patrones", key: "patterns", icon: ScrollText },
+  { href: "/dashboard/convertidor", key: "converter", icon: WandSparkles },
 ];
 
 // Cuenta y administración: Perfil para todos; Usuarios y Ajustes solo admin.

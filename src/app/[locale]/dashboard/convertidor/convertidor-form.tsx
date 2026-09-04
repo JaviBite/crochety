@@ -1,0 +1,596 @@
+"use client";
+
+import {
+  CircleAlert,
+  CircleCheck,
+  Download,
+  Image as ImageIcon,
+  LoaderCircle,
+  Pencil,
+  Save,
+  WandSparkles,
+  X,
+} from "lucide-react";
+import { useTranslations } from "next-intl";
+import {
+  type ChangeEvent,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { useRouter } from "@/i18n/navigation";
+import {
+  type StandardizedPattern,
+} from "@/lib/ai/standardize-pattern";
+import {
+  slugifyFileName,
+  toMarkdown,
+  toMarkdownAll,
+} from "@/lib/pattern-export";
+import { PatternEditorFields } from "../patrones/[id]/editor/pattern-editor-fields";
+import {
+  convertPattern,
+  exportPatternEpub,
+  saveConvertedPattern,
+  type ConvertResult,
+  type ConvertState,
+} from "./actions";
+
+type Covers = { auto: string | null; candidates: string[] };
+
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function downloadBase64(base64: string, filename: string, mime: string) {
+  const bin = atob(base64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  downloadBlob(new Blob([bytes], { type: mime }), filename);
+}
+
+function ConvertButton({
+  disabled,
+  pending,
+}: {
+  disabled?: boolean;
+  pending?: boolean;
+}) {
+  const t = useTranslations("Convertidor");
+  return (
+    <Button type="submit" disabled={pending || disabled}>
+      <WandSparkles />
+      {pending ? t("converting") : t("convert")}
+    </Button>
+  );
+}
+
+function uploadOne(file: File): Promise<string | null> {
+  return (async () => {
+    const body = new FormData();
+    body.set("file", file);
+    body.set("kind", "patterns");
+    const res = await fetch("/api/uploads", { method: "POST", body });
+    const data = (await res.json().catch(() => null)) as
+      | { path?: string; error?: string }
+      | null;
+    return res.ok && data?.path ? data.path : null;
+  })();
+}
+
+// ---------------------------------------------------------------------------
+// Card de resultado: previsualización + editor + portada + descargas + guardar.
+// El documento editado vive en la card; el padre lo consulta vía onDocChange.
+// ---------------------------------------------------------------------------
+
+function PatternResultCard({
+  initial,
+  covers,
+  onDocChange,
+}: {
+  initial: StandardizedPattern;
+  covers: Covers;
+  onDocChange: (next: StandardizedPattern) => void;
+}) {
+  const t = useTranslations("Convertidor");
+  const tPatterns = useTranslations("Patterns");
+  const [doc, setDoc] = useState(initial);
+  const [cover, setCover] = useState<string | null>(covers.auto);
+  const [showCandidates, setShowCandidates] = useState(false);
+  const [showEditor, setShowEditor] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, startTransition] = useTransition();
+  const router = useRouter();
+
+  const baseName = slugifyFileName(doc.title || "patron");
+
+  function downloadMarkdown() {
+    downloadBlob(
+      new Blob([toMarkdown(doc)], { type: "text/markdown;charset=utf-8" }),
+      `${baseName}.md`,
+    );
+  }
+
+  function downloadEpub() {
+    setError(null);
+    startTransition(async () => {
+      const result = await exportPatternEpub({
+        patterns: [doc],
+        coverSrc: cover,
+        anthology: false,
+      });
+      if ("error" in result) {
+        setError(result.error);
+        return;
+      }
+      downloadBase64(result.base64, `${baseName}.epub`, "application/epub+zip");
+    });
+  }
+
+  function save() {
+    setError(null);
+    startTransition(async () => {
+      const result = await saveConvertedPattern(doc);
+      if ("error" in result) {
+        setError(result.error);
+        return;
+      }
+      toast.success(t("savedToast"));
+      router.push(`/dashboard/patrones/${result.id}`);
+    });
+  }
+
+  const rounds = doc.sections.reduce(
+    (sum, section) => sum + section.rounds.length,
+    0,
+  );
+
+  return (
+    <Card className="rounded-2xl shadow-sm">
+      <CardContent className="space-y-4">
+        <div className="flex flex-wrap items-start gap-4">
+          {cover ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={cover}
+              alt={doc.title}
+              className="size-20 rounded-xl border object-cover"
+            />
+          ) : (
+            <span className="flex size-20 items-center justify-center rounded-xl bg-accent text-accent-foreground">
+              <ImageIcon className="size-7" />
+            </span>
+          )}
+          <div className="min-w-0 flex-1 space-y-1">
+            <h3 className="truncate text-lg font-semibold">{doc.title}</h3>
+            <p className="text-sm text-muted-foreground">
+              {tPatterns("multiPatternMeta", {
+                sections: doc.sections.length,
+                rounds,
+              })}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" onClick={downloadMarkdown}>
+              <Download />
+              {t("downloadMd")}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={busy}
+              onClick={downloadEpub}
+            >
+              <Download />
+              {t("downloadEpub")}
+            </Button>
+            <Button size="sm" disabled={busy} onClick={save}>
+              <Save />
+              {t("savePattern")}
+            </Button>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-2 text-sm">
+          <button
+            type="button"
+            onClick={() => setShowEditor((v) => !v)}
+            className="flex items-center gap-1 text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <Pencil className="size-3.5" />
+            {showEditor ? t("hideEditor") : t("showEditor")}
+          </button>
+          {covers.candidates.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowCandidates((v) => !v)}
+              className="flex items-center gap-1 text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <ImageIcon className="size-3.5" />
+              {t("changeCover")}
+            </button>
+          )}
+          {cover && (
+            <button
+              type="button"
+              onClick={() => setCover(null)}
+              className="flex items-center gap-1 text-muted-foreground transition-colors hover:text-destructive"
+            >
+              <X className="size-3.5" />
+              {t("removeCover")}
+            </button>
+          )}
+        </div>
+
+        {showCandidates && (
+          <div className="flex flex-wrap gap-2 rounded-xl border p-3">
+            {covers.candidates.map((src) => (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                key={src}
+                src={src}
+                alt=""
+                onClick={() => {
+                  setCover(src);
+                  setShowCandidates(false);
+                }}
+                className={`size-16 cursor-pointer rounded-lg border object-cover transition-opacity hover:opacity-80 ${
+                  cover === src ? "ring-2 ring-primary" : ""
+                }`}
+              />
+            ))}
+          </div>
+        )}
+
+        {showEditor && (
+          <div className="border-t pt-4">
+            <PatternEditorFields
+              doc={doc}
+              setDoc={(updater) => {
+                const next = updater(doc);
+                setDoc(next);
+                onDocChange(next);
+              }}
+            />
+          </div>
+        )}
+
+        {error && (
+          <p role="alert" className="text-sm text-destructive">
+            {error}
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Vista de resultados (1..N patrones detectados).
+// ---------------------------------------------------------------------------
+
+function ResultsView({
+  result,
+  editsRef,
+  onReset,
+}: {
+  result: ConvertResult;
+  editsRef: React.RefObject<Map<number, StandardizedPattern>>;
+  onReset: () => void;
+}) {
+  const t = useTranslations("Convertidor");
+  const [allBusy, startAllTransition] = useTransition();
+  const [allError, setAllError] = useState<string | null>(null);
+
+  const patterns = result.patterns;
+  const covers: Covers = {
+    auto: result.autoCover,
+    candidates: result.coverCandidates,
+  };
+
+  /** Documentos vigentes: originales + ediciones de las cards. */
+  function currentDocs(): StandardizedPattern[] {
+    return patterns.map((pattern, index) =>
+      editsRef.current?.get(index) ?? pattern,
+    );
+  }
+
+  function downloadAllMarkdown() {
+    downloadBlob(
+      new Blob([toMarkdownAll(currentDocs())], {
+        type: "text/markdown;charset=utf-8",
+      }),
+      "patrones.md",
+    );
+  }
+
+  function downloadAllEpub() {
+    setAllError(null);
+    startAllTransition(async () => {
+      const exportResult = await exportPatternEpub({
+        patterns: currentDocs(),
+        coverSrc: covers.auto,
+        anthology: true,
+      });
+      if ("error" in exportResult) {
+        setAllError(exportResult.error);
+        return;
+      }
+      downloadBase64(
+        exportResult.base64,
+        "patrones.epub",
+        "application/epub+zip",
+      );
+    });
+  }
+
+  return (
+    <div className="space-y-5">
+      {patterns.length > 1 && (
+        <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-dashed p-4">
+          <p className="text-sm font-medium">
+            {t("allDetected", { count: patterns.length })}
+          </p>
+          <div className="ml-auto flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" onClick={downloadAllMarkdown}>
+              <Download />
+              {t("downloadAllMd")}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={allBusy}
+              onClick={downloadAllEpub}
+            >
+              <Download />
+              {t("downloadAllEpub")}
+            </Button>
+          </div>
+          {allError && (
+            <p role="alert" className="w-full text-sm text-destructive">
+              {allError}
+            </p>
+          )}
+        </div>
+      )}
+
+      {patterns.map((pattern, index) => (
+        <PatternResultCard
+          key={index}
+          initial={pattern}
+          covers={covers}
+          onDocChange={(next) => editsRef.current?.set(index, next)}
+        />
+      ))}
+
+      <Button variant="outline" onClick={onReset}>
+        <WandSparkles />
+        {t("newConversion")}
+      </Button>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Formulario del convertidor.
+// ---------------------------------------------------------------------------
+
+export function ConvertidorForm() {
+  const t = useTranslations("Convertidor");
+  const tForms = useTranslations("Forms");
+  const [pending, startTransition] = useTransition();
+  const [result, setResult] = useState<ConvertState>(null);
+  const [filePath, setFilePath] = useState<string | null>(null);
+  const [imagePaths, setImagePaths] = useState<string[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  // Ediciones de las cards por índice (el resultado base vive en `result`).
+  const editsRef = useRef<Map<number, StandardizedPattern>>(new Map());
+  // Contador de conversiones: repone el árbol de resultados entre intentos.
+  const [conversionCount, setConversionCount] = useState(0);
+
+  function onSubmit(formData: FormData) {
+    startTransition(async () => {
+      const next = await convertPattern(null, formData);
+      if (next && "patterns" in next) {
+        setConversionCount((count) => count + 1);
+        editsRef.current = new Map();
+      }
+      setResult(next);
+    });
+  }
+
+  function onPickUpload(
+    event: ChangeEvent<HTMLInputElement>,
+    onDone: (path: string) => void,
+  ) {
+    const input = event.target;
+    const file = input.files?.[0];
+    if (!file) return;
+    setUploadError(null);
+    setUploading(true);
+    void (async () => {
+      try {
+        const path = await uploadOne(file);
+        if (path) {
+          onDone(path);
+        } else {
+          input.value = "";
+          setUploadError(tForms("uploadFailed"));
+        }
+      } finally {
+        setUploading(false);
+      }
+    })();
+  }
+
+  function onPickImages(event: ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(event.target.files ?? []);
+    event.target.value = "";
+    if (files.length === 0) return;
+    setUploadError(null);
+    setUploading(true);
+    void (async () => {
+      try {
+        for (const file of files) {
+          const path = await uploadOne(file);
+          if (path) {
+            setImagePaths((current) => [...current, path]);
+          } else {
+            setUploadError(tForms("uploadFailed"));
+          }
+        }
+      } finally {
+        setUploading(false);
+      }
+    })();
+  }
+
+  function reset() {
+    setResult(null);
+    setFilePath(null);
+    setImagePaths([]);
+    setUploadError(null);
+    editsRef.current = new Map();
+  }
+
+  if (result && "patterns" in result) {
+    return (
+      <ResultsView
+        key={conversionCount}
+        result={result}
+        editsRef={editsRef}
+        onReset={reset}
+      />
+    );
+  }
+
+  return (
+    <form action={onSubmit} className="max-w-2xl space-y-5">
+      <div className="space-y-2">
+        <Label htmlFor="file">
+          {t("fieldFile")}{" "}
+          <span className="text-muted-foreground">({tForms("optional")})</span>
+        </Label>
+        {filePath && (
+          <p className="flex items-center gap-1.5 text-sm text-primary">
+            <CircleCheck className="size-4" />
+            {t("fileReady")}
+          </p>
+        )}
+        <Input
+          id="file"
+          type="file"
+          accept=".pdf,.docx,.html,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/html"
+          onChange={(event) => onPickUpload(event, setFilePath)}
+        />
+        <p className="text-xs text-muted-foreground">{t("fileHint")}</p>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="images">
+          {t("fieldImages")}{" "}
+          <span className="text-muted-foreground">({tForms("optional")})</span>
+        </Label>
+        {imagePaths.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {imagePaths.map((path) => (
+              <div key={path} className="relative">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={`/api/files/${path}`}
+                  alt=""
+                  className="size-16 rounded-lg border object-cover"
+                />
+                <button
+                  type="button"
+                  onClick={() =>
+                    setImagePaths((current) =>
+                      current.filter((entry) => entry !== path),
+                    )
+                  }
+                  aria-label={tForms("delete")}
+                  className="absolute -right-1.5 -top-1.5 rounded-full border bg-background p-0.5 text-muted-foreground hover:text-destructive"
+                >
+                  <X className="size-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        <Input
+          id="images"
+          type="file"
+          accept="image/*"
+          multiple
+          onChange={onPickImages}
+        />
+        <p className="text-xs text-muted-foreground">{t("imagesHint")}</p>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="externalUrl">
+          {t("fieldUrl")}{" "}
+          <span className="text-muted-foreground">({tForms("optional")})</span>
+        </Label>
+        <Input
+          id="externalUrl"
+          name="externalUrl"
+          type="url"
+          placeholder="https://…"
+        />
+        <p className="text-xs text-muted-foreground">{t("urlHint")}</p>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="text">
+          {t("fieldText")}{" "}
+          <span className="text-muted-foreground">({tForms("optional")})</span>
+        </Label>
+        <Textarea
+          id="text"
+          name="text"
+          rows={6}
+          placeholder={t("textPlaceholder")}
+        />
+        <p className="text-xs text-muted-foreground">{t("textHint")}</p>
+      </div>
+
+      {uploadError && (
+        <p role="alert" className="text-sm text-destructive">
+          {uploadError}
+        </p>
+      )}
+      {uploading && (
+        <p className="flex items-center gap-2 text-sm text-muted-foreground">
+          <LoaderCircle className="size-4 animate-spin" />
+          {tForms("uploading")}
+        </p>
+      )}
+      {result && "error" in result && (
+        <p
+          role="alert"
+          className="flex items-center gap-1.5 text-sm text-destructive"
+        >
+          <CircleAlert className="size-4" />
+          {result.error}
+        </p>
+      )}
+
+      <div className="flex gap-3">
+        <ConvertButton disabled={uploading} pending={pending} />
+      </div>
+    </form>
+  );
+}

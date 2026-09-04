@@ -200,9 +200,13 @@ describe("parseMaterialForm", () => {
 });
 
 describe("parsePatternForm", () => {
-  it("parsea título y enlace externo", () => {
+  it("parsea título, enlace externo y autoSplit", () => {
     const result = parsePatternForm(
-      fd({ title: "Pulpo clásico", externalUrl: "https://example.com/patron" }),
+      fd({
+        title: "Pulpo clásico",
+        externalUrl: "https://example.com/patron",
+        autoSplit: "on",
+      }),
     );
     expect(result).toEqual({
       ok: true,
@@ -210,6 +214,7 @@ describe("parsePatternForm", () => {
         title: "Pulpo clásico",
         externalUrl: "https://example.com/patron",
         tags: [],
+        autoSplit: true,
       },
     });
   });

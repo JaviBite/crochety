@@ -6,6 +6,7 @@ import { type ChangeEvent, useActionState, useState } from "react";
 import { SubmitButton } from "@/components/form/submit-button";
 import { TagInput } from "@/components/form/tag-input";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Link } from "@/i18n/navigation";
@@ -19,6 +20,7 @@ export type PatternFormValues = {
   imagePaths: string[];
   coverImagePath: string | null;
   tags: { name: string }[];
+  autoSplit: boolean;
 };
 
 export function PatternForm({
@@ -153,7 +155,7 @@ export function PatternForm({
         <Input
           id="file"
           type="file"
-          accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+          accept=".pdf,.docx,.html,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/html"
           onChange={(event) => onPickUpload(event, setFilePath)}
         />
         <p className="text-xs text-muted-foreground">{t("fileHint")}</p>
@@ -247,6 +249,21 @@ export function PatternForm({
           defaultValue={pattern?.tags.map((tag) => tag.name)}
         />
         <p className="text-xs text-muted-foreground">{tForms("tagsHint")}</p>
+      </div>
+
+      <div className="flex items-start gap-2 space-y-0">
+        <Checkbox
+          id="autoSplit"
+          name="autoSplit"
+          defaultChecked={pattern?.autoSplit ?? false}
+          className="mt-1"
+        />
+        <div className="space-y-1">
+          <Label htmlFor="autoSplit" className="cursor-pointer font-normal">
+            {t("autoSplitLabel")}
+          </Label>
+          <p className="text-xs text-muted-foreground">{t("autoSplitHint")}</p>
+        </div>
       </div>
 
       {uploadError && (

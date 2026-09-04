@@ -7,6 +7,9 @@ const nextConfig: NextConfig = {
   // Build autocontenida para la imagen Docker self-hosted (deploy/README.md).
   // Solo el Dockerfile define DOCKER_BUILD: el deploy de Vercel no cambia.
   ...(process.env.DOCKER_BUILD === "1" ? { output: "standalone" as const } : {}),
+  // Módulo nativo (binarios .node) usado por unpdf para rasterizar PDFs
+  // escaneados: no debe empaquetarse, se carga externo en el servidor.
+  serverExternalPackages: ["@napi-rs/canvas"],
   experimental: {
     serverActions: {
       // Fotos (materiales/pedidos) e imágenes del extractor IA viajan en la

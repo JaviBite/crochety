@@ -5,19 +5,21 @@ import { after } from "next/server";
 import { getLocale } from "next-intl/server";
 import { redirect } from "@/i18n/navigation";
 import {
+  parseStandardizedPatternsContent,
   standardizedPatternSchema,
   standardizePattern,
   standardizePatternFromContent,
   standardizePatternFromImages,
+  type StandardizedPattern,
 } from "@/lib/ai/standardize-pattern";
 import { auth } from "@/lib/auth";
 import { isValidUploadPath } from "@/lib/files";
 import { deleteUpload } from "@/lib/files.server";
-import { parsePatternForm } from "@/lib/forms";
+import { checkbox, parsePatternForm } from "@/lib/forms";
 import {
   collectCoverCandidates,
   derivePatternCover,
-  extractPatternText,
+  extractPatternContent,
   loadPatternImages,
   parseImagePaths,
   PatternSourceError,
@@ -66,21 +68,124 @@ function toSource(row: {
 }
 
 // ---------------------------------------------------------------------------
-// Pipeline IA: extraer texto del origen → standardizePattern → guardar JSON.
-// aiStatus: PENDING (en cola) → PROCESSING → DONE | ERROR.
+// Pipeline IA: extraer contenido del origen → estandarizar → guardar JSON.
+// aiStatus: PENDING (en cola) → PROCESSING → DONE | ERROR | MULTIPLE.
+// Un mismo origen (PDF/web) puede contener varios patrones: o se crean todos
+// como Patterns (autoSplit) o se apuntan todos y el usuario elige en el
+// detalle cuáles convertir en patrones (MULTIPLE, human-in-the-loop).
 // ---------------------------------------------------------------------------
 
-async function standardizeAndSave(id: string, source: PatternSource) {
-  const images = source.imagePaths ?? [];
-  // Con imágenes va por visión; si no, se extrae texto del PDF/DOCX/web.
-  const standardized = images.length
-    ? await standardizePatternFromImages(await loadPatternImages(images))
-    : await standardizePattern(await extractPatternText(source));
+/** Datos del patrón origen necesarios para crear hermanos multi-patrón. */
+type SiblingOrigin = {
+  title: string;
+  autoSplit: boolean;
+  filePath: string | null;
+  imagePaths: string | null;
+  externalUrl: string | null;
+  coverImagePath: string | null;
+  tags: { name: string }[];
+};
+
+const SIBLING_ORIGIN_SELECT = {
+  title: true,
+  autoSplit: true,
+  filePath: true,
+  imagePaths: true,
+  externalUrl: true,
+  coverImagePath: true,
+  tags: { select: { name: true }, orderBy: { name: "asc" as const } },
+} as const;
+
+/**
+ * Crea los Patterns hermanos para los patrones 2..N detectados en el mismo
+ * origen. Los ficheros (PDF, imágenes, portada) se COMPARTEN con el origen:
+ * por eso todos los borrados de fichero de patrón pasan por
+ * deleteUploadIfUnreferenced, que comprueba si otro patrón los sigue usando.
+ */
+async function createPatternSiblings(
+  origin: SiblingOrigin,
+  patterns: StandardizedPattern[],
+): Promise<void> {
+  for (let i = 1; i < patterns.length; i++) {
+    await prisma.pattern.create({
+      data: {
+        title: `${origin.title} (${i + 1})`,
+        filePath: origin.filePath,
+        imagePaths: origin.imagePaths,
+        externalUrl: origin.externalUrl,
+        coverImagePath: origin.coverImagePath,
+        standardizedContent: JSON.stringify(patterns[i]),
+        aiStatus: "DONE",
+        autoSplit: origin.autoSplit,
+        tags: tagsCreateInput(origin.tags.map((tag) => tag.name)),
+      },
+    });
+  }
+}
+
+/** Borra un upload solo si ningún OTRO patrón lo sigue referenciando. */
+async function deleteUploadIfUnreferenced(
+  path: string | null | undefined,
+  exceptPatternId?: string,
+): Promise<void> {
+  if (!path || !isValidUploadPath(path)) return;
+  const stillUsed = await prisma.pattern.count({
+    where: {
+      ...(exceptPatternId ? { id: { not: exceptPatternId } } : {}),
+      OR: [
+        { filePath: path },
+        { coverImagePath: path },
+        { imagePaths: { contains: path } },
+      ],
+    },
+  });
+  if (stillUsed === 0) await deleteUpload(path);
+}
+
+async function standardizeAndSave(
+  id: string,
+  source: PatternSource,
+  origin?: SiblingOrigin,
+): Promise<void> {
+  // Con imágenes (subidas o páginas rasterizadas de un PDF escaneado) va por
+  // visión; si no, por texto. El parsing a patrón estandarizado SIEMPRE lo
+  // hace el LLM (structured outputs); nada se extrae a mano.
+  const content = await extractPatternContent(source);
+  const patterns =
+    content.type === "images"
+      ? await standardizePatternFromImages(content.images)
+      : await standardizePattern(content.text);
+
+  if (patterns.length === 0) {
+    throw new PatternSourceError("No se detectó ningún patrón en el contenido");
+  }
+  if (patterns.length === 1) {
+    await prisma.pattern.update({
+      where: { id },
+      data: {
+        standardizedContent: JSON.stringify(patterns[0]),
+        aiStatus: "DONE",
+      },
+    });
+    return;
+  }
+  if (origin?.autoSplit) {
+    // El origen se queda con el primero; el resto nacen como Patterns nuevos.
+    await prisma.pattern.update({
+      where: { id },
+      data: {
+        standardizedContent: JSON.stringify(patterns[0]),
+        aiStatus: "DONE",
+      },
+    });
+    await createPatternSiblings(origin, patterns);
+    return;
+  }
   await prisma.pattern.update({
     where: { id },
     data: {
-      standardizedContent: JSON.stringify(standardized),
-      aiStatus: "DONE",
+      standardizedContent: JSON.stringify({ patterns }),
+      aiStatus: "MULTIPLE",
     },
   });
 }
@@ -101,9 +206,7 @@ function schedulePatternStandardization(
       const pattern = await prisma.pattern.findUnique({
         where: { id },
         select: {
-          filePath: true,
-          externalUrl: true,
-          imagePaths: true,
+          ...SIBLING_ORIGIN_SELECT,
           coverImagePath: true,
         },
       });
@@ -121,7 +224,7 @@ function schedulePatternStandardization(
           });
         }
       }
-      await standardizeAndSave(id, toSource(pattern));
+      await standardizeAndSave(id, toSource(pattern), pattern);
     } catch {
       await prisma.pattern
         .update({ where: { id }, data: { aiStatus: "ERROR" } })
@@ -139,7 +242,10 @@ export async function standardizePatternAction(
 
   const pattern = await prisma.pattern.findUnique({
     where: { id },
-    select: { filePath: true, externalUrl: true, imagePaths: true },
+    select: {
+      ...SIBLING_ORIGIN_SELECT,
+      coverImagePath: true,
+    },
   });
   if (!pattern) return { error: "Patrón no encontrado" };
   const source = toSource(pattern);
@@ -152,7 +258,7 @@ export async function standardizePatternAction(
     data: { aiStatus: "PROCESSING" },
   });
   try {
-    await standardizeAndSave(id, source);
+    await standardizeAndSave(id, source, pattern);
   } catch (error) {
     await prisma.pattern
       .update({ where: { id }, data: { aiStatus: "ERROR" } })
@@ -164,6 +270,77 @@ export async function standardizePatternAction(
           : "La estandarización falló, vuelve a intentarlo",
     };
   }
+  revalidatePath("/", "layout");
+}
+
+// ---------------------------------------------------------------------------
+// Revisión human-in-the-loop (aiStatus MULTIPLE): la IA detectó varios
+// patrones en el origen y el usuario decide cuáles conservar.
+// ---------------------------------------------------------------------------
+
+/** Se queda solo con el patrón elegido de la lista; el resto se descarta. */
+export async function keepPattern(
+  id: string,
+  index: number,
+): Promise<{ error: string } | void> {
+  const session = await auth();
+  if (!session?.user) return { error: "No autorizado" };
+
+  const pattern = await prisma.pattern.findUnique({
+    where: { id },
+    select: { aiStatus: true, standardizedContent: true },
+  });
+  if (!pattern) return { error: "Patrón no encontrado" };
+  if (pattern.aiStatus !== "MULTIPLE") {
+    return { error: "El patrón no está en revisión" };
+  }
+  const chosen = parseStandardizedPatternsContent(pattern.standardizedContent)[
+    index
+  ];
+  if (!chosen) return { error: "Ese patrón ya no está en la lista" };
+
+  await prisma.pattern.update({
+    where: { id },
+    data: { standardizedContent: JSON.stringify(chosen), aiStatus: "DONE" },
+  });
+  revalidatePath("/", "layout");
+}
+
+/**
+ * Se queda con todos: el primero conserva el patrón actual (título, tags,
+ * fichero) y el resto se crean como Patterns hermanos que comparten el origen.
+ */
+export async function keepAllPatterns(
+  id: string,
+): Promise<{ error: string } | void> {
+  const session = await auth();
+  if (!session?.user) return { error: "No autorizado" };
+
+  const pattern = await prisma.pattern.findUnique({
+    where: { id },
+    select: {
+      aiStatus: true,
+      standardizedContent: true,
+      ...SIBLING_ORIGIN_SELECT,
+    },
+  });
+  if (!pattern) return { error: "Patrón no encontrado" };
+  if (pattern.aiStatus !== "MULTIPLE") {
+    return { error: "El patrón no está en revisión" };
+  }
+  const patterns = parseStandardizedPatternsContent(pattern.standardizedContent);
+  if (patterns.length < 2) {
+    return { error: "Ese patrón ya no está en revisión" };
+  }
+
+  await prisma.pattern.update({
+    where: { id },
+    data: {
+      standardizedContent: JSON.stringify(patterns[0]),
+      aiStatus: "DONE",
+    },
+  });
+  await createPatternSiblings(pattern, patterns);
   revalidatePath("/", "layout");
 }
 
@@ -201,10 +378,10 @@ export async function standardizePatternManual(
     data: { aiStatus: "PROCESSING" },
   });
 
-  let standardized;
+  let patterns;
   try {
     const images = imagePaths.length ? await loadPatternImages(imagePaths) : [];
-    standardized = await standardizePatternFromContent({ text, images });
+    patterns = await standardizePatternFromContent({ text, images });
   } catch (error) {
     await prisma.pattern
       .update({ where: { id }, data: { aiStatus: "ERROR" } })
@@ -218,11 +395,22 @@ export async function standardizePatternManual(
     };
   }
 
+  if (patterns.length === 0) {
+    await prisma.pattern
+      .update({ where: { id }, data: { aiStatus: "ERROR" } })
+      .catch(() => {});
+    for (const path of imagePaths) await deleteUpload(path);
+    return { error: "No se detectó ningún patrón en el contenido" };
+  }
+
   await prisma.pattern.update({
     where: { id },
     data: {
-      standardizedContent: JSON.stringify(standardized),
-      aiStatus: "DONE",
+      standardizedContent:
+        patterns.length === 1
+          ? JSON.stringify(patterns[0])
+          : JSON.stringify({ patterns }),
+      aiStatus: patterns.length === 1 ? "DONE" : "MULTIPLE",
     },
   });
   for (const path of imagePaths) await deleteUpload(path);
@@ -334,7 +522,7 @@ export async function setPatternCover(
     data: { coverImagePath: newPath },
   });
   if (pattern.coverImagePath && pattern.coverImagePath !== newPath) {
-    await deleteUpload(pattern.coverImagePath);
+    await deleteUploadIfUnreferenced(pattern.coverImagePath, id);
   }
   revalidatePath("/", "layout");
 }
@@ -418,6 +606,9 @@ export async function createPatternsBatch(
   }
 
   const tags = parseTagNames(formData.get("tags"));
+  // Un solo selector para todo el lote: si algún PDF contiene varios patrones,
+  // crearlos todos (true) o dejarlos en MULTIPLE para revisión (false).
+  const autoSplit = checkbox(formData.get("autoSplit"));
 
   for (const entry of entries) {
     const pattern = await prisma.pattern.create({
@@ -425,6 +616,7 @@ export async function createPatternsBatch(
         title: entry.title,
         filePath: entry.filePath,
         aiStatus: "PENDING",
+        autoSplit,
         tags: tagsCreateInput(tags),
       },
     });
@@ -508,13 +700,15 @@ export async function updatePattern(
     },
   });
 
-  if (newFilePath) await deleteUpload(existing.filePath);
+  // Los ficheros antiguos pueden estar compartidos con hermanos multi-patrón:
+  // solo se borran del storage si ningún otro patrón los sigue usando.
+  if (newFilePath) await deleteUploadIfUnreferenced(existing.filePath, id);
   if (newImagePaths.length) {
     for (const old of parseImagePaths(existing.imagePaths)) {
-      await deleteUpload(old);
+      await deleteUploadIfUnreferenced(old, id);
     }
   }
-  if (newCoverPath) await deleteUpload(existing.coverImagePath);
+  if (newCoverPath) await deleteUploadIfUnreferenced(existing.coverImagePath, id);
   if (sourceChanged && hasSource) schedulePatternStandardization(id);
 
   revalidatePath("/", "layout");
@@ -537,10 +731,10 @@ export async function deletePattern(
   // opcional); el m2m con Tag se limpia en cascada.
   await prisma.pattern.delete({ where: { id } });
 
-  await deleteUpload(pattern?.filePath);
-  await deleteUpload(pattern?.coverImagePath);
+  await deleteUploadIfUnreferenced(pattern?.filePath);
+  await deleteUploadIfUnreferenced(pattern?.coverImagePath);
   for (const img of parseImagePaths(pattern?.imagePaths)) {
-    await deleteUpload(img);
+    await deleteUploadIfUnreferenced(img);
   }
   revalidatePath("/", "layout");
 }

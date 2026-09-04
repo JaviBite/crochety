@@ -15,6 +15,9 @@ export const DOCUMENT_MIME_TO_EXT: Record<string, string> = {
   "application/pdf": ".pdf",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
     ".docx",
+  // Página guardada desde el navegador: escape manual para webs tras retos
+  // anti-bots (el navegador del usuario ya pasó el reto).
+  "text/html": ".html",
 };
 
 export const MAX_IMAGE_BYTES = 10 * 1024 * 1024; // 10 MB
@@ -29,6 +32,7 @@ export const EXT_TO_MIME: Record<string, string> = {
   ".pdf": "application/pdf",
   ".docx":
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  ".html": "text/html",
 };
 
 export function isUploadKind(value: string): value is UploadKind {

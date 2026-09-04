@@ -36,6 +36,14 @@ export const standardizedPatternSchema = z.object({
               .number()
               .nullable()
               .describe("Total de puntos al acabar la ronda, si se conoce"),
+            kind: z
+              .enum(["round", "step"])
+              .nullish()
+              .describe(
+                'Ronda normal de puntos ("round", default) o instrucción '
+                  + 'intercalada sin conteo ("step": añadir ojos, rellenar, '
+                  + "cortar hilo, cambiar de color…)",
+              ),
           }),
         ),
         notes: z.string().nullable(),
@@ -46,6 +54,31 @@ export const standardizedPatternSchema = z.object({
 });
 
 export type StandardizedPattern = z.infer<typeof standardizedPatternSchema>;
+
+/**
+ * Contrato de una estandarización: un origen (PDF, web, imágenes…) puede
+ * contener VARIOS patrones. Es lo que el LLM devuelve y lo que se guarda
+ * cuando hay más de uno ({ patterns: [...] }) para que el usuario decida.
+ */
+export const standardizedPatternsSchema = z.object({
+  patterns: z
+    .array(standardizedPatternSchema)
+    .describe("Todos los patrones detectados en el contenido, en orden"),
+});
+
+export type StandardizedPatterns = z.infer<typeof standardizedPatternsSchema>;
+
+/** Tope de patrones que se aceptan de una sola estandarización. */
+export const MAX_PATTERNS_PER_CALL = 10;
+
+/** Un patrón sin rondas, materiales ni montaje no aporta nada (ruido del LLM). */
+function hasContent(pattern: StandardizedPattern): boolean {
+  return (
+    pattern.sections.some((section) => section.rounds.length > 0) ||
+    pattern.materials.length > 0 ||
+    pattern.assemblyNotes != null
+  );
+}
 
 /** Quita abreviaturas repetidas (el LLM las repite a menudo entre secciones). */
 function dedupeAbbreviations(
@@ -89,12 +122,26 @@ export function normalizeStandardizedPattern(
             label: round.label.trim(),
             instruction: round.instruction.trim(),
             stitchCount: round.stitchCount,
+            kind: round.kind === "step" ? ("step" as const) : undefined,
           }))
           .filter((round) => round.label || round.instruction),
       }))
       .filter((section) => section.name || section.rounds.length > 0),
     assemblyNotes: pattern.assemblyNotes?.trim() || null,
   };
+}
+
+/**
+ * Normaliza una lista de patrones detectados: normaliza cada uno, descarta los
+ * vacíos (el LLM a veces devuelve relleno) y aplica el tope por llamada.
+ */
+export function normalizeStandardizedPatterns(
+  patterns: StandardizedPattern[],
+): StandardizedPattern[] {
+  return patterns
+    .map(normalizeStandardizedPattern)
+    .filter(hasContent)
+    .slice(0, MAX_PATTERNS_PER_CALL);
 }
 
 /** JSON persistido → contrato tipado; null si no hay o no valida (corrupto). */
@@ -108,6 +155,38 @@ export function parseStandardizedContent(
   } catch {
     return null;
   }
+}
+
+/**
+ * JSON persistido → lista de patrones. Acepta el formato multi-patrón
+ * ({ patterns: [...] }), un array plano o un patrón único (formato legado de
+ * los patrones ya guardados, que se envuelve en una lista de uno).
+ */
+export function parseStandardizedPatternsContent(
+  raw: string | null | undefined,
+): StandardizedPattern[] {
+  if (!raw) return [];
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return [];
+  }
+
+  if (Array.isArray(parsed)) {
+    const items = parsed
+      .map((item) => standardizedPatternSchema.safeParse(item))
+      .filter((entry) => entry.success)
+      .map((entry) => entry.data);
+    return normalizeStandardizedPatterns(items);
+  }
+
+  const wrapped = standardizedPatternsSchema.safeParse(parsed);
+  if (wrapped.success) {
+    return normalizeStandardizedPatterns(wrapped.data.patterns);
+  }
+  const single = standardizedPatternSchema.safeParse(parsed);
+  return single.success ? normalizeStandardizedPatterns([single.data]) : [];
 }
 
 /** Esqueleto vacío para escribir un patrón a mano en el editor online. */
