@@ -70,6 +70,44 @@ function fullPatternHtml(pattern: StandardizedPattern): string {
     .join("")}${assemblyHtml(pattern)}`;
 }
 
+// Tamaño estándar de portada de libro (ratio 2:3.2, el que usan Kindle/EPUB).
+const COVER_WIDTH = 1600;
+const COVER_HEIGHT = 2560;
+
+/**
+ * Normaliza la portada al formato de portada de libro: 1600×2560 con recorte
+ * centrado ("cover fit") y JPEG q85 para que el EPUB la lleve ligera.
+ * Si algo falla (canvas no disponible, imagen corrupta) se usa la original.
+ */
+export async function normalizeCoverFile(cover: File): Promise<File> {
+  try {
+    const { createCanvas, loadImage } = await import("@napi-rs/canvas");
+    const bytes = new Uint8Array(await cover.arrayBuffer());
+    const image = await loadImage(bytes);
+    const canvas = createCanvas(COVER_WIDTH, COVER_HEIGHT);
+    const ctx = canvas.getContext("2d");
+    const scale = Math.max(
+      COVER_WIDTH / image.width,
+      COVER_HEIGHT / image.height,
+    );
+    const width = image.width * scale;
+    const height = image.height * scale;
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, COVER_WIDTH, COVER_HEIGHT);
+    ctx.drawImage(
+      image,
+      (COVER_WIDTH - width) / 2,
+      (COVER_HEIGHT - height) / 2,
+      width,
+      height,
+    );
+    const jpeg = await canvas.encode("jpeg", 85);
+    return new File([jpeg as BlobPart], "cover.jpg", { type: "image/jpeg" });
+  } catch {
+    return cover;
+  }
+}
+
 type EpubOptions = {
   title: string;
   patterns: StandardizedPattern[];
@@ -107,12 +145,15 @@ async function buildEpub(options: EpubOptions): Promise<Uint8Array> {
           content: fullPatternHtml(pattern),
         }));
 
+  const cover = options.cover
+    ? await normalizeCoverFile(options.cover)
+    : undefined;
   const buffer = await epub(
     {
       title: options.title,
       author: "Crochety",
       lang: first?.language ?? "es",
-      ...(options.cover ? { cover: options.cover } : {}),
+      ...(cover ? { cover } : {}),
     },
     chapters,
   );

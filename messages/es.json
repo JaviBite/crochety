@@ -422,9 +422,10 @@
     "downloadAllMd": "Todo en Markdown",
     "downloadAllEpub": "EPUB recopilatorio",
     "savePattern": "Guardar",
+    "savedState": "Guardado",
+    "viewSaved": "Ver en patrones",
     "savedToast": "Patrón guardado en tu biblioteca",
-    "showEditor": "Editar resultado",
-    "hideEditor": "Cerrar editor",
+    "uploadCover": "Subir portada",
     "changeCover": "Cambiar portada",
     "removeCover": "Quitar portada",
     "newConversion": "Nueva conversión"

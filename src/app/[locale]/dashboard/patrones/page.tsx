@@ -1,4 +1,4 @@
-import { ExternalLink, FilePlus2, FileText, Plus, ScrollText } from "lucide-react";
+import { BookOpen, ExternalLink, FileDown, FilePlus2, FileText, Plus, ScrollText } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import { cookies } from "next/headers";
 import { ListSearch } from "@/components/dashboard/list-search";
@@ -20,6 +20,32 @@ import { normalizeSearch } from "@/lib/search";
 import { parseView, viewCookieName } from "@/lib/view";
 import { deletePattern } from "./actions";
 import { AiStatusBadge } from "./ai-status-badge";
+
+/** Enlaces de exportación de la versión estandarizada (misma ruta para todo). */
+function ExportLinks({ id }: { id: string }) {
+  return (
+    <>
+      <a
+        href={`/api/patterns/${id}/export?format=md`}
+        aria-label="Markdown"
+        title="Markdown"
+        className="flex items-center gap-1 transition-colors hover:text-foreground"
+      >
+        <FileDown className="size-3.5" />
+        MD
+      </a>
+      <a
+        href={`/api/patterns/${id}/export?format=epub`}
+        aria-label="EPUB"
+        title="EPUB"
+        className="flex items-center gap-1 transition-colors hover:text-foreground"
+      >
+        <BookOpen className="size-3.5" />
+        EPUB
+      </a>
+    </>
+  );
+}
 
 const BASE_PATH = "/dashboard/patrones";
 const SECTION = "patrones";
@@ -163,6 +189,7 @@ export default async function PatternsPage({
                       {t("viewLink")}
                     </a>
                   )}
+                  {pattern.standardizedContent && <ExportLinks id={pattern.id} />}
                   {!pattern.filePath && !pattern.externalUrl && (
                     <span className="text-xs">{t("noSource")}</span>
                   )}
@@ -221,6 +248,7 @@ export default async function PatternsPage({
                       {t("viewLink")}
                     </a>
                   )}
+                  {pattern.standardizedContent && <ExportLinks id={pattern.id} />}
                   {!pattern.filePath && !pattern.externalUrl && (
                     <span className="text-xs">{t("noSource")}</span>
                   )}

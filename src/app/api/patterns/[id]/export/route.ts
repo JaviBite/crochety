@@ -41,6 +41,20 @@ async function coverFile(
   return new File([content as BlobPart], `cover${ext}`, { type: mime });
 }
 
+/** Portada como data-URI para el Markdown (fichero autocontenido). */
+async function coverDataUri(path: string | null): Promise<string | null> {
+  if (!path || !isValidUploadPath(path)) return null;
+  const bytes = await readUpload(path);
+  if (!bytes) return null;
+  const content =
+    bytes instanceof Uint8Array
+      ? bytes
+      : new Uint8Array(await new Response(bytes).arrayBuffer());
+  const ext = path.slice(path.lastIndexOf(".")) || ".jpg";
+  const mime = EXT_TO_MIME[ext] ?? "image/jpeg";
+  return `data:${mime};base64,${Buffer.from(content).toString("base64")}`;
+}
+
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -63,10 +77,11 @@ export async function GET(
   const base = slugifyFileName(pattern.title);
 
   if (format === "md") {
+    const coverUri = await coverDataUri(pattern.coverImagePath);
     const markdown =
       patterns.length === 1
-        ? toMarkdown(patterns[0]!)
-        : toMarkdownAll(patterns);
+        ? toMarkdown(patterns[0]!, coverUri)
+        : toMarkdownAll(patterns, coverUri);
     return new Response(markdown, {
       headers: {
         "Content-Type": "text/markdown; charset=utf-8",

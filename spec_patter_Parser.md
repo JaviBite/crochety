@@ -172,6 +172,19 @@
   del UA (403 a clientes suplantados). URL real de stitchbyfay → convierte ✓.
 - **Plan B manual**: subida de `.html` (página guardada con Ctrl+S) aceptada en
   converter y form de patrones (`text/html` en DOCUMENT_MIME_TO_EXT).
+- **Portadas completas** (feedback de prueba online): subida manual de portada
+  por card en el convertidor (con limpieza de huérfanos al descartar),
+  `saveConvertedPattern` persiste la portada (data-URL/URL/pathname), EPUB
+  normaliza a **portada de libro 1600×2560** (recorte centrado, JPEG q85 vía
+  `@napi-rs/canvas`), y el Markdown lleva la portada como imagen inicial
+  (data-URI autocontenida en el export de patrones guardados).
+- **Guardar sin salir de resultados**: el botón guarda con toast + enlace
+  "Ver en patrones" y deja seguir guardando el resto de patrones del lote.
+- **Export en el listado** de patrones: enlaces MD/EPUB por fila/carta
+  (misma ruta `/api/patterns/[id]/export`, mismo sistema que el convertidor).
+- **Fix crítico**: faltaban los hidden inputs `filePath`/`imagePaths` en el form
+  del convertidor (la IA no recibía nada al convertir) + panel de progreso con
+  cronómetro durante la conversión.
 
 ## Registro de progreso
 

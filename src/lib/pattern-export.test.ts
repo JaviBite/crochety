@@ -60,6 +60,16 @@ describe("toMarkdown", () => {
     expect(md).toContain("## Montaje");
     expect(md).toContain("Cose las orejas");
   });
+
+  it("incluye la portada como imagen inicial si se pasa", () => {
+    const md = toMarkdown(samplePattern(), "data:image/jpeg;base64,AAAA");
+    expect(md.startsWith("![](data:image/jpeg;base64,AAAA)\n\n# Osito Bombero")).toBe(
+      true,
+    );
+    expect(toMarkdown(samplePattern(), null).startsWith("# Osito Bombero")).toBe(
+      true,
+    );
+  });
 });
 
 describe("toMarkdownAll", () => {
@@ -67,6 +77,14 @@ describe("toMarkdownAll", () => {
     const md = toMarkdownAll([samplePattern(), samplePattern()]);
     expect(md).toContain("---");
     expect(md.match(/# Osito Bombero/g)).toHaveLength(2);
+  });
+
+  it("pone la portada solo delante del primer patrón", () => {
+    const md = toMarkdownAll(
+      [samplePattern(), samplePattern()],
+      "https://example.com/cover.jpg",
+    );
+    expect(md.match(/!\[\]\(https:\/\/example.com\/cover.jpg\)/g)).toHaveLength(1);
   });
 });
 

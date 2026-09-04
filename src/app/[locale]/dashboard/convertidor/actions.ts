@@ -11,12 +11,17 @@ import {
   type StandardizedPattern,
 } from "@/lib/ai/standardize-pattern";
 import { auth } from "@/lib/auth";
-import { isValidUploadPath, IMAGE_MIME_TO_EXT } from "@/lib/files";
-import { deleteUpload } from "@/lib/files.server";
+import {
+  EXT_TO_MIME,
+  IMAGE_MIME_TO_EXT,
+  isValidUploadPath,
+} from "@/lib/files";
+import { deleteUpload, readUpload } from "@/lib/files.server";
 import {
   collectCoverCandidates,
   extractPatternContent,
   PatternSourceError,
+  saveChosenCover,
   type PatternSource,
 } from "@/lib/pattern-source";
 import { toEpub, toEpubAnthology } from "@/lib/pattern-export.server";
@@ -133,10 +138,12 @@ export async function convertPattern(
 
 /**
  * Guarda un patrón convertido en la biblioteca: valida el documento contra
- * el contrato y crea el Pattern (aiStatus DONE, sin origen ni portada).
+ * el contrato y crea el Pattern (aiStatus DONE). Si hay portada (data-URL,
+ * URL remota o pathname ya subido al storage) se persiste como coverImagePath.
  */
 export async function saveConvertedPattern(
   pattern: StandardizedPattern,
+  coverSrc?: string | null,
 ): Promise<{ id: string } | { error: string }> {
   const session = await auth();
   if (!session?.user) return { error: "No autorizado" };
@@ -148,18 +155,42 @@ export async function saveConvertedPattern(
   const doc = normalizeStandardizedPattern(parsed.data);
   if (!doc.title) return { error: "El patrón necesita un título" };
 
+  let coverImagePath: string | null = null;
+  if (coverSrc) {
+    if (isValidUploadPath(coverSrc) && coverSrc.startsWith("patterns/")) {
+      // Portada ya subida por el usuario: se queda donde está.
+      coverImagePath = coverSrc;
+    } else {
+      try {
+        coverImagePath = await saveChosenCover(coverSrc);
+      } catch {
+        coverImagePath = null;
+      }
+    }
+  }
+
   const created = await prisma.pattern.create({
     data: {
       title: doc.title,
       standardizedContent: JSON.stringify(doc),
       aiStatus: "DONE",
+      ...(coverImagePath ? { coverImagePath } : {}),
     },
   });
   revalidatePath("/", "layout");
   return { id: created.id };
 }
 
-/** data-URL o URL remota → File con extensión (portada del EPUB). */
+/** Borra una portada subida al convertidor que no llegó a guardarse. */
+export async function deleteConvertCover(path: string): Promise<void> {
+  const session = await auth();
+  if (!session?.user) return;
+  if (isValidUploadPath(path) && path.startsWith("patterns/")) {
+    await deleteUpload(path).catch(() => {});
+  }
+}
+
+/** data-URL, URL remota o pathname del storage → File con extensión (portada). */
 async function coverFileFromSrc(src: string): Promise<File | undefined> {
   try {
     if (src.startsWith("data:")) {
@@ -168,6 +199,19 @@ async function coverFileFromSrc(src: string): Promise<File | undefined> {
       const ext = IMAGE_MIME_TO_EXT[match[1]] ?? ".jpg";
       return new File([Buffer.from(match[2], "base64")], `cover${ext}`, {
         type: match[1],
+      });
+    }
+    // Portada subida por el usuario: ya vive en el storage.
+    if (isValidUploadPath(src) && src.startsWith("patterns/")) {
+      const bytes = await readUpload(src);
+      if (!bytes) return undefined;
+      const content =
+        bytes instanceof Uint8Array
+          ? bytes
+          : new Uint8Array(await new Response(bytes).arrayBuffer());
+      const ext = src.slice(src.lastIndexOf(".")) || ".jpg";
+      return new File([content as BlobPart], `cover${ext}`, {
+        type: EXT_TO_MIME[ext] ?? "image/jpeg",
       });
     }
     const res = await fetch(src, { signal: AbortSignal.timeout(15_000) });

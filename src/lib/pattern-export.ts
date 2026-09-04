@@ -16,8 +16,14 @@ function roundToMarkdown(round: StandardizedPattern["sections"][number]["rounds"
   return `- **${round.label}**: ${round.instruction}${count}`;
 }
 
-export function toMarkdown(pattern: StandardizedPattern): string {
-  const parts: string[] = [`# ${pattern.title}`];
+export function toMarkdown(
+  pattern: StandardizedPattern,
+  coverSrc?: string | null,
+): string {
+  const parts: string[] = [];
+  // Portada a modo de imagen inicial (data-URL o URL absoluta renderizable).
+  if (coverSrc) parts.push(`![](${coverSrc})`, "");
+  parts.push(`# ${pattern.title}`);
 
   const meta: string[] = [];
   if (pattern.difficulty) meta.push(`**Dificultad:** ${pattern.difficulty}`);
@@ -62,9 +68,15 @@ export function toMarkdown(pattern: StandardizedPattern): string {
   return parts.filter((part) => part !== "").join("\n\n");
 }
 
-/** Varios patrones en un único documento, separados por cortes horizontales. */
-export function toMarkdownAll(patterns: StandardizedPattern[]): string {
-  return patterns.map(toMarkdown).join("\n\n---\n\n");
+/** Varios patrones en un único documento, separados por cortes horizontales.
+ *  La portada (si la hay) va delante del primer patrón, como frontera del libro. */
+export function toMarkdownAll(
+  patterns: StandardizedPattern[],
+  coverSrc?: string | null,
+): string {
+  return patterns
+    .map((pattern, index) => toMarkdown(pattern, index === 0 ? coverSrc : null))
+    .join("\n\n---\n\n");
 }
 
 /** "Patrón: Osito Bombero!" → "patron-osito-bombero" (para descargas). */

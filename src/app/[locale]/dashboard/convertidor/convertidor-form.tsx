@@ -8,6 +8,7 @@ import {
   LoaderCircle,
   Pencil,
   Save,
+  Upload,
   WandSparkles,
   X,
 } from "lucide-react";
@@ -25,7 +26,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { useRouter } from "@/i18n/navigation";
+import { Link, useRouter } from "@/i18n/navigation";
 import {
   type StandardizedPattern,
 } from "@/lib/ai/standardize-pattern";
@@ -37,6 +38,7 @@ import {
 import { PatternEditorFields } from "../patrones/[id]/editor/pattern-editor-fields";
 import {
   convertPattern,
+  deleteConvertCover,
   exportPatternEpub,
   saveConvertedPattern,
   type ConvertResult,
@@ -80,6 +82,32 @@ function ConvertButton({
 /** Segundos → "m:ss" para el cronómetro de conversión. */
 function formatElapsed(seconds: number): string {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+}
+
+/**
+ * Portada para el Markdown: si es un fichero subido se convierte a data-URL
+ * (el .md debe verse bien fuera de la app); si es data-URL o URL remota, tal cual.
+ */
+async function coverForMarkdown(
+  coverPath: string | null,
+  coverSrc: string | null,
+): Promise<string | null> {
+  if (!coverPath && !coverSrc) return null;
+  if (!coverPath) return coverSrc;
+  try {
+    const res = await fetch(`/api/files/${coverPath}`);
+    if (!res.ok) return coverSrc;
+    const blob = await res.blob();
+    return await new Promise<string | null>((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () =>
+        resolve(typeof reader.result === "string" ? reader.result : coverSrc);
+      reader.onerror = () => resolve(coverSrc);
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    return coverSrc;
+  }
 }
 
 /**
@@ -130,20 +158,32 @@ function PatternResultCard({
   onDocChange: (next: StandardizedPattern) => void;
 }) {
   const t = useTranslations("Convertidor");
+  const tForms = useTranslations("Forms");
   const tPatterns = useTranslations("Patterns");
   const [doc, setDoc] = useState(initial);
-  const [cover, setCover] = useState<string | null>(covers.auto);
+  // Portada: src automático/candidata (data-URL/URL) o fichero subido por el
+  // usuario (pathname del storage, mostrado vía /api/files).
+  const [coverSrc, setCoverSrc] = useState<string | null>(covers.auto);
+  const [coverPath, setCoverPath] = useState<string | null>(null);
+  const coverCleanupRef = useRef<string | null>(null);
+  const coverInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingCover, setUploadingCover] = useState(false);
   const [showCandidates, setShowCandidates] = useState(false);
   const [showEditor, setShowEditor] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [savedId, setSavedId] = useState<string | null>(null);
   const [busy, startTransition] = useTransition();
   const router = useRouter();
 
+  const coverDisplay = coverPath ? `/api/files/${coverPath}` : coverSrc;
   const baseName = slugifyFileName(doc.title || "patron");
 
-  function downloadMarkdown() {
+  async function downloadMarkdown() {
+    const coverUri = await coverForMarkdown(coverPath, coverSrc);
     downloadBlob(
-      new Blob([toMarkdown(doc)], { type: "text/markdown;charset=utf-8" }),
+      new Blob([toMarkdown(doc, coverUri)], {
+        type: "text/markdown;charset=utf-8",
+      }),
       `${baseName}.md`,
     );
   }
@@ -153,7 +193,7 @@ function PatternResultCard({
     startTransition(async () => {
       const result = await exportPatternEpub({
         patterns: [doc],
-        coverSrc: cover,
+        coverSrc: coverPath ?? coverSrc,
         anthology: false,
       });
       if ("error" in result) {
@@ -164,17 +204,55 @@ function PatternResultCard({
     });
   }
 
+  /** Guarda el patrón (con su portada) sin abandonar los resultados: en
+   *  conversiones multi-patrón se pueden guardar varios seguidos. */
   function save() {
     setError(null);
     startTransition(async () => {
-      const result = await saveConvertedPattern(doc);
+      const result = await saveConvertedPattern(doc, coverPath ?? coverSrc);
       if ("error" in result) {
         setError(result.error);
         return;
       }
+      // La portada subida ya pertenece al patrón: no hay que limpiarla.
+      coverCleanupRef.current = null;
+      setSavedId(result.id);
       toast.success(t("savedToast"));
-      router.push(`/dashboard/patrones/${result.id}`);
+      router.refresh();
     });
+  }
+
+  /** Sube la portada elegida y la usa en este patrón (reemplaza la anterior). */
+  async function onPickCover(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    setUploadingCover(true);
+    setError(null);
+    try {
+      const path = await uploadOne(file);
+      if (!path) {
+        setError(tForms("uploadFailed"));
+        return;
+      }
+      if (coverCleanupRef.current) {
+        await deleteConvertCover(coverCleanupRef.current);
+      }
+      coverCleanupRef.current = path;
+      setCoverPath(path);
+      setCoverSrc(null);
+    } finally {
+      setUploadingCover(false);
+    }
+  }
+
+  function removeCover() {
+    if (coverCleanupRef.current) {
+      void deleteConvertCover(coverCleanupRef.current);
+      coverCleanupRef.current = null;
+    }
+    setCoverPath(null);
+    setCoverSrc(null);
   }
 
   const rounds = doc.sections.reduce(
@@ -186,10 +264,10 @@ function PatternResultCard({
     <Card className="rounded-2xl shadow-sm">
       <CardContent className="space-y-4">
         <div className="flex flex-wrap items-start gap-4">
-          {cover ? (
+          {coverDisplay ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={cover}
+              src={coverDisplay}
               alt={doc.title}
               className="size-20 rounded-xl border object-cover"
             />
@@ -221,10 +299,24 @@ function PatternResultCard({
               <Download />
               {t("downloadEpub")}
             </Button>
-            <Button size="sm" disabled={busy} onClick={save}>
-              <Save />
-              {t("savePattern")}
-            </Button>
+            {savedId ? (
+              <>
+                <Button size="sm" variant="secondary" disabled>
+                  <CircleCheck />
+                  {t("savedState")}
+                </Button>
+                <Button size="sm" variant="outline" asChild>
+                  <Link href={`/dashboard/patrones/${savedId}`}>
+                    {t("viewSaved")}
+                  </Link>
+                </Button>
+              </>
+            ) : (
+              <Button size="sm" disabled={busy} onClick={save}>
+                <Save />
+                {t("savePattern")}
+              </Button>
+            )}
           </div>
         </div>
 
@@ -237,6 +329,22 @@ function PatternResultCard({
             <Pencil className="size-3.5" />
             {showEditor ? t("hideEditor") : t("showEditor")}
           </button>
+          <button
+            type="button"
+            onClick={() => coverInputRef.current?.click()}
+            disabled={uploadingCover}
+            className="flex items-center gap-1 text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
+          >
+            <Upload className="size-3.5" />
+            {uploadingCover ? tForms("uploading") : t("uploadCover")}
+          </button>
+          <input
+            ref={coverInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={onPickCover}
+          />
           {covers.candidates.length > 0 && (
             <button
               type="button"
@@ -247,10 +355,10 @@ function PatternResultCard({
               {t("changeCover")}
             </button>
           )}
-          {cover && (
+          {coverDisplay && (
             <button
               type="button"
-              onClick={() => setCover(null)}
+              onClick={removeCover}
               className="flex items-center gap-1 text-muted-foreground transition-colors hover:text-destructive"
             >
               <X className="size-3.5" />
@@ -268,11 +376,16 @@ function PatternResultCard({
                 src={src}
                 alt=""
                 onClick={() => {
-                  setCover(src);
+                  if (coverCleanupRef.current) {
+                    void deleteConvertCover(coverCleanupRef.current);
+                    coverCleanupRef.current = null;
+                    setCoverPath(null);
+                  }
+                  setCoverSrc(src);
                   setShowCandidates(false);
                 }}
                 className={`size-16 cursor-pointer rounded-lg border object-cover transition-opacity hover:opacity-80 ${
-                  cover === src ? "ring-2 ring-primary" : ""
+                  coverSrc === src ? "ring-2 ring-primary" : ""
                 }`}
               />
             ))}
@@ -334,7 +447,7 @@ function ResultsView({
 
   function downloadAllMarkdown() {
     downloadBlob(
-      new Blob([toMarkdownAll(currentDocs())], {
+      new Blob([toMarkdownAll(currentDocs(), covers.auto)], {
         type: "text/markdown;charset=utf-8",
       }),
       "patrones.md",

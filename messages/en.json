@@ -422,9 +422,10 @@
     "downloadAllMd": "All as Markdown",
     "downloadAllEpub": "Anthology EPUB",
     "savePattern": "Save",
+    "savedState": "Saved",
+    "viewSaved": "View in patterns",
     "savedToast": "Pattern saved to your library",
-    "showEditor": "Edit result",
-    "hideEditor": "Close editor",
+    "uploadCover": "Upload cover",
     "changeCover": "Change cover",
     "removeCover": "Remove cover",
     "newConversion": "New conversion"
