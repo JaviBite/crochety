@@ -252,7 +252,22 @@
   (sin Blob) sigue la ruta normal, que guarda en disco hasta 25 MB. Los
   patrones guardados conservan siempre `filePath`/`imagePaths` para consultar
   el original; solo los ficheros temporales del convertidor se borran al
-  terminar la conversión.
+   terminar la conversión.
+
+## OPDS (rama feat/opds)
+
+- `GET /api/opds` — catálogo Atom de los patrones estandarizados (DONE y
+  MULTIPLE), paginado (50/página, `?page=N` + `rel="next"`), con resumen
+  (secciones/rondas), portada vía `/api/files` (imágenes públicas) y enlaces
+  de adquisición a la exportación existente
+  (`/api/patterns/[id]/export?format=epub|md`).
+- Autenticación dual en `lib/opds.server.ts`: sesión web (cookies) **o**
+  HTTP Basic contra la tabla `User` (bcrypt). La ruta de export comparte el
+  mismo guard, así que los lectores OPDS (Moon+ Reader, Kybook, ReadEra…) se
+  añaden con la URL `https://<dominio>/api/opds` y el email/contraseña del
+  login. Un 401 lleva el reto `WWW-Authenticate: Basic`.
+- XML puro en `lib/opds.ts` (escape, parseo Basic, feed) con tests
+  (`opds.test.ts`); sin dependencias nuevas.
 
 ## Registro de progreso
 

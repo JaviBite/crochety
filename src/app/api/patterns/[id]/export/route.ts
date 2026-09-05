@@ -1,6 +1,9 @@
 import { readUpload } from "@/lib/files.server";
 import { EXT_TO_MIME, isValidUploadPath } from "@/lib/files";
-import { auth } from "@/lib/auth";
+import {
+  authenticateOpds,
+  opdsUnauthorized,
+} from "@/lib/opds.server";
 import {
   parseStandardizedPatternsContent,
 } from "@/lib/ai/standardize-pattern";
@@ -15,9 +18,10 @@ import { prisma } from "@/lib/prisma";
 // Descarga de la versión estandarizada de un patrón guardado.
 //   GET /api/patterns/[id]/export?format=md|epub
 // Con varios patrones detectados (MULTIPLE) exporta la colección completa.
+// Autenticación: sesión de la web o HTTP Basic (lo usa el catálogo OPDS).
 
 function unauthorized(): Response {
-  return new Response("No autorizado", { status: 401 });
+  return opdsUnauthorized();
 }
 
 function notFound(): Response {
@@ -59,8 +63,8 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ): Promise<Response> {
-  const session = await auth();
-  if (!session?.user) return unauthorized();
+  const principal = await authenticateOpds(request);
+  if (!principal) return unauthorized();
 
   const { id } = await params;
   const pattern = await prisma.pattern.findUnique({
