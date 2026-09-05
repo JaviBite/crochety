@@ -1,5 +1,6 @@
 // Tests del generador EPUB (server-only: vitest lo resuelve con el alias a
 // server-only/empty definido en vitest.config.ts).
+import { encode } from "fast-png";
 import { describe, expect, it } from "vitest";
 import type { StandardizedPattern } from "@/lib/ai/standardize-pattern.shared";
 import { toEpub } from "./pattern-export.server";
@@ -48,6 +49,35 @@ describe("toEpub", () => {
   it("acepta portada opcional", { timeout: 20_000 }, async () => {
     const cover = new File([new Uint8Array([1, 2, 3])], "cover.jpg", {
       type: "image/jpeg",
+    });
+    const epub = await toEpub(samplePattern(), cover);
+    expect(epub[0]).toBe(0x50);
+  });
+
+  it("con portada añade la primera página (capítulo Portada)", { timeout: 20_000 }, async () => {
+    // PNG real (fast-png): los datos trucados pueden cascar el canvas nativo.
+    const png = encode({
+      width: 32,
+      height: 32,
+      data: new Uint8Array(32 * 32 * 3).fill(120),
+      channels: 3,
+    });
+    const cover = new File([png as BlobPart], "cover.png", { type: "image/png" });
+    const withCover = await toEpub(samplePattern(), cover);
+
+    // La página de portada existe y abre el libro (primer item del spine).
+    const { default: JSZip } = await import("jszip");
+    const zip = await JSZip.loadAsync(withCover);
+    expect(zip.file("OEBPS/cover-page.xhtml")).toBeTruthy();
+    const opf = (await zip.file("OEBPS/content.opf")?.async("string")) ?? "";
+    const spine = opf.slice(opf.indexOf("<spine"), opf.indexOf("</spine>"));
+    const firstIdref = spine.slice(spine.indexOf("idref="), spine.indexOf("idref=") + 60);
+    expect(firstIdref).toContain("cover-page");
+  });
+
+  it("no casca con una portada corrupta (usa la original tal cual)", { timeout: 20_000 }, async () => {
+    const cover = new File([new Uint8Array([137, 80, 78, 71, 1, 2, 3])], "cover.png", {
+      type: "image/png",
     });
     const epub = await toEpub(samplePattern(), cover);
     expect(epub[0]).toBe(0x50);
