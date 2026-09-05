@@ -20,17 +20,31 @@ export async function uploadPatternFile(
     const mime = resolveUploadMime(file);
     const ext = IMAGE_MIME_TO_EXT[mime] ?? DOCUMENT_MIME_TO_EXT[mime];
     if (ext) {
+      const capability = await fetch("/api/uploads/client", {
+        method: "GET",
+        cache: "no-store",
+      }).catch(() => null);
+      if (!capability?.ok) {
+        return { error: "La subida directa de ficheros grandes no está disponible" };
+      }
       try {
         const pathname = `${kind}/${crypto.randomUUID()}${ext}`;
-        const blob = await upload(pathname, file, {
-          access: "public",
-          contentType: mime,
-          handleUploadUrl: "/api/uploads/client",
-          clientPayload: JSON.stringify({ kind, mime }),
-        });
-        return { path: blob.pathname };
+        const abortController = new AbortController();
+        const timeout = window.setTimeout(() => abortController.abort(), 60_000);
+        try {
+          const blob = await upload(pathname, file, {
+            access: "public",
+            abortSignal: abortController.signal,
+            contentType: mime,
+            handleUploadUrl: "/api/uploads/client",
+            clientPayload: JSON.stringify({ kind, mime }),
+          });
+          return { path: blob.pathname };
+        } finally {
+          window.clearTimeout(timeout);
+        }
       } catch {
-        // Local development without Blob falls back to the regular route.
+        return { error: "No se pudo subir el fichero grande a Blob" };
       }
     }
   }

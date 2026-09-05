@@ -12,6 +12,14 @@ import {
 
 export const runtime = "nodejs";
 
+export async function GET(): Promise<Response> {
+  const session = await auth();
+  if (!session?.user) return new Response("No autorizado", { status: 401 });
+  return new Response(null, {
+    status: process.env.BLOB_READ_WRITE_TOKEN ? 204 : 503,
+  });
+}
+
 export async function POST(request: Request): Promise<Response> {
   const session = await auth();
   if (!session?.user) return new Response("No autorizado", { status: 401 });
