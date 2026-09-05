@@ -59,6 +59,7 @@ export async function POST(request: Request): Promise<Response> {
     async start(controller) {
       const send = (event: Record<string, unknown>) =>
         controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
+      let succeeded = false;
 
       try {
         if (!parsedUrl.success) {
@@ -96,9 +97,19 @@ export async function POST(request: Request): Promise<Response> {
         } catch {
           coverCandidates = [];
         }
+        // El origen viaja en el resultado: si el usuario guarda el patrón,
+        // se persiste con su fichero/imágenes/enlace originales. Los ficheros
+        // NO se borran al terminar la conversión (solo si falla o al descartar
+        // los resultados con discardConvertedSource).
+        succeeded = true;
         send({
           type: "done",
           patterns,
+          source: {
+            filePath,
+            externalUrl: parsedUrl.data,
+            imagePaths,
+          },
           autoCover: coverCandidates[0] ?? null,
           coverCandidates,
         });
@@ -111,12 +122,14 @@ export async function POST(request: Request): Promise<Response> {
               : "La conversión falló, vuelve a intentarlo",
         });
       } finally {
-        // Los ficheros temporales se limpian siempre (éxito, error o cancel).
-        await Promise.allSettled(
-          [filePath, ...imagePaths]
-            .filter((p): p is string => Boolean(p))
-            .map((p) => deleteUpload(p)),
-        );
+        // Los ficheros de una conversión fallida son inservibles: fuera.
+        if (!succeeded) {
+          await Promise.allSettled(
+            [filePath, ...imagePaths]
+              .filter((p): p is string => Boolean(p))
+              .map((p) => deleteUpload(p)),
+          );
+        }
         controller.close();
       }
     },

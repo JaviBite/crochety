@@ -13,16 +13,28 @@ import { auth } from "@/lib/auth";
 import { EXT_TO_MIME, IMAGE_MIME_TO_EXT, isValidUploadPath } from "@/lib/files";
 import { deleteUpload, readUpload } from "@/lib/files.server";
 import { saveChosenCover } from "@/lib/pattern-source";
+import {
+  deleteUploadIfUnreferenced,
+} from "@/lib/patterns/standardize-persist";
 import { toEpub, toEpubAnthology } from "@/lib/pattern-export.server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 
 // Convertidor efímero: la conversión en sí corre en POST /api/convert (con
 // progreso en streaming); aquí quedan las acciones posteriores — guardar el
-// patrón, exportar EPUB y limpiar portadas descartadas.
+// patrón (con su origen: fichero/imágenes/enlace y portada), exportar EPUB y
+// limpiar ficheros descartados.
+
+export type ConvertedSource = {
+  filePath: string | null;
+  externalUrl: string | null;
+  imagePaths: string[];
+};
 
 export type ConvertResult = {
   patterns: StandardizedPattern[];
+  /** Origen de la conversión: se guarda junto al patrón si el usuario lo guarda. */
+  source: ConvertedSource;
   /** Portada propuesta automáticamente (mejor candidata del origen). */
   autoCover: string | null;
   /** Candidatas de portada del origen (data-URL del PDF o URL remota). */
@@ -39,9 +51,17 @@ export type ConvertStreamEvent =
   | ({ type: "done" } & ConvertResult)
   | { type: "error"; message: string };
 
+/** Pathname de patrón válido (los sube antes /api/uploads o /api/convert). */
+function patternPath(value: string | null | undefined): string | null {
+  return value && isValidUploadPath(value) && value.startsWith("patterns/")
+    ? value
+    : null;
+}
+
 export async function saveConvertedPattern(
   pattern: StandardizedPattern,
   coverSrc?: string | null,
+  source?: ConvertedSource | null,
 ): Promise<{ id: string } | { error: string }> {
   const session = await auth();
   if (!session?.user) return { error: "No autorizado" };
@@ -62,10 +82,21 @@ export async function saveConvertedPattern(
       try {
         coverImagePath = await saveChosenCover(coverSrc);
       } catch {
+        // La portada es opcional: el patrón se guarda sin ella, pero queda
+        // constancia para poder depurar en los logs de Vercel.
         coverImagePath = null;
+        console.warn(
+          "[convertidor] no se pudo guardar la portada del patrón guardado",
+        );
       }
     }
   }
+
+  const filePath = patternPath(source?.filePath ?? null);
+  const imagePaths = (source?.imagePaths ?? [])
+    .map((path) => patternPath(path))
+    .filter((path): path is string => path !== null)
+    .slice(0, 12);
 
   const created = await prisma.pattern.create({
     data: {
@@ -73,10 +104,29 @@ export async function saveConvertedPattern(
       standardizedContent: JSON.stringify(doc),
       aiStatus: "DONE",
       ...(coverImagePath ? { coverImagePath } : {}),
+      ...(filePath ? { filePath } : {}),
+      ...(imagePaths.length ? { imagePaths: JSON.stringify(imagePaths) } : {}),
+      ...(source?.externalUrl ? { externalUrl: source.externalUrl } : {}),
     },
   });
   revalidatePath("/", "layout");
   return { id: created.id };
+}
+
+/**
+ * Descarta el origen de una conversión que el usuario no va a guardar: borra
+ * los ficheros salvo que algún patrón guardado los siga usando (varios cards
+ * del mismo lote comparten el mismo origen).
+ */
+export async function discardConvertedSource(
+  source: ConvertedSource,
+): Promise<void> {
+  const session = await auth();
+  if (!session?.user) return;
+  await deleteUploadIfUnreferenced(patternPath(source.filePath));
+  for (const image of source.imagePaths) {
+    await deleteUploadIfUnreferenced(patternPath(image));
+  }
 }
 
 /** Borra una portada subida al convertidor que no llegó a guardarse. */

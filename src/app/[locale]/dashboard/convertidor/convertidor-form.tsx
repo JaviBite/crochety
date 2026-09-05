@@ -44,8 +44,10 @@ import {
 import { PatternEditorFields } from "../patrones/[id]/editor/pattern-editor-fields";
 import {
   deleteConvertCover,
+  discardConvertedSource,
   exportPatternEpub,
   saveConvertedPattern,
+  type ConvertedSource,
   type ConvertResult,
   type ConvertState,
   type ConvertStreamEvent,
@@ -149,10 +151,12 @@ function uploadOne(
 function PatternResultCard({
   initial,
   covers,
+  source,
   onDocChange,
 }: {
   initial: StandardizedPattern;
   covers: Covers;
+  source: ConvertedSource | null;
   onDocChange: (next: StandardizedPattern) => void;
 }) {
   const t = useTranslations("Convertidor");
@@ -216,7 +220,11 @@ function PatternResultCard({
     setError(null);
     startTransition(async () => {
       try {
-        const result = await saveConvertedPattern(doc, coverPath ?? coverSrc);
+        const result = await saveConvertedPattern(
+          doc,
+          coverPath ?? coverSrc,
+          source,
+        );
         if ("error" in result) {
           setError(result.error);
           return;
@@ -519,6 +527,7 @@ function ResultsView({
           key={index}
           initial={pattern}
           covers={covers}
+          source={result.source}
           onDocChange={(next) => editsRef.current?.set(index, next)}
         />
       ))}
@@ -560,11 +569,17 @@ export function ConvertidorForm() {
     resetElapsed();
     setStep(null);
     startTransition(async () => {
+      // Si hay resultados anteriores sin guardar, su origen se descarta
+      // (borra los ficheros que ningún patrón guardado use).
+      if (result && "patterns" in result) {
+        void discardConvertedSource(result.source);
+      }
       let next: ConvertState = null;
       await convertViaStream(formData, (event) => {
         if (event.type === "done") {
           next = {
             patterns: event.patterns,
+            source: event.source,
             autoCover: event.autoCover,
             coverCandidates: event.coverCandidates,
           };
@@ -634,6 +649,11 @@ export function ConvertidorForm() {
   }
 
   function reset() {
+    // "Nueva conversión": el origen de la conversión anterior se descarta si
+    // ningún patrón guardado lo sigue usando (borra ficheros huérfanos).
+    if (result && "patterns" in result) {
+      void discardConvertedSource(result.source);
+    }
     setResult(null);
     setFilePath(null);
     setImagePaths([]);

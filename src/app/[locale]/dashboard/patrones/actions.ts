@@ -486,6 +486,7 @@ export async function updatePattern(
       imagePaths: true,
       coverImagePath: true,
       externalUrl: true,
+      aiStatus: true,
     },
   });
   if (!existing) return { error: "Patrón no encontrado" };
@@ -507,11 +508,17 @@ export async function updatePattern(
   const hasSource = Boolean(
     source.filePath || source.externalUrl || imagePaths.length,
   );
-  // Si cambió el origen, la versión estandarizada anterior deja de valer.
+  // Si cambió el origen: si el patrón YA está estandarizado (DONE o MULTIPLE)
+  // se conserva esa versión — el usuario decide con el botón "Estandarizar"
+  // si quiere regenerarla con el fichero nuevo. Si no había versión, queda
+  // PENDING y se programa la estandarización en segundo plano.
   const sourceChanged =
     Boolean(newFilePath) ||
     newImagePaths.length > 0 ||
     data.externalUrl !== existing.externalUrl;
+  const keepStandardized =
+    sourceChanged &&
+    (existing.aiStatus === "DONE" || existing.aiStatus === "MULTIPLE");
 
   if (!newCoverPath && !existing.coverImagePath) {
     if (newImagePaths.length) newCoverPath = newImagePaths[0];
@@ -527,7 +534,7 @@ export async function updatePattern(
         ? { imagePaths: JSON.stringify(newImagePaths) }
         : {}),
       ...(newCoverPath ? { coverImagePath: newCoverPath } : {}),
-      ...(sourceChanged
+      ...(sourceChanged && !keepStandardized
         ? {
             standardizedContent: null,
             aiStatus: hasSource ? "PENDING" : "NONE",
@@ -546,7 +553,9 @@ export async function updatePattern(
     }
   }
   if (newCoverPath) await deleteUploadIfUnreferenced(existing.coverImagePath, id);
-  if (sourceChanged && hasSource) schedulePatternStandardization(id);
+  if (sourceChanged && hasSource && !keepStandardized) {
+    schedulePatternStandardization(id);
+  }
 
   revalidatePath("/", "layout");
   redirect({ href: "/dashboard/patrones", locale: await getLocale() });

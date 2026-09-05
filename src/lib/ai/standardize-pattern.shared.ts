@@ -133,15 +133,66 @@ export function normalizeStandardizedPattern(
 
 /**
  * Normaliza una lista de patrones detectados: normaliza cada uno, descarta los
- * vacíos (el LLM a veces devuelve relleno) y aplica el tope por llamada.
+ * vacíos (el LLM a veces devuelve relleno), elimina duplicados exactos y aplica
+ * el tope por llamada.
  */
 export function normalizeStandardizedPatterns(
   patterns: StandardizedPattern[],
 ): StandardizedPattern[] {
-  return patterns
-    .map(normalizeStandardizedPattern)
-    .filter(hasContent)
-    .slice(0, MAX_PATTERNS_PER_CALL);
+  return dedupeIdenticalPatterns(
+    patterns.map(normalizeStandardizedPattern).filter(hasContent),
+  ).slice(0, MAX_PATTERNS_PER_CALL);
+}
+
+/** Título comparable: minúsculas, sin paréntesis ni signos ("Med. (2)" → "med"). */
+function comparableTitle(title: string): string {
+  return title
+    .toLowerCase()
+    .replace(/\(.*?\)/g, " ")
+    .replace(/[^a-z0-9]+/gi, " ")
+    .trim();
+}
+
+/** Huella de contenido: título + todas las rondas, para detectar copias. */
+function patternFingerprint(pattern: StandardizedPattern): string {
+  const rounds = pattern.sections
+    .map((section) =>
+      section.rounds
+        .map((round) => `${round.label}|${round.instruction}`)
+        .join(";"),
+    )
+    .join("#");
+  return `${comparableTitle(pattern.title)}#${pattern.sections.length}#${rounds}`;
+}
+
+/**
+ * Quita duplicados EXACTOS (mismo título y mismas rondas): los modelos a
+ * veces repiten el mismo patrón en la segmentación de recopilatorios.
+ * Variantes con igual título pero contenido distinto se conservan.
+ */
+export function dedupeIdenticalPatterns(
+  patterns: StandardizedPattern[],
+): StandardizedPattern[] {
+  const seen = new Set<string>();
+  return patterns.filter((pattern) => {
+    const key = patternFingerprint(pattern);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+/**
+ * ¿La segmentación ha "inventado" varios patrones a partir de uno? Señal:
+ * ≥3 patrones y UN SOLO título distinto entre todos (el mismo texto troceado
+ * N veces). Los recopilatorios reales tienen títulos diferentes.
+ */
+export function looksLikeDuplicateSplit(
+  patterns: StandardizedPattern[],
+): boolean {
+  if (patterns.length < 3) return false;
+  const titles = new Set(patterns.map((p) => comparableTitle(p.title)));
+  return titles.size <= 1;
 }
 
 /** JSON persistido → contrato tipado; null si no hay o no valida (corrupto). */

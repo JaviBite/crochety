@@ -267,7 +267,30 @@
   añaden con la URL `https://<dominio>/api/opds` y el email/contraseña del
   login. Un 401 lleva el reto `WWW-Authenticate: Basic`.
 - XML puro en `lib/opds.ts` (escape, parseo Basic, feed) con tests
-  (`opds.test.ts`); sin dependencias nuevas.
+  (`opds.test.ts`); sin dependencias nuevas. Credenciales: el email y la
+  contraseña del login de la plataforma (auth Basic contra la tabla `User`).
+
+## Novedades 2026-09-05 (master)
+
+- **Guardia anti-alucinación en la segmentación**: si el normalizador detecta
+  ≥3 "patrones" con un solo título distinto (el mismo texto troceado N veces,
+  visto con Hollow Knight), reintenta en UNA llamada con el texto completo.
+  Además `normalizeStandardizedPatterns` elimina duplicados exactos (título +
+  rondas idénticas; las variantes con igual título y contenido distinto se
+  conservan). Helpers puros: `dedupeIdenticalPatterns` y
+  `looksLikeDuplicateSplit` (con tests).
+- **Guardar el origen con el patrón (convertidor)**: `/api/convert` ya no
+  borra los ficheros subidos cuando la conversión tiene éxito; el evento done
+  lleva `source` (filePath/externalUrl/imagePaths) y `saveConvertedPattern`
+  los persiste en el Pattern (igual que el resto de flujos). Al descartar los
+  resultados ("Nueva conversión" o nueva búsqueda) la action
+  `discardConvertedSource` borra los ficheros solo si ningún patrón guardado
+  los sigue usando. Si el guardado de la portada falla, el patrón se guarda
+  sin ella y queda warning en los logs.
+- **No re-estandarizar al cambiar el fichero**: si al editar un patrón cambia
+  el origen pero ya está estandarizado (DONE o MULTIPLE), se conserva la
+  versión; solo se resetea a PENDING (y se programa la IA) si no había
+  versión. Regenerar a mano queda en el botón "Estandarizar" del detalle.
 
 ## Registro de progreso
 

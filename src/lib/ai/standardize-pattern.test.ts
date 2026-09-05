@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   MAX_PATTERNS_PER_CALL,
+  dedupeIdenticalPatterns,
+  looksLikeDuplicateSplit,
   normalizeStandardizedPattern,
   normalizeStandardizedPatterns,
   parseStandardizedPatternsContent,
@@ -180,5 +182,56 @@ describe("parseStandardizedPatternsContent", () => {
     expect(parseStandardizedPatternsContent(null)).toEqual([]);
     expect(parseStandardizedPatternsContent("{no-json")).toEqual([]);
     expect(parseStandardizedPatternsContent("42")).toEqual([]);
+  });
+});
+
+describe("dedupeIdenticalPatterns", () => {
+  function patternWithRounds(title: string, round: string): StandardizedPattern {
+    return basePattern({
+      title,
+      sections: [{ name: "Cuerpo", notes: null, rounds: [{ label: "R1", instruction: round, stitchCount: 6, kind: undefined }] }],
+    });
+  }
+
+  it("elimina copias exactas (mismo título y mismas rondas)", () => {
+    const duplicated = [
+      patternWithRounds("Calabaza", "6 pb en anillo mágico"),
+      patternWithRounds("Calabaza", "6 pb en anillo mágico"),
+    ];
+    expect(dedupeIdenticalPatterns(duplicated)).toHaveLength(1);
+  });
+
+  it("conserva variantes con igual título pero contenido distinto", () => {
+    const variants = [
+      patternWithRounds("Gorra", "6 pb en anillo mágico"),
+      patternWithRounds("Gorra", "8 pb en anillo mágico"),
+    ];
+    expect(dedupeIdenticalPatterns(variants)).toHaveLength(2);
+  });
+
+  it("ignora paréntesis y mayúsculas al comparar títulos", () => {
+    const duplicated = [
+      patternWithRounds("Calabaza (Mediana)", "6 pb en anillo mágico"),
+      patternWithRounds("calabaza", "6 pb en anillo mágico"),
+    ];
+    expect(dedupeIdenticalPatterns(duplicated)).toHaveLength(1);
+  });
+});
+
+describe("looksLikeDuplicateSplit", () => {
+  function titled(title: string): StandardizedPattern {
+    return basePattern({ title });
+  }
+
+  it("detecta N≥3 patrones con un solo título distinto (split inventado)", () => {
+    const fake = [titled("Calabaza"), titled("Calabaza (2)"), titled("Calabaza")];
+    expect(looksLikeDuplicateSplit(fake)).toBe(true);
+  });
+
+  it("no se activa con dos patrones o títulos variados (recopilatorio real)", () => {
+    expect(looksLikeDuplicateSplit([titled("A"), titled("A")])).toBe(false);
+    expect(
+      looksLikeDuplicateSplit([titled("Calabaza"), titled("Fantasma"), titled("Gato")]),
+    ).toBe(false);
   });
 });

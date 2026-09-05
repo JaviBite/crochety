@@ -2,6 +2,7 @@ import { generateObject } from "ai";
 import { z } from "zod";
 import {
   MAX_PATTERNS_PER_CALL,
+  looksLikeDuplicateSplit,
   normalizeStandardizedPatterns,
   standardizedPatternsSchema,
   type StandardizedPattern,
@@ -152,7 +153,21 @@ export async function standardizePattern(
   await Promise.all(
     Array.from({ length: Math.min(3, queue.length) }, () => worker()),
   );
-  return normalizeStandardizedPatterns(results);
+  const normalized = normalizeStandardizedPatterns(results);
+
+  // Guardia anti-alucinación: si la segmentación "inventó" varios patrones a
+  // partir de uno (todos con el MISMO título), se reintenta en una sola
+  // llamada con el texto completo, que suele devolver el patrón real.
+  if (looksLikeDuplicateSplit(normalized)) {
+    onProgress?.({ type: "standardizing" });
+    try {
+      const fallback = await standardizePatternFromContent({ text: rawText });
+      if (fallback.length > 0) return fallback;
+    } catch {
+      // Si el reintento falla, nos quedamos con lo que había.
+    }
+  }
+  return normalized;
 }
 
 const MIXED_SYSTEM_PROMPT = `${SYSTEM_PROMPT}
