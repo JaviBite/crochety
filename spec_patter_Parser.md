@@ -213,11 +213,14 @@
   cronómetro durante la conversión.
 - **Subidas grandes en Vercel**: el límite de ~4,5 MB de las funciones impedía
   enviar PDFs de 4,7 MB por `/api/uploads`. Los ficheros de patrones que superan
-  ese umbral piden un token en `/api/uploads/client` y se suben directamente a
-  Vercel Blob; en local mantienen el fallback por la ruta normal. Los patrones
-  guardados conservan siempre `filePath`/`imagePaths` para consultar el original.
-  Solo los ficheros temporales del convertidor se borran al terminar la
-  conversión.
+  ese umbral piden un token en `/api/uploads/client` (que también devuelve el
+  modo real del store, público/privado, detectado con un `get` de sonda) y se
+  suben DIRECTOS a Vercel Blob con feedback de porcentaje y corte a los 120 s;
+  sin fallback silencioso a la ruta limitada (los errores se muestran tal cual).
+  En desarrollo local (sin Blob) sigue la ruta normal, que guarda en disco hasta
+  25 MB. Los patrones guardados conservan siempre `filePath`/`imagePaths` para
+  consultar el original; solo los ficheros temporales del convertidor se borran
+  al terminar la conversión.
 
 ## Registro de progreso
 

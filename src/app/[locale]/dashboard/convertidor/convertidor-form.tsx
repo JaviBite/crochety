@@ -205,10 +205,12 @@ function useStepLabel(): (event: ConvertStreamEvent) => string | null {
   };
 }
 
-function uploadOne(file: File): Promise<string | null> {
+function uploadOne(
+  file: File,
+  onProgress?: (percent: number) => void,
+): Promise<{ path: string } | { error: string }> {
   return (async () => {
-    const result = await uploadPatternFile(file);
-    return "path" in result ? result.path : null;
+    return uploadPatternFile(file, "patterns", onProgress);
   })();
 }
 
@@ -311,16 +313,16 @@ function PatternResultCard({
     setUploadingCover(true);
     setError(null);
     try {
-      const path = await uploadOne(file);
-      if (!path) {
-        setError(tForms("uploadFailed"));
+      const result = await uploadOne(file);
+      if ("error" in result) {
+        setError(result.error);
         return;
       }
       if (coverCleanupRef.current) {
         await deleteConvertCover(coverCleanupRef.current);
       }
-      coverCleanupRef.current = path;
-      setCoverPath(path);
+      coverCleanupRef.current = result.path;
+      setCoverPath(result.path);
       setCoverSrc(null);
     } finally {
       setUploadingCover(false);
@@ -615,6 +617,8 @@ export function ConvertidorForm() {
   const [imagePaths, setImagePaths] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  // Porcentaje de la subida en curso (null = sin datos de progreso).
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   // Paso actual del pipeline (progreso en vivo vía streaming).
   const [step, setStep] = useState<string | null>(null);
   const toStepLabel = useStepLabel();
@@ -672,15 +676,16 @@ export function ConvertidorForm() {
     setUploading(true);
     void (async () => {
       try {
-        const path = await uploadOne(file);
-        if (path) {
-          onDone(path);
+        const result = await uploadOne(file, setUploadProgress);
+        if ("path" in result) {
+          onDone(result.path);
         } else {
           input.value = "";
-          setUploadError(tForms("uploadFailed"));
+          setUploadError(result.error);
         }
       } finally {
         setUploading(false);
+        setUploadProgress(null);
       }
     })();
   }
@@ -694,15 +699,16 @@ export function ConvertidorForm() {
     void (async () => {
       try {
         for (const file of files) {
-          const path = await uploadOne(file);
-          if (path) {
-            setImagePaths((current) => [...current, path]);
+          const result = await uploadOne(file, setUploadProgress);
+          if ("path" in result) {
+            setImagePaths((current) => [...current, result.path]);
           } else {
-            setUploadError(tForms("uploadFailed"));
+            setUploadError(result.error);
           }
         }
       } finally {
         setUploading(false);
+        setUploadProgress(null);
       }
     })();
   }
@@ -835,6 +841,9 @@ export function ConvertidorForm() {
         <p className="flex items-center gap-2 text-sm text-muted-foreground">
           <LoaderCircle className="size-4 animate-spin" />
           {tForms("uploading")}
+          {uploadProgress !== null && (
+            <span className="tabular-nums">{uploadProgress}%</span>
+          )}
         </p>
       )}
       {pending && <ConvertingPanel seconds={elapsed} step={step} />}

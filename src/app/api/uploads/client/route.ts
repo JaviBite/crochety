@@ -9,15 +9,22 @@ import {
   MAX_IMAGE_BYTES,
   type UploadKind,
 } from "@/lib/files";
+import { getBlobAccess } from "@/lib/files.server";
 
 export const runtime = "nodejs";
 
+/**
+ * GET — capacidad de subida directa: 204 con el modo del store si hay Blob
+ * (producción), 503 si no (desarrollo local con driver de disco).
+ */
 export async function GET(): Promise<Response> {
   const session = await auth();
   if (!session?.user) return new Response("No autorizado", { status: 401 });
-  return new Response(null, {
-    status: process.env.BLOB_READ_WRITE_TOKEN ? 204 : 503,
-  });
+  if (!process.env.BLOB_READ_WRITE_TOKEN) {
+    return new Response("Subida directa no disponible", { status: 503 });
+  }
+  const access = await getBlobAccess();
+  return Response.json({ access });
 }
 
 export async function POST(request: Request): Promise<Response> {

@@ -51,6 +51,23 @@ async function withStoreAccess<T>(
   }
 }
 
+/**
+ * Modo real del store (público/privado), detectado con una operación barata y
+ * memorizado en `blobAccess`. Lo consume la subida directa desde el cliente,
+ * que debe declarar el mismo modo en la petición PUT a Blob.
+ */
+export async function getBlobAccess(): Promise<"public" | "private"> {
+  if (!hasBlobToken()) return "public";
+  try {
+    // get() de un pathname inexistente: valida el modo sin transferir nada
+    // (si el modo es incorrecto, withStoreAccess conmuta y reintenta).
+    await withStoreAccess((access) => get(`_probe_${randomUUID()}`, { access }));
+  } catch {
+    // BlobNotFoundError u otro: el modo ya es correcto o la detección no cambia nada.
+  }
+  return blobAccess;
+}
+
 // Se resuelve por llamada (no al importar) para poder cambiarla en tests.
 function uploadRoot(): string {
   return path.resolve(process.env.UPLOAD_DIR ?? "./uploads");
