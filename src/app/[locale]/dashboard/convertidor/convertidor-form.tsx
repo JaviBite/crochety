@@ -15,7 +15,6 @@ import {
 import { useTranslations } from "next-intl";
 import {
   type ChangeEvent,
-  useEffect,
   useRef,
   useState,
   useTransition,
@@ -23,6 +22,12 @@ import {
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  ConvertingPanel,
+  readNdjson,
+  useElapsedTimer,
+  useStepLabel,
+} from "@/components/form/convert-progress";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -64,24 +69,7 @@ async function convertViaStream(
     onEvent({ type: "error", message: "La conversión falló, vuelve a intentarlo" });
     return;
   }
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split("\n");
-    buffer = lines.pop() ?? "";
-    for (const line of lines) {
-      if (!line.trim()) continue;
-      try {
-        onEvent(JSON.parse(line) as ConvertStreamEvent);
-      } catch {
-        // Línea corrupta: se ignora.
-      }
-    }
-  }
+  await readNdjson(res, onEvent);
 }
 
 type Covers = { auto: string | null; candidates: string[] };
@@ -118,11 +106,6 @@ function ConvertButton({
   );
 }
 
-/** Segundos → "m:ss" para el cronómetro de conversión. */
-function formatElapsed(seconds: number): string {
-  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
-}
-
 /**
  * Portada para el Markdown: si es un fichero subido se convierte a data-URL
  * (el .md debe verse bien fuera de la app); si es data-URL o URL remota, tal cual.
@@ -147,62 +130,6 @@ async function coverForMarkdown(
   } catch {
     return coverSrc;
   }
-}
-
-/**
- * Panel de progreso con el paso actual en vivo (el pipeline emite eventos por
- * streaming) más cronómetro: la IA tarda 1-3 min por patrón y sin feedback
- * parece colgado.
- */
-function ConvertingPanel({
-  seconds,
-  step,
-}: {
-  seconds: number;
-  step: string | null;
-}) {
-  const t = useTranslations("Convertidor");
-  return (
-    <div className="flex items-center gap-3 rounded-2xl border border-dashed p-4">
-      <LoaderCircle className="size-5 shrink-0 animate-spin text-primary" />
-      <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium">
-          {step ?? t("convertingTitle")}
-        </p>
-        <p className="text-xs text-muted-foreground">{t("convertingHint")}</p>
-      </div>
-      <span className="ml-auto shrink-0 tabular-nums text-sm text-muted-foreground">
-        {formatElapsed(seconds)}
-      </span>
-    </div>
-  );
-}
-
-/** Traduce un evento del pipeline a un mensaje de paso para la UI. */
-function useStepLabel(): (event: ConvertStreamEvent) => string | null {
-  const t = useTranslations("Convertidor");
-  return (event) => {
-    switch (event.type) {
-      case "extract":
-        return t("stepExtract");
-      case "text-ready":
-        return t("stepTextReady", { chars: event.chars.toLocaleString() });
-      case "images-ready":
-        return t("stepImagesReady", { count: event.count });
-      case "standardizing":
-        return t("stepStandardizing");
-      case "segmenting":
-        return t("stepSegmenting");
-      case "segment":
-        return t("stepSegment", { index: event.index, total: event.total });
-      case "rasterizing":
-        return t("stepRasterizing");
-      case "vision-retry":
-        return t("stepVisionRetry");
-      default:
-        return null;
-    }
-  };
 }
 
 function uploadOne(
@@ -626,18 +553,11 @@ export function ConvertidorForm() {
   const editsRef = useRef<Map<number, StandardizedPattern>>(new Map());
   // Contador de conversiones: repone el árbol de resultados entre intentos.
   const [conversionCount, setConversionCount] = useState(0);
-  // Cronómetro de conversión (feedback de actividad). El reset va en el event
-  // handler; el effect solo programa el tictac mientras la conversión corre.
-  const [elapsed, setElapsed] = useState(0);
-
-  useEffect(() => {
-    if (!pending) return;
-    const timer = setInterval(() => setElapsed((s) => s + 1), 1000);
-    return () => clearInterval(timer);
-  }, [pending]);
+  // Cronómetro de conversión (feedback de actividad); se reinicia en cada run.
+  const [elapsed, resetElapsed] = useElapsedTimer(pending);
 
   function onSubmit(formData: FormData) {
-    setElapsed(0);
+    resetElapsed();
     setStep(null);
     startTransition(async () => {
       let next: ConvertState = null;

@@ -211,6 +211,24 @@
 - **Fix crítico**: faltaban los hidden inputs `filePath`/`imagePaths` en el form
   del convertidor (la IA no recibía nada al convertir) + panel de progreso con
   cronómetro durante la conversión.
+- **Guardar en el convertidor (500 resuelto)**: las candidatas de portada de
+  PDF se codificaban como PNG a tamaño completo (varios MB en base64) y la
+  server action de guardar superaba el `bodySizeLimit` de 4 MB → 500 antes de
+  ejecutarse, sin crear la fila (el "This page couldn't load" pendiente de
+  reproducir). Ahora `pdfImageCandidates` reduce cada candidata a JPEG de
+  previsualización (máx. 1200 px, q80, fondo blanco si hay alfa) y descarta
+  cualquiera que pese >700 KB. Además faltaban las claves i18n
+  `Convertidor.showEditor`/`hideEditor` (añadidas a es/en).
+- **Estandarizar con progreso en vivo en el detalle del patrón**: el botón
+  "Estandarizar" ya no usa la action bloqueante; llama a la nueva ruta de
+  streaming `POST /api/patterns/[id]/standardize` (mismo contrato NDJSON que
+  `/api/convert`) y muestra el MISMO panel de progreso (pasos + cronómetro).
+  La persistencia del pipeline (standardizeAndSave, hermanos multi-patrón,
+  borrados protegidos) se extrajo a `lib/patterns/standardize-persist.ts`,
+  compartida por la orquestación `after()` y la ruta; el panel/cronómetro/
+  lector NDJSON viven en `components/form/convert-progress.tsx`, reutilizados
+  por el convertidor. `standardizePatternAction` desaparece (la ruta la
+  sustituye).
 - **Subidas grandes en Vercel**: el límite de ~4,5 MB de las funciones impedía
   enviar PDFs de 4,7 MB por `/api/uploads`. Los ficheros de patrones que superan
   ese umbral piden un token en `/api/uploads/client` y se suben DIRECTOS a

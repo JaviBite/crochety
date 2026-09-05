@@ -451,6 +451,39 @@ export function collectHtmlImageUrls(html: string, baseUrl: string): string[] {
   return [...urls].slice(0, MAX_COVER_CANDIDATES);
 }
 
+// Las candidatas viajan del navegador a la server action de "guardar" (body
+// limitado a 4 MB): se reducen a JPEG de previsualización para que el body
+// quepa holgado incluso con PDFs de imágenes grandes.
+const COVER_PREVIEW_MAX_SIDE = 1200;
+const COVER_PREVIEW_JPEG_QUALITY = 80;
+const MAX_COVER_DATA_URL_BYTES = 700_000;
+
+/** Data-URL de previsualización: reduce a JPEG (fondo blanco si hay alfa). */
+async function coverPreviewDataUrl(png: Uint8Array): Promise<string | null> {
+  try {
+    const { createCanvas, loadImage } = await import("@napi-rs/canvas");
+    const image = await loadImage(png);
+    const scale = Math.min(
+      1,
+      COVER_PREVIEW_MAX_SIDE / Math.max(image.width, image.height),
+    );
+    const canvas = createCanvas(
+      Math.max(1, Math.round(image.width * scale)),
+      Math.max(1, Math.round(image.height * scale)),
+    );
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+    const jpeg = await canvas.encode("jpeg", COVER_PREVIEW_JPEG_QUALITY);
+    const dataUrl = `data:image/jpeg;base64,${Buffer.from(jpeg).toString("base64")}`;
+    // Red de seguridad: si aun así pesa demasiado, la candidata se descarta.
+    return dataUrl.length <= MAX_COVER_DATA_URL_BYTES ? dataUrl : null;
+  } catch {
+    return null;
+  }
+}
+
 async function pdfImageCandidates(filePath: string): Promise<string[]> {
   const [{ extractImages, getDocumentProxy }, { encode }, bytes] =
     await Promise.all([
@@ -474,9 +507,11 @@ async function pdfImageCandidates(filePath: string): Promise<string[]> {
         ),
         channels: img.channels,
       });
+      const dataUrl = await coverPreviewDataUrl(png);
+      if (!dataUrl) continue;
       found.push({
         area: img.width * img.height,
-        dataUrl: `data:image/png;base64,${Buffer.from(png).toString("base64")}`,
+        dataUrl,
       });
     }
     if (found.length >= MAX_COVER_CANDIDATES) break;

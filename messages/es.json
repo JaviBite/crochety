@@ -440,6 +440,8 @@
     "savedState": "Guardado",
     "viewSaved": "Ver en patrones",
     "savedToast": "Patrón guardado en tu biblioteca",
+    "showEditor": "Editar patrón",
+    "hideEditor": "Cerrar editor",
     "uploadCover": "Subir portada",
     "changeCover": "Cambiar portada",
     "removeCover": "Quitar portada",

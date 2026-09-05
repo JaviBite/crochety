@@ -440,6 +440,8 @@
     "savedState": "Saved",
     "viewSaved": "View in patterns",
     "savedToast": "Pattern saved to your library",
+    "showEditor": "Edit pattern",
+    "hideEditor": "Close editor",
     "uploadCover": "Upload cover",
     "changeCover": "Change cover",
     "removeCover": "Remove cover",

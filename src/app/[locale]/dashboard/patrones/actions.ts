@@ -8,9 +8,7 @@ import {
   parseStandardizedPatternsContent,
   standardizedPatternSchema,
   standardizePatternFromContent,
-  type StandardizedPattern,
 } from "@/lib/ai/standardize-pattern";
-import { standardizePatternSource } from "@/lib/ai/standardize-source";
 import { auth } from "@/lib/auth";
 import { isValidUploadPath } from "@/lib/files";
 import { deleteUpload } from "@/lib/files.server";
@@ -24,6 +22,13 @@ import {
   saveChosenCover,
   type PatternSource,
 } from "@/lib/pattern-source";
+import {
+  createPatternSiblings,
+  deleteUploadIfUnreferenced,
+  SIBLING_ORIGIN_SELECT,
+  standardizeAndSave,
+  toSource,
+} from "@/lib/patterns/standardize-persist";
 import { prisma } from "@/lib/prisma";
 import { parseTagNames, tagsCreateInput, tagsUpdateInput } from "@/lib/tags";
 import { z } from "zod";
@@ -52,136 +57,11 @@ function uploadedImagePaths(value: FormDataEntryValue | null): string[] {
   }
 }
 
-/** Fila de BD → PatternSource (parsea la columna JSON imagePaths). */
-function toSource(row: {
-  filePath: string | null;
-  externalUrl: string | null;
-  imagePaths: string | null;
-}): PatternSource {
-  return {
-    filePath: row.filePath,
-    externalUrl: row.externalUrl,
-    imagePaths: parseImagePaths(row.imagePaths),
-  };
-}
-
 // ---------------------------------------------------------------------------
-// Pipeline IA: extraer contenido del origen → estandarizar → guardar JSON.
-// aiStatus: PENDING (en cola) → PROCESSING → DONE | ERROR | MULTIPLE.
-// Un mismo origen (PDF/web) puede contener varios patrones: o se crean todos
-// como Patterns (autoSplit) o se apuntan todos y el usuario elige en el
-// detalle cuáles convertir en patrones (MULTIPLE, human-in-the-loop).
+// Pipeline IA: la lógica de persistencia (standardizeAndSave, hermanos,
+// borrados protegidos) vive en lib/patterns/standardize-persist.ts, compartida
+// con la ruta de streaming /api/patterns/[id]/standardize.
 // ---------------------------------------------------------------------------
-
-/** Datos del patrón origen necesarios para crear hermanos multi-patrón. */
-type SiblingOrigin = {
-  title: string;
-  autoSplit: boolean;
-  filePath: string | null;
-  imagePaths: string | null;
-  externalUrl: string | null;
-  coverImagePath: string | null;
-  tags: { name: string }[];
-};
-
-const SIBLING_ORIGIN_SELECT = {
-  title: true,
-  autoSplit: true,
-  filePath: true,
-  imagePaths: true,
-  externalUrl: true,
-  coverImagePath: true,
-  tags: { select: { name: true }, orderBy: { name: "asc" as const } },
-} as const;
-
-/**
- * Crea los Patterns hermanos para los patrones 2..N detectados en el mismo
- * origen. Los ficheros (PDF, imágenes, portada) se COMPARTEN con el origen:
- * por eso todos los borrados de fichero de patrón pasan por
- * deleteUploadIfUnreferenced, que comprueba si otro patrón los sigue usando.
- */
-async function createPatternSiblings(
-  origin: SiblingOrigin,
-  patterns: StandardizedPattern[],
-): Promise<void> {
-  for (let i = 1; i < patterns.length; i++) {
-    await prisma.pattern.create({
-      data: {
-        title: `${origin.title} (${i + 1})`,
-        filePath: origin.filePath,
-        imagePaths: origin.imagePaths,
-        externalUrl: origin.externalUrl,
-        coverImagePath: origin.coverImagePath,
-        standardizedContent: JSON.stringify(patterns[i]),
-        aiStatus: "DONE",
-        autoSplit: origin.autoSplit,
-        tags: tagsCreateInput(origin.tags.map((tag) => tag.name)),
-      },
-    });
-  }
-}
-
-/** Borra un upload solo si ningún OTRO patrón lo sigue referenciando. */
-async function deleteUploadIfUnreferenced(
-  path: string | null | undefined,
-  exceptPatternId?: string,
-): Promise<void> {
-  if (!path || !isValidUploadPath(path)) return;
-  const stillUsed = await prisma.pattern.count({
-    where: {
-      ...(exceptPatternId ? { id: { not: exceptPatternId } } : {}),
-      OR: [
-        { filePath: path },
-        { coverImagePath: path },
-        { imagePaths: { contains: path } },
-      ],
-    },
-  });
-  if (stillUsed === 0) await deleteUpload(path);
-}
-
-async function standardizeAndSave(
-  id: string,
-  source: PatternSource,
-  origin?: SiblingOrigin,
-): Promise<void> {
-  // Pipeline completo (texto → visión con reintento por rasterizado). El
-  // parsing SIEMPRE lo hace el LLM; nada se extrae a mano.
-  const patterns = await standardizePatternSource(source);
-
-  if (patterns.length === 0) {
-    throw new PatternSourceError("No se detectó ningún patrón en el contenido");
-  }
-  if (patterns.length === 1) {
-    await prisma.pattern.update({
-      where: { id },
-      data: {
-        standardizedContent: JSON.stringify(patterns[0]),
-        aiStatus: "DONE",
-      },
-    });
-    return;
-  }
-  if (origin?.autoSplit) {
-    // El origen se queda con el primero; el resto nacen como Patterns nuevos.
-    await prisma.pattern.update({
-      where: { id },
-      data: {
-        standardizedContent: JSON.stringify(patterns[0]),
-        aiStatus: "DONE",
-      },
-    });
-    await createPatternSiblings(origin, patterns);
-    return;
-  }
-  await prisma.pattern.update({
-    where: { id },
-    data: {
-      standardizedContent: JSON.stringify({ patterns }),
-      aiStatus: "MULTIPLE",
-    },
-  });
-}
 
 /**
  * Ejecuta la estandarización fuera de la respuesta (with `after`): el alta
@@ -226,45 +106,9 @@ function schedulePatternStandardization(
   });
 }
 
-/** (Re)estandariza un patrón bajo demanda desde su página de detalle. */
-export async function standardizePatternAction(
-  id: string,
-): Promise<{ error: string } | void> {
-  const session = await auth();
-  if (!session?.user) return { error: "No autorizado" };
-
-  const pattern = await prisma.pattern.findUnique({
-    where: { id },
-    select: {
-      ...SIBLING_ORIGIN_SELECT,
-      coverImagePath: true,
-    },
-  });
-  if (!pattern) return { error: "Patrón no encontrado" };
-  const source = toSource(pattern);
-  if (!source.filePath && !source.externalUrl && !source.imagePaths?.length) {
-    return { error: "El patrón no tiene fichero, imágenes ni enlace" };
-  }
-
-  await prisma.pattern.update({
-    where: { id },
-    data: { aiStatus: "PROCESSING" },
-  });
-  try {
-    await standardizeAndSave(id, source, pattern);
-  } catch (error) {
-    await prisma.pattern
-      .update({ where: { id }, data: { aiStatus: "ERROR" } })
-      .catch(() => {});
-    return {
-      error:
-        error instanceof PatternSourceError
-          ? error.message
-          : "La estandarización falló, vuelve a intentarlo",
-    };
-  }
-  revalidatePath("/", "layout");
-}
+/** (Re)estandariza bajo demanda: la ruta /api/patterns/[id]/standardize hace
+ *  el trabajo en streaming (mismo pipeline + persistencia compartidos); aquí
+ *  solo queda la orquestación en segundo plano del alta/edición. */
 
 // ---------------------------------------------------------------------------
 // Revisión human-in-the-loop (aiStatus MULTIPLE): la IA detectó varios

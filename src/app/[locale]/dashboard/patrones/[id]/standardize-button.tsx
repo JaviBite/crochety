@@ -2,12 +2,29 @@
 
 import { Sparkles } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useState, useTransition } from "react";
+import { useState } from "react";
+import {
+  ConvertingPanel,
+  readNdjson,
+  useElapsedTimer,
+  useStepLabel,
+} from "@/components/form/convert-progress";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "@/i18n/navigation";
+import type { SourceProgress } from "@/lib/ai/standardize-source";
 import type { PatternAiStatus } from "@/lib/validations";
-import { standardizePatternAction } from "../actions";
 
+type StandardizeStreamEvent =
+  | SourceProgress
+  | { type: "done" }
+  | { type: "error"; message: string };
+
+/**
+ * (Re)estandariza un patrón desde su página de detalle. Llama a
+ * POST /api/patterns/[id]/standardize (mismo pipeline y panel en vivo que el
+ * convertidor: pasos en streaming + cronómetro) y refresca al terminar para
+ * mostrar el estado final (DONE / MULTIPLE / ERROR).
+ */
 export function StandardizeButton({
   id,
   aiStatus,
@@ -19,8 +36,11 @@ export function StandardizeButton({
 }) {
   const t = useTranslations("Patterns");
   const router = useRouter();
+  const toStepLabel = useStepLabel();
   const [error, setError] = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
+  const [running, setRunning] = useState(false);
+  const [step, setStep] = useState<string | null>(null);
+  const [seconds, resetSeconds] = useElapsedTimer(running);
 
   const label =
     aiStatus === "DONE"
@@ -30,12 +50,51 @@ export function StandardizeButton({
         : t("standardize");
 
   function run() {
+    resetSeconds();
     setError(null);
-    startTransition(async () => {
-      const result = await standardizePatternAction(id);
-      if (result?.error) setError(result.error);
-      router.refresh();
-    });
+    setStep(null);
+    setRunning(true);
+    void (async () => {
+      try {
+        const res = await fetch(`/api/patterns/${id}/standardize`, {
+          method: "POST",
+        });
+        if (!res.ok || !res.body) {
+          const message = await res.text().catch(() => "");
+          setError(
+            message.trim() || "La estandarización falló, vuelve a intentarlo",
+          );
+          setRunning(false);
+          router.refresh();
+          return;
+        }
+        await readNdjson<StandardizeStreamEvent>(res, (event) => {
+          if (event.type === "done") {
+            setStep(null);
+            setRunning(false);
+            router.refresh();
+            return;
+          }
+          if (event.type === "error") {
+            setError(event.message);
+            setStep(null);
+            setRunning(false);
+            router.refresh();
+            return;
+          }
+          setStep(toStepLabel(event));
+        });
+      } catch {
+        setError("La estandarización falló, vuelve a intentarlo");
+        setStep(null);
+        setRunning(false);
+        router.refresh();
+      }
+    })();
+  }
+
+  if (running) {
+    return <ConvertingPanel seconds={seconds} step={step} />;
   }
 
   return (
@@ -43,11 +102,11 @@ export function StandardizeButton({
       <div className="flex items-center gap-3">
         <Button
           onClick={run}
-          disabled={pending || !hasSource}
+          disabled={!hasSource}
           variant={aiStatus === "DONE" ? "outline" : "default"}
         >
           <Sparkles />
-          {pending ? t("standardizing") : label}
+          {label}
         </Button>
         {!hasSource && (
           <p className="text-xs text-muted-foreground">
