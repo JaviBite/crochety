@@ -256,10 +256,13 @@
 
 ## OPDS (rama feat/opds)
 
-- `GET /api/opds` — catálogo Atom de los patrones estandarizados (DONE y
-  MULTIPLE), paginado (50/página, `?page=N` + `rel="next"`), con resumen
-  (secciones/rondas), portada vía `/api/files` (imágenes públicas) y enlaces
-  de adquisición a la exportación existente
+- `GET /api/opds` — catálogo DIRECTO: la lista de patrones estandarizados
+  como feed de adquisición (sin navegación ni secciones, a petición del
+  usuario: "recopilatorios" confundía y no funcionaba). Auxiliares bajo
+  `/api/opds/...`: `patrones` (alias), `osd` (OpenSearch) y `search?q=` (o
+  `/search/<término>`). Con resumen (secciones/rondas), portada vía
+  `/api/files` (imágenes públicas), idioma `dcterms:language` y enlaces de
+  adquisición a la exportación existente
   (`/api/patterns/[id]/export?format=epub|md`).
 - Autenticación dual en `lib/opds.server.ts`: sesión web (cookies) **o**
   HTTP Basic contra la tabla `User` (bcrypt). La ruta de export comparte el
@@ -269,6 +272,13 @@
 - XML puro en `lib/opds.ts` (escape, parseo Basic, feed) con tests
   (`opds.test.ts`); sin dependencias nuevas. Credenciales: el email y la
   contraseña del login de la plataforma (auth Basic contra la tabla `User`).
+- **Portada del EPUB como primera página**: epub-gen-memory solo escribe
+  `OEBPS/cover.<ext>` como metadato (sin página) y descarga las <img> del
+  contenido con node-fetch (sin data:). `withCoverPage` post-procesa el ZIP
+  con `jszip`: inserta `OEBPS/cover-page.xhtml` (que referencia el cover
+  relativo) y lo pone como PRIMER item del spine. La portada se normaliza
+  antes a 1600×2560 (y `plausibleImage` filtra datos corruptos: @napi-rs/
+  canvas puede cascar NATIVAMENTE con bytes truncados, salvando el try/catch).
 
 ## Novedades 2026-09-05 (master)
 

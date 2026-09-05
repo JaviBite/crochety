@@ -6,6 +6,7 @@ import { auth } from "@/lib/auth";
 import { EXT_TO_MIME } from "@/lib/files";
 import {
   parseBasicAuth,
+  buildOpdsFeed,
   type OpdsBookEntry,
 } from "@/lib/opds";
 import { parseStandardizedPatternsContent } from "@/lib/ai/standardize-pattern";
@@ -48,6 +49,35 @@ export async function authenticateOpds(
   if (!user?.passwordHash) return null;
   if (!bcrypt.compareSync(basic.password, user.passwordHash)) return null;
   return { userId: user.id };
+}
+
+/**
+ * Feed de adquisición OPDS listo para servir (XML + cabeceras): el raíz
+ * `/api/opds` y las secciones/búsqueda lo usan. Autor = nombre del taller.
+ */
+export async function opdsAcquisitionFeed(
+  title: string,
+  selfHref: string,
+  where: Prisma.PatternWhereInput,
+): Promise<Response> {
+  const { workshopName, books } = await loadOpdsBooks(where);
+  const xml = buildOpdsFeed({
+    kind: "acquisition",
+    id: `urn:crochety:opds:${selfHref}`,
+    title,
+    selfHref,
+    startHref: "/api/opds",
+    updated: new Date().toISOString(),
+    authorName: workshopName,
+    searchHref: "/api/opds/search/{searchTerms}",
+    books,
+  });
+  return new Response(xml, {
+    headers: {
+      "Content-Type": "application/atom+xml; charset=utf-8",
+      "Cache-Control": "no-store",
+    },
+  });
 }
 
 const OPDS_PATTERN_SELECT = {

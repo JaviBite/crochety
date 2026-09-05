@@ -153,7 +153,7 @@ ${rootNs}
   <updated>${xmlEscape(feed.updated)}</updated>
   <link rel="self" href="${xmlEscape(feed.selfHref)}" type="${selfType}"/>
   <link rel="start" href="${xmlEscape(feed.startHref)}" type="${ATOM_NAV}"/>
-${feed.kind === "acquisition" ? `  <link rel="up" href="${xmlEscape(feed.startHref)}" type="${ATOM_NAV}"/>\n` : ""}${searchLinks(feed.searchHref)}  <title>${xmlEscape(feed.title)}</title>
+${feed.kind === "acquisition" && feed.selfHref !== feed.startHref ? `  <link rel="up" href="${xmlEscape(feed.startHref)}" type="${ATOM_NAV}"/>\n` : ""}${searchLinks(feed.searchHref)}  <title>${xmlEscape(feed.title)}</title>
   <author>
     <name>${xmlEscape(feed.authorName)}</name>
   </author>
