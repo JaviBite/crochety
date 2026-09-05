@@ -1,5 +1,7 @@
 // Tipos y constantes seguras para Client y Server Components.
-// Las funciones que usan node:* y almacenamiento están en files.server.ts.
+// Las funciones que usan node:* y almacenamiento están en files.server.ts
+// (import "server-only"): NO reexportarlas desde aquí — este fichero entra en
+// el bundle de cliente y server-only rompería el build.
 
 export const UPLOAD_KINDS = ["materials", "orders", "patterns", "expenses"] as const;
 export type UploadKind = (typeof UPLOAD_KINDS)[number];
@@ -76,12 +78,4 @@ export function uploadBodyLimitError(file: File): string | null {
   if (file.size <= UPLOAD_BODY_LIMIT_BYTES) return null;
   return `«${file.name}» ocupa ${(file.size / 1024 / 1024).toFixed(1)} MB y la web admite hasta ~4,4 MB por fichero. Comprímelo, pega el texto o sube una foto.`;
 }
-
-// Re-export server-only functions for use in server actions and API routes.
-// This prevents them from being bundled into Client Components.
-export {
-  deleteUpload,
-  readUpload,
-  saveUpload,
-} from "./files.server";
 

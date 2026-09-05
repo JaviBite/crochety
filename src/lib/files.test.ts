@@ -12,14 +12,8 @@ import {
   vi,
 } from "vitest";
 import { del, get, put } from "@vercel/blob";
-import {
-  deleteUpload,
-  isValidUploadPath,
-  MAX_IMAGE_BYTES,
-  readUpload,
-  saveUpload,
-  UploadError,
-} from "./files";
+import { isValidUploadPath, MAX_IMAGE_BYTES, UploadError } from "./files";
+import { deleteUpload, readUpload, saveUpload } from "./files.server";
 
 // Sin red en tests: se mockea el SDK de Vercel Blob entero.
 vi.mock("@vercel/blob", () => ({

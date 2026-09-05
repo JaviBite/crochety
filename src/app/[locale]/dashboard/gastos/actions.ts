@@ -4,13 +4,8 @@ import { revalidatePath } from "next/cache";
 import { getLocale } from "next-intl/server";
 import { extractExpense } from "@/lib/ai/extract-expense";
 import { auth } from "@/lib/auth";
-import {
-  deleteUpload,
-  IMAGE_MIME_TO_EXT,
-  isValidUploadPath,
-  MAX_IMAGE_BYTES,
-  saveUpload,
-} from "@/lib/files";
+import { deleteUpload, saveUpload } from "@/lib/files.server";
+import { IMAGE_MIME_TO_EXT, isValidUploadPath, MAX_IMAGE_BYTES } from "@/lib/files";
 import { type ExpenseInput, parseExpenseForm } from "@/lib/forms";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "@/i18n/navigation";

@@ -48,7 +48,10 @@ un hueco en el esquema:
   de una sección → filas kind "step" en su punto exacto (p. ej. "Tip: usa un
   marcador de puntos") o el campo notes de la sección si son generales.
 - Materiales, aguja, medidas, dificultad, nivel → los campos de metadatos.
-- Montaje, acabado, lavado, costura, trucos generales → assemblyNotes.
+- Montaje, acabado, lavado, costura, trucos generales → assemblyNotes. Las
+  secciones "Finishing", "Assembly", "Acabados" o similares se copian
+  COMPLETAS en assemblyNotes, paso a paso y con sus detalles (cose, inserta,
+  hilo largo, pelo, ojos…) — nunca un resumen de una línea.
 Solo puedes omitir el ruido ajeno al patrón: menús, cabeceras de "compartir",
 publicidad, cookies, paginación y elementos de maquetación de la web o del
 PDF escaneado.`;
