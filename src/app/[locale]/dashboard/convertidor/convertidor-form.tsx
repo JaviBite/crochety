@@ -841,9 +841,12 @@ export function ConvertidorForm() {
         <p className="flex items-center gap-2 text-sm text-muted-foreground">
           <LoaderCircle className="size-4 animate-spin" />
           {tForms("uploading")}
-          {uploadProgress !== null && (
-            <span className="tabular-nums">{uploadProgress}%</span>
-          )}
+          {uploadProgress !== null &&
+            (uploadProgress >= 99 ? (
+              tForms("finalizing")
+            ) : (
+              <span className="tabular-nums">{uploadProgress}%</span>
+            ))}
         </p>
       )}
       {pending && <ConvertingPanel seconds={elapsed} step={step} />}

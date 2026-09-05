@@ -215,9 +215,13 @@
   enviar PDFs de 4,7 MB por `/api/uploads`. Los ficheros de patrones que superan
   ese umbral piden un token en `/api/uploads/client` (que también devuelve el
   modo real del store, público/privado, detectado con un `get` de sonda) y se
-  suben DIRECTOS a Vercel Blob con feedback de porcentaje y corte a los 120 s;
-  sin fallback silencioso a la ruta limitada (los errores se muestran tal cual).
-  En desarrollo local (sin Blob) sigue la ruta normal, que guarda en disco hasta
+  suben DIRECTOS a Vercel Blob. Estrategia en dos intentos: 1º con progreso
+  (subida en streaming con porcentaje; el SDK congela en 98-99% mientras el
+  store confirma, por eso la UI muestra "Finalizando…"); si falla, 2º intento
+  por la ruta fetch clásica sin streaming (compatible con proxies/AV que rompen
+  duplex), con timeout de 90 s por intento, pathname nuevo por intento y el
+  mensaje de error real. Sin fallback silencioso a la ruta limitada. En
+  desarrollo local (sin Blob) sigue la ruta normal, que guarda en disco hasta
   25 MB. Los patrones guardados conservan siempre `filePath`/`imagePaths` para
   consultar el original; solo los ficheros temporales del convertidor se borran
   al terminar la conversión.
