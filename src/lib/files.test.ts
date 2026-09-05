@@ -12,7 +12,12 @@ import {
   vi,
 } from "vitest";
 import { del, get, put } from "@vercel/blob";
-import { isValidUploadPath, MAX_IMAGE_BYTES, UploadError } from "./files";
+import {
+  isValidUploadPath,
+  MAX_IMAGE_BYTES,
+  resolveUploadMime,
+  UploadError,
+} from "./files";
 import { deleteUpload, readUpload, saveUpload } from "./files.server";
 
 // Sin red en tests: se mockea el SDK de Vercel Blob entero.
@@ -57,6 +62,44 @@ describe("isValidUploadPath", () => {
     expect(isValidUploadPath(`otros/${UUID}.jpg`)).toBe(false);
     expect(isValidUploadPath(`orders/${UUID}.exe`)).toBe(false);
     expect(isValidUploadPath("orders/foto-original.jpg")).toBe(false);
+  });
+});
+
+describe("resolveUploadMime", () => {
+  it("usa el type declarado aunque el nombre no tenga extensión", () => {
+    // Las portadas generadas en servidor se llaman "cover" a secas: el bug
+    // validaba el MIME contra el mapa de extensiones y devolvía "".
+    expect(
+      resolveUploadMime({ type: "image/jpeg", name: "cover" }),
+    ).toBe("image/jpeg");
+    expect(
+      resolveUploadMime({ type: "application/pdf", name: "cover" }),
+    ).toBe("application/pdf");
+  });
+
+  it("descarta parámetros y mayúsculas del type declarado", () => {
+    expect(
+      resolveUploadMime({ type: "image/jpeg; charset=x", name: "sin-ext" }),
+    ).toBe("image/jpeg");
+    expect(resolveUploadMime({ type: "IMAGE/PNG", name: "sin-ext" })).toBe(
+      "image/png",
+    );
+  });
+
+  it("cae a la extensión del nombre con type vacío o desconocido", () => {
+    expect(resolveUploadMime({ type: "", name: "foto.JPG" })).toBe(
+      "image/jpeg",
+    );
+    expect(
+      resolveUploadMime({ type: "application/x-raro", name: "doc.pdf" }),
+    ).toBe("application/pdf");
+  });
+
+  it("devuelve vacío si no hay nada reconocible", () => {
+    expect(resolveUploadMime({ type: "", name: "sin-extension" })).toBe("");
+    expect(
+      resolveUploadMime({ type: "application/x-raro", name: "raro.xyz" }),
+    ).toBe("");
   });
 });
 

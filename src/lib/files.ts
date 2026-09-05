@@ -58,12 +58,21 @@ export function isValidUploadPath(relPath: string): boolean {
 export class UploadError extends Error {}
 
 /**
- * MIME efectivo de un File: usa el type declarado si es válido y si no lo
- * infiere de la extensión del nombre (algunos navegadores mandan type vacío).
+ * MIME efectivo de un File: usa el type declarado si es un MIME de imagen o
+ * documento admitido y si no lo infiere de la extensión del nombre (algunos
+ * navegadores mandan type vacío). OJO: el type se valida contra los mapas de
+ * MIME (imagen/documento), NO contra EXT_TO_MIME, que mapea extensión→MIME —
+ * los File generados en servidor a menudo no llevan extensión en el nombre
+ * (p. ej. las portadas se llaman "cover" a secas).
  */
 export function resolveUploadMime(file: { type: string; name: string }): string {
   const declared = file.type.split(";")[0]?.trim().toLowerCase() ?? "";
-  if (declared && declared in EXT_TO_MIME) return declared;
+  if (
+    declared &&
+    (declared in IMAGE_MIME_TO_EXT || declared in DOCUMENT_MIME_TO_EXT)
+  ) {
+    return declared;
+  }
   const dot = file.name.lastIndexOf(".");
   if (dot < 0) return "";
   return EXT_TO_MIME[file.name.slice(dot).toLowerCase()] ?? "";

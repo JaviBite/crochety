@@ -297,6 +297,14 @@
   `discardConvertedSource` borra los ficheros solo si ningún patrón guardado
   los sigue usando. Si el guardado de la portada falla, el patrón se guarda
   sin ella y queda warning en los logs.
+- **Portadas que no se guardaban (fix)**: `resolveUploadMime` validaba el
+  MIME declarado contra `EXT_TO_MIME` (extensión→MIME) — lookup siempre
+  falso. Todo File con nombre real (".jpg") se salvaba por el fallback de
+  extensión, pero las portadas se crean como File "cover" SIN extensión
+  (saveChosenCover, saveConvertedPattern, setPatternCover) → "tipo no
+  reconocido" → sin portada / "No se pudo guardar la portada". Ahora el type
+  declarado se valida contra los mapas de MIME (imagen/documento).
+  Reproducido y verificado contra el store real con data-URLs JPEG.
 - **No re-estandarizar al cambiar el fichero**: si al editar un patrón cambia
   el origen pero ya está estandarizado (DONE o MULTIPLE), se conserva la
   versión; solo se resetea a PENDING (y se programa la IA) si no había
