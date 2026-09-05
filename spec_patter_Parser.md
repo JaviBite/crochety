@@ -213,18 +213,28 @@
   cronómetro durante la conversión.
 - **Subidas grandes en Vercel**: el límite de ~4,5 MB de las funciones impedía
   enviar PDFs de 4,7 MB por `/api/uploads`. Los ficheros de patrones que superan
-  ese umbral piden un token en `/api/uploads/client` (que también devuelve el
-  modo real del store, público/privado, detectado con un `get` de sonda) y se
-  suben DIRECTOS a Vercel Blob. Estrategia en dos intentos: 1º con progreso
-  (subida en streaming con porcentaje; el SDK congela en 98-99% mientras el
-  store confirma, por eso la UI muestra "Finalizando…"); si falla, 2º intento
-  por la ruta fetch clásica sin streaming (compatible con proxies/AV que rompen
-  duplex), con timeout de 90 s por intento, pathname nuevo por intento y el
-  mensaje de error real. Sin fallback silencioso a la ruta limitada. En
-  desarrollo local (sin Blob) sigue la ruta normal, que guarda en disco hasta
-  25 MB. Los patrones guardados conservan siempre `filePath`/`imagePaths` para
-  consultar el original; solo los ficheros temporales del convertidor se borran
-  al terminar la conversión.
+  ese umbral piden un token en `/api/uploads/client` y se suben DIRECTOS a
+  Vercel Blob (2,7 s para 4,74 MB verificado contra el store real). Dos claves
+  del diagnóstico:
+  - El store de producción es **PRIVADO**: con `access:"public"` la API
+    contesta 400 SIN cabeceras CORS → el navegador bloquea el cuerpo del error
+    → el SDK reintenta 10 veces resubiendo el fichero entero → cuelgue + "The
+    request was aborted". Por eso Vercel no logueaba nada: los bytes van
+    directo del navegador a la API de Blob.
+  - La detección del modo NO puede usar `get()`/`head()` de sonda: en un store
+    privado responden "no encontrado" también con modo público. La sonda
+    fiable es `put()` de un fichero mínimo + `del()` (`getBlobAccess()` en
+    `files.server.ts`, memorizado por proceso). Reproducido con token real:
+    probe public → rechazado, probe private → OK.
+  - El 98-99% congelado es normal: el SDK no emite el 100% hasta que el store
+    confirma; la UI muestra "Finalizando…" a partir de 99.
+  Estrategia en dos intentos: 1º con progreso (streaming); si falla, 2º por la
+  ruta fetch clásica sin streaming, 90 s por intento y pathname nuevo por
+  intento. Sin fallback silencioso a la ruta limitada. En desarrollo local
+  (sin Blob) sigue la ruta normal, que guarda en disco hasta 25 MB. Los
+  patrones guardados conservan siempre `filePath`/`imagePaths` para consultar
+  el original; solo los ficheros temporales del convertidor se borran al
+  terminar la conversión.
 
 ## Registro de progreso
 

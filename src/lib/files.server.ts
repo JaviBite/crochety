@@ -52,18 +52,24 @@ async function withStoreAccess<T>(
 }
 
 /**
- * Modo real del store (público/privado), detectado con una operación barata y
+ * Modo real del store (público/privado), detectado una vez por proceso y
  * memorizado en `blobAccess`. Lo consume la subida directa desde el cliente,
- * que debe declarar el mismo modo en la petición PUT a Blob.
+ * que debe declarar el mismo modo en la petición PUT a Blob. La sonda usa
+ * put() porque es la operación que SÍ valida el modo: get() de un pathname
+ * inexistente responde "no encontrado" con cualquier modo (público incluido
+ * en stores privados) y no sirve para detectar.
  */
 export async function getBlobAccess(): Promise<"public" | "private"> {
   if (!hasBlobToken()) return "public";
   try {
-    // get() de un pathname inexistente: valida el modo sin transferir nada
-    // (si el modo es incorrecto, withStoreAccess conmuta y reintenta).
-    await withStoreAccess((access) => get(`_probe_${randomUUID()}`, { access }));
+    await withStoreAccess(async (access) => {
+      const path = `_probe_${randomUUID()}.txt`;
+      await put(path, "probe", { access, addRandomSuffix: false });
+      await del(path);
+      return null;
+    });
   } catch {
-    // BlobNotFoundError u otro: el modo ya es correcto o la detección no cambia nada.
+    // Fallo puntual de red con el modo correcto: se devuelve el cacheado.
   }
   return blobAccess;
 }
