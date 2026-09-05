@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildOpdsFeed,
+  buildOpdsOsd,
   parseBasicAuth,
   xmlEscape,
 } from "./opds";
@@ -34,17 +35,66 @@ describe("parseBasicAuth", () => {
   });
 });
 
-describe("buildOpdsFeed", () => {
+describe("buildOpdsFeed (navegación, esquema Calibre-Web Automated)", () => {
   const feed = buildOpdsFeed({
-    id: "urn:crochety:opds:patterns",
+    kind: "navigation",
+    id: "urn:crochety:opds:root",
     title: `Taller "La Seta" · Patrones`,
     selfHref: "/api/opds",
+    startHref: "/api/opds",
     updated: "2026-09-05T10:00:00.000Z",
-    entries: [
+    authorName: "Taller La Seta",
+    searchHref: "/api/opds/search/{searchTerms}",
+    navigation: [
+      {
+        id: "/api/opds/patrones",
+        title: "Todos los patrones",
+        href: "/api/opds/patrones",
+        updated: "2026-09-05T10:00:00.000Z",
+        content: "Patrones estandarizados",
+      },
+    ],
+  });
+
+  it("declara los perfiles opds-catalog como CWA (kind=navigation en self)", () => {
+    expect(feed).toContain(`xmlns="http://www.w3.org/2005/Atom">`);
+    expect(feed).not.toContain("xmlns:dc=");
+    expect(feed).toContain(
+      `<link rel="self" href="/api/opds" type="application/atom+xml;profile=opds-catalog;kind=navigation"/>`,
+    );
+    expect(feed).toContain(`<link rel="start" href="/api/opds"`);
+  });
+
+  it("las secciones usan link sin rel y perfil opds-catalog corto", () => {
+    expect(feed).toContain(
+      `<link href="/api/opds/patrones" type="application/atom+xml;profile=opds-catalog"/>`,
+    );
+    expect(feed).toContain(`<content type="text">Patrones estandarizados</content>`);
+  });
+
+  it("incluye plantilla de búsqueda y escapa textos", () => {
+    expect(feed).toContain(`rel="search" title="Buscar" href="/api/opds/search/{searchTerms}"`);
+    expect(feed).toContain(`<title>Taller &quot;La Seta&quot; · Patrones</title>`);
+  });
+});
+
+describe("buildOpdsFeed (adquisición, esquema Calibre-Web Automated)", () => {
+  const feed = buildOpdsFeed({
+    kind: "acquisition",
+    id: "urn:crochety:opds:/api/opds/patrones",
+    title: "Taller · Todos los patrones",
+    selfHref: "/api/opds/patrones",
+    startHref: "/api/opds",
+    updated: "2026-09-05T10:00:00.000Z",
+    authorName: "Taller La Seta",
+    books: [
       {
         id: "urn:crochety:pattern:abc",
         title: "Osito <Bombero>",
         updated: "2026-09-04T18:00:00.000Z",
+        author: "Taller La Seta",
+        language: "es",
+        categories: ["amigurumi", "navidad"],
         summary: "2 secciones · 20 rondas",
         coverHref: "/api/files/patterns/x.jpg",
         coverMime: "image/jpeg",
@@ -54,35 +104,41 @@ describe("buildOpdsFeed", () => {
         ],
       },
     ],
-    nextHref: "/api/opds?page=2",
   });
 
-  it("genera Atom con escape correcto en textos y atributos", () => {
-    expect(feed).toContain(`<?xml version="1.0" encoding="utf-8"?>`);
-    expect(feed).toContain(`<title>Taller &quot;La Seta&quot; · Patrones</title>`);
-    expect(feed).toContain(`<title>Osito &lt;Bombero&gt;</title>`);
-    expect(feed).toContain(`<link rel="self" href="/api/opds"/>`);
-    expect(feed).toContain(`<link rel="next" href="/api/opds?page=2"/>`);
+  it("lleva dc/dcterms y el quirk de self kind=navigation", () => {
+    expect(feed).toContain(`xmlns:dc="http://purl.org/dc/terms/"`);
+    expect(feed).toContain(`xmlns:dcterms="http://purl.org/dc/terms/"`);
+    expect(feed).toContain(
+      `type="application/atom+xml;profile=opds-catalog;type=feed;kind=navigation"`,
+    );
+    expect(feed).toContain(`<link rel="up" href="/api/opds"`);
   });
 
-  it("incluye portada y enlaces de adquisición por entrada", () => {
-    expect(feed).toContain(`rel="http://opds-spec.org/image/thumbnail" href="/api/files/patterns/x.jpg"`);
+  it("la entrada imita la estructura de CWA (autor, idioma, tags, portada, formatos)", () => {
+    expect(feed).toContain(`<author>
+      <name>Taller La Seta</name>
+    </author>`);
+    expect(feed).toContain(`<dcterms:language>es</dcterms:language>`);
+    expect(feed).toContain(`<category scheme="urn:crochety:tags" term="amigurumi" label="amigurumi"/>`);
+    expect(feed).toContain(`type="image/jpeg" href="/api/files/patterns/x.jpg" rel="http://opds-spec.org/image"`);
+    expect(feed).toContain(`type="image/jpeg" href="/api/files/patterns/x.jpg" rel="http://opds-spec.org/image/thumbnail"`);
     expect(feed).toContain(`rel="http://opds-spec.org/acquisition" href="/api/patterns/abc/export?format=epub" type="application/epub+zip"`);
-    expect(feed).toContain(`rel="http://opds-spec.org/acquisition" href="/api/patterns/abc/export?format=md"`);
-    // No duplica el primer enlace de adquisición.
+    expect(feed).toContain(`<title>Osito &lt;Bombero&gt;</title>`);
+    // No duplica el enlace de adquisición del EPUB.
     expect(feed.match(/abc\/export\?format=epub/g)).toHaveLength(1);
   });
+});
 
-  it("omite el enlace next y la portada cuando no aplican", () => {
-    const minimal = buildOpdsFeed({
-      id: "urn:crochety:opds:patterns",
-      title: "Crochety · Patrones",
-      selfHref: "/api/opds",
-      updated: "2026-09-05T10:00:00.000Z",
-      entries: [],
-      nextHref: null,
+describe("buildOpdsOsd", () => {
+  it("genera la descripción OpenSearch con la plantilla de búsqueda", () => {
+    const osd = buildOpdsOsd({
+      shortName: "Crochety · Patrones",
+      description: "Catálogo de patrones",
+      template: "/api/opds/search?q={searchTerms}",
     });
-    expect(minimal).not.toContain(`rel="next"`);
-    expect(minimal).not.toContain("image/thumbnail");
+    expect(osd).toContain("<OpenSearchDescription");
+    expect(osd).toContain(`<ShortName>Crochety · Patrones</ShortName>`);
+    expect(osd).toContain(`template="/api/opds/search?q={searchTerms}"`);
   });
 });
