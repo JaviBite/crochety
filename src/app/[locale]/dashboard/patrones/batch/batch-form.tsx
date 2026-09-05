@@ -10,7 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Link } from "@/i18n/navigation";
-import { uploadBodyLimitError } from "@/lib/files";
+import { uploadPatternFile } from "@/lib/pattern-upload";
 import { createPatternsBatch } from "../actions";
 
 type BatchFile = {
@@ -56,19 +56,13 @@ export function PatternBatchForm({
 
   async function uploadOne(key: string, file: File) {
     try {
-      const body = new FormData();
-      body.set("file", file);
-      body.set("kind", "patterns");
-      const res = await fetch("/api/uploads", { method: "POST", body });
-      const data = (await res.json().catch(() => null)) as
-        | { path?: string; error?: string }
-        | null;
-      if (res.ok && data?.path) {
-        patchFile(key, { uploading: false, path: data.path });
+      const result = await uploadPatternFile(file);
+      if ("path" in result) {
+        patchFile(key, { uploading: false, path: result.path });
       } else {
         patchFile(key, {
           uploading: false,
-          error: data?.error ?? tForms("uploadFailed"),
+          error: result.error ?? tForms("uploadFailed"),
         });
       }
     } catch {
@@ -79,22 +73,6 @@ export function PatternBatchForm({
   function onPickFiles(event: ChangeEvent<HTMLInputElement>) {
     const picked = Array.from(event.target.files ?? []);
     if (picked.length === 0) return;
-    const oversize = picked.find((file) => uploadBodyLimitError(file));
-    if (oversize) {
-      const entries = [
-        {
-          key: crypto.randomUUID(),
-          fileName: oversize.name,
-          title: oversize.name,
-          path: null,
-          error: uploadBodyLimitError(oversize),
-          uploading: false,
-        },
-      ];
-      setFiles((current) => [...current, ...entries]);
-      event.target.value = "";
-      return;
-    }
     const entries = picked.map((file) => ({
       key: crypto.randomUUID(),
       fileName: file.name,

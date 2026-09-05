@@ -30,9 +30,7 @@ import { Link, useRouter } from "@/i18n/navigation";
 import {
   type StandardizedPattern,
 } from "@/lib/ai/standardize-pattern";
-import {
-  uploadBodyLimitError,
-} from "@/lib/files";
+import { uploadPatternFile } from "@/lib/pattern-upload";
 import {
   slugifyFileName,
   toMarkdown,
@@ -209,14 +207,8 @@ function useStepLabel(): (event: ConvertStreamEvent) => string | null {
 
 function uploadOne(file: File): Promise<string | null> {
   return (async () => {
-    const body = new FormData();
-    body.set("file", file);
-    body.set("kind", "patterns");
-    const res = await fetch("/api/uploads", { method: "POST", body });
-    const data = (await res.json().catch(() => null)) as
-      | { path?: string; error?: string }
-      | null;
-    return res.ok && data?.path ? data.path : null;
+    const result = await uploadPatternFile(file);
+    return "path" in result ? result.path : null;
   })();
 }
 
@@ -316,11 +308,6 @@ function PatternResultCard({
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
-    const limitError = uploadBodyLimitError(file);
-    if (limitError) {
-      setError(limitError);
-      return;
-    }
     setUploadingCover(true);
     setError(null);
     try {
@@ -681,12 +668,6 @@ export function ConvertidorForm() {
     const input = event.target;
     const file = input.files?.[0];
     if (!file) return;
-    const limitError = uploadBodyLimitError(file);
-    if (limitError) {
-      input.value = "";
-      setUploadError(limitError);
-      return;
-    }
     setUploadError(null);
     setUploading(true);
     void (async () => {
@@ -708,11 +689,6 @@ export function ConvertidorForm() {
     const files = Array.from(event.target.files ?? []);
     event.target.value = "";
     if (files.length === 0) return;
-    const oversize = files.find((file) => uploadBodyLimitError(file));
-    if (oversize) {
-      setUploadError(uploadBodyLimitError(oversize));
-      return;
-    }
     setUploadError(null);
     setUploading(true);
     void (async () => {

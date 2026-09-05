@@ -6,7 +6,7 @@ import { type ChangeEvent, useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { uploadBodyLimitError } from "@/lib/files";
+import { uploadPatternFile } from "@/lib/pattern-upload";
 import { standardizePatternManual } from "../actions";
 
 function SubmitButton({ disabled, label }: { disabled?: boolean; label: string }) {
@@ -37,28 +37,17 @@ export function ManualStandardize({ id }: { id: string }) {
     const files = Array.from(event.target.files ?? []);
     event.target.value = "";
     if (files.length === 0) return;
-    const oversize = files.find((file) => uploadBodyLimitError(file));
-    if (oversize) {
-      setUploadError(uploadBodyLimitError(oversize));
-      return;
-    }
     setUploadError(null);
     setUploading(true);
     void (async () => {
       try {
         for (const file of files) {
-          const body = new FormData();
-          body.set("file", file);
-          body.set("kind", "patterns");
-          const res = await fetch("/api/uploads", { method: "POST", body });
-          const data = (await res.json().catch(() => null)) as
-            | { path?: string; error?: string }
-            | null;
-          if (res.ok && data?.path) {
-            const path = data.path;
+          const result = await uploadPatternFile(file);
+          if ("path" in result) {
+            const path = result.path;
             setImagePaths((current) => [...current, path]);
           } else {
-            setUploadError(data?.error ?? tForms("uploadFailed"));
+            setUploadError(result.error ?? tForms("uploadFailed"));
           }
         }
       } finally {

@@ -10,7 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Link } from "@/i18n/navigation";
-import { uploadBodyLimitError } from "@/lib/files";
+import { uploadPatternFile } from "@/lib/pattern-upload";
 import { createPattern, updatePattern } from "./actions";
 
 export type PatternFormValues = {
@@ -53,28 +53,17 @@ export function PatternForm({
     const files = Array.from(event.target.files ?? []);
     event.target.value = "";
     if (files.length === 0) return;
-    const oversize = files.find((file) => uploadBodyLimitError(file));
-    if (oversize) {
-      setUploadError(uploadBodyLimitError(oversize));
-      return;
-    }
     setUploadError(null);
     setUploading(true);
     void (async () => {
       try {
         for (const file of files) {
-          const body = new FormData();
-          body.set("file", file);
-          body.set("kind", "patterns");
-          const res = await fetch("/api/uploads", { method: "POST", body });
-          const data = (await res.json().catch(() => null)) as
-            | { path?: string; error?: string }
-            | null;
-          if (res.ok && data?.path) {
-            const path = data.path;
+          const result = await uploadPatternFile(file);
+          if ("path" in result) {
+            const path = result.path;
             setImagePaths((current) => [...current, path]);
           } else {
-            setUploadError(data?.error ?? tForms("uploadFailed"));
+            setUploadError(result.error ?? tForms("uploadFailed"));
           }
         }
       } catch {
@@ -92,28 +81,16 @@ export function PatternForm({
     const input = event.target;
     const file = input.files?.[0];
     if (!file) return;
-    const limitError = uploadBodyLimitError(file);
-    if (limitError) {
-      input.value = "";
-      setUploadError(limitError);
-      return;
-    }
     setUploadError(null);
     setUploading(true);
     void (async () => {
       try {
-        const body = new FormData();
-        body.set("file", file);
-        body.set("kind", "patterns");
-        const res = await fetch("/api/uploads", { method: "POST", body });
-        const data = (await res.json().catch(() => null)) as
-          | { path?: string; error?: string }
-          | null;
-        if (res.ok && data?.path) {
-          onDone(data.path);
+        const result = await uploadPatternFile(file);
+        if ("path" in result) {
+          onDone(result.path);
         } else {
           input.value = "";
-          setUploadError(data?.error ?? tForms("uploadFailed"));
+          setUploadError(result.error ?? tForms("uploadFailed"));
         }
       } catch {
         input.value = "";

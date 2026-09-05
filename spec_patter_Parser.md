@@ -211,6 +211,13 @@
 - **Fix crítico**: faltaban los hidden inputs `filePath`/`imagePaths` en el form
   del convertidor (la IA no recibía nada al convertir) + panel de progreso con
   cronómetro durante la conversión.
+- **Subidas grandes en Vercel**: el límite de ~4,5 MB de las funciones impedía
+  enviar PDFs de 4,7 MB por `/api/uploads`. Los ficheros de patrones que superan
+  ese umbral piden un token en `/api/uploads/client` y se suben directamente a
+  Vercel Blob; en local mantienen el fallback por la ruta normal. Los patrones
+  guardados conservan siempre `filePath`/`imagePaths` para consultar el original.
+  Solo los ficheros temporales del convertidor se borran al terminar la
+  conversión.
 
 ## Registro de progreso
 
