@@ -45,7 +45,7 @@ animación).
 
 | Bloque | Tema | Estado |
 |---|---|---|
-| 1 | Fundación visual (tokens cozy, sombras, reveal) | ☐ Pendiente |
+| 1 | Fundación visual (tokens cozy, sombras, reveal) | ✅ Hecho |
 | 2 | Infra de UI (AssetImage, status, cards, FileField) | ☐ Pendiente |
 | 3 | Vitrina pública (hero, masonry, login) | ☐ Pendiente |
 | 4 | Dashboard (KPIs, balance Splitwise) | ☐ Pendiente |
@@ -59,21 +59,23 @@ animación).
 
 Todo lo demás reutiliza esto. Empezar aquí.
 
-- [ ] **Tokens cálidos** — `src/app/globals.css`
+- [x] **Tokens cálidos** — `src/app/globals.css`
   Claro: `--background` crema/lino (~oklch(0.98 0.006 80)), muted/border con
   matiz cálido; oscuro: fondo ~oklch(0.17 0.005 80) en vez de gris neutro.
   Los 4 acentos y el resto de vars NO cambian.
-- [ ] **Sombras cozy** — `globals.css`
+- [x] **Sombras cozy** — `globals.css`
   `--shadow-cozy` (blanda, 2 niveles) + utilidad `.cozy-card` (hover: lift 2px
   + shadow, transition ~200 ms) para tarjetas de listados.
-- [ ] **Animaciones de entrada** — `globals.css` + `src/lib/hooks/use-reveal.ts`
-  Keyframes `fade-up`/`fade-in` + clase `.reveal`; hook
-  `useReveal` (IntersectionObserver, ~25 líneas) que añade la clase al
-  entrar en viewport; respeta `prefers-reduced-motion`. Sin deps nuevas.
+- [x] **Animaciones de entrada** — `globals.css` + `src/components/reveal.tsx`
+  Keyframes `fade-up`/`fade-in` + clases `.reveal`/`.reveal-visible`
+  (componente client `<Reveal>` con IntersectionObserver y delay opcional para
+  stagger). El estado inicial oculto solo aplica con `html.js` (script inline
+  añadido al layout) para no ocultar contenido sin JS; respeta
+  `prefers-reduced-motion`. Sin deps nuevas.
 - [ ] **Tipografía/dinero**: h1 display (Nunito 800, tracking-tight); dinero
   siempre `tabular-nums` en tablas y KPIs.
-- [ ] **Swatches del `AccentPicker`** sincronizados con los oklch reales de
-  `globals.css` (hoy están hardcodeados distintos).
+- [x] **Swatches del `AccentPicker`** sincronizados con los oklch reales de
+  `globals.css` (hoy estaban hardcodeados distintos).
 
 ## Bloque 2 — Infra de UI compartida
 
