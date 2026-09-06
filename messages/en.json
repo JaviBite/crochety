@@ -147,7 +147,10 @@
     "uploadFailed": "Could not upload the file",
     "search": "Search",
     "searchPlaceholder": "Search…",
-    "searchClear": "Clear search"
+    "searchClear": "Clear search",
+    "comboboxSearch": "Search…",
+    "comboboxEmpty": "No results",
+    "comboboxClear": "Clear selection"
   },
   "OrderStatus": {
     "SIN_EMPEZAR": "Not started",

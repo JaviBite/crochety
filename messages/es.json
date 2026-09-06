@@ -147,7 +147,10 @@
     "uploadFailed": "No se pudo subir el fichero",
     "search": "Buscar",
     "searchPlaceholder": "Buscar…",
-    "searchClear": "Limpiar búsqueda"
+    "searchClear": "Limpiar búsqueda",
+    "comboboxSearch": "Buscar…",
+    "comboboxEmpty": "Sin resultados",
+    "comboboxClear": "Quitar selección"
   },
   "OrderStatus": {
     "SIN_EMPEZAR": "Sin empezar",

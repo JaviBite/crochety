@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Link } from "@/i18n/navigation";
+import { toDateInputValue, todayInputValue } from "@/lib/dates";
 import { centsToEur, eurToCents, formatCents } from "@/lib/money";
 import { createExpense, extractExpenseAction, updateExpense } from "./actions";
 
@@ -48,13 +49,6 @@ export type ExpenseFormValues = {
   }[];
   photos: { path: string }[];
 };
-
-function toDateInputValue(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
 
 const emptyRow = (): ItemRow => ({
   item: "",
@@ -117,9 +111,9 @@ export function ExpenseForm({
   const [photoError, setPhotoError] = useState<string | null>(null);
   const photoFileRef = useRef<HTMLInputElement>(null);
 
-  const defaultDate = expense
-    ? toDateInputValue(expense.date)
-    : new Date().toISOString().slice(0, 10);
+  // toISOString desfasea al día UTC (00:00–02:00 CEST fecha el día anterior);
+  // toDateInputValue formatea en la zona local.
+  const defaultDate = expense ? toDateInputValue(expense.date) : todayInputValue();
 
   function patchRow(index: number, patch: Partial<ItemRow>) {
     setItems((rows) =>

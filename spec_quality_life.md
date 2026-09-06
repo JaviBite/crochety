@@ -14,7 +14,7 @@ Análisis de UX/calidad de vida sobre forms, listados, dashboard y feedback.
 
 | Bloque | Tema | Estado |
 |---|---|---|
-| 1 | Fundación de componentes (SuggestInput, Combobox, TagInput, fechas) | ☐ Pendiente |
+| 1 | Fundación de componentes (SuggestInput, Combobox, TagInput, fechas) | ✅ Hecho |
 | 2 | Campos con opciones (store, customer, brand, fiber/weight, location…) | ☐ Pendiente |
 | 3 | Bugs pequeños (total reactivo, a11y, steps, viewHref…) | ☐ Pendiente |
 | 4 | Listados (patrones select, filtros pedidos/gastos/materiales) | ☐ Pendiente |
@@ -28,22 +28,23 @@ Análisis de UX/calidad de vida sobre forms, listados, dashboard y feedback.
 
 Todo lo demás reutiliza esto. Empezar aquí.
 
-- [ ] **`SuggestInput`** — `src/components/form/suggest-input.tsx`
+- [x] **`SuggestInput`** — `src/components/form/suggest-input.tsx`
   Wrapper de `<Input>` + `<datalist>` (opciones del servidor). Para campos con
   histórico ligero (store, customer, brand, aiModel, items de gasto).
-- [ ] **`ComboboxField`** — `src/components/form/combobox-field.tsx`
-  Popover + búsqueda (añadir dep `cmdk` + componente `ui/command.tsx` de
-  shadcn/radix-nova). Input buscable sobre lista de opciones; opción
-  "crear nuevo" configurable. Sustituye los `<Select>` Radix sin búsqueda.
-- [ ] **Upgrade `TagInput`** — `src/components/form/tag-input.tsx:87-93`
-  Quitar el `<datalist>` nativo y renderizar chips de sugerencia clicables
-  bajo el input (mismo contrato: `name`, `defaultValue`, `suggestions`).
-- [ ] **`lib/dates.ts`** con `toDateInputValue()`
-  Extraer la helper duplicada en `order-form.tsx:49-54` y
-  `expense-form.tsx:52-57`. **Bug real**: el default de fecha de gasto usa
-  `toISOString().slice(0,10)` (`expense-form.tsx:120-122`) → desfase UTC entre
-  00:00–02:00 CEST (se fecha el día anterior). Usar `toDateInputValue` también
-  para el default. Test unitario de la helper.
+- [x] **`ComboboxField`** — `src/components/form/combobox-field.tsx`
+  Popover + búsqueda sobre el `radix-ui` unificado (SIN dep nueva: se descarta
+  `cmdk`, cero sobre-ingeniería). Input buscable con navegación por teclado
+  (↑↓ Home End Enter Esc), opción "limpiar" opcional, valor en input hidden
+  (vacío = sin selección, los parsers ya lo tratan como null).
+- [x] **Upgrade `TagInput`** — `src/components/form/tag-input.tsx:87-93`
+  Datalist nativo sustituido por chips de sugerencia clicables, filtrados por
+  lo tecleado y con tope de 8 (`MAX_TAG_SUGGESTIONS` en lib/tags.ts). Fix de
+  race blur/click en sugerencias (`onMouseDown preventDefault`).
+- [x] **`lib/dates.ts`** con `toDateInputValue()` / `todayInputValue()`
+  Extraída la helper duplicada en `order-form.tsx` y `expense-form.tsx`.
+  **Bug arreglado**: el default de fecha de gasto usaba
+  `toISOString().slice(0,10)` (desfase UTC entre 00:00–02:00). Tests en
+  `lib/dates.test.ts`.
 
 ## Bloque 2 — Campos con opciones
 

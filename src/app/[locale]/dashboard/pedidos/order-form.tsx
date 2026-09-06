@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Link } from "@/i18n/navigation";
+import { toDateInputValue } from "@/lib/dates";
 import { NONE_VALUE } from "@/lib/forms";
 import { centsToEur } from "@/lib/money";
 import { ORDER_STATUSES } from "@/lib/validations";
@@ -44,14 +45,6 @@ export type OrderFormValues = {
   coverPhotoPath: string | null;
   materials: OrderMaterialLine[];
 };
-
-/** Date -> "YYYY-MM-DD" en la zona local (evita el desfase de toISOString). */
-function toDateInputValue(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
 
 export function OrderForm({
   users,
