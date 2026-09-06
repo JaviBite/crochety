@@ -79,23 +79,28 @@ Todo lo demás reutiliza esto. Empezar aquí.
 
 ## Bloque 2 — Infra de UI compartida
 
-- [ ] **`AssetImage`** — `src/components/asset-image.tsx` (client)
+- [x] **`AssetImage`** — `src/components/asset-image.tsx` (client)
   Wrapper de `<img>` con `onError` → placeholder bonito. Variantes: icono
   lucide sobre `bg-accent`, swatch del color del material (props), o vacío.
-  Props: `src/alt/className/ratio`. Reemplaza los 17 `<img>`: galería
-  `(public)/page.tsx:74`; pedidos `pedidos/page.tsx:144,208` y
-  `pedidos/[id]/page.tsx:129`; materiales `materiales/page.tsx:161,234` y
-  `materiales/[id]/page.tsx:96`; patrones `patrones/page.tsx:139,208` y
-  `patrones/[id]/page.tsx:96` (+ `cover-picker.tsx`,
+  Detecta también imágenes rotas llegadas antes de hidratar
+  (`naturalWidth === 0` post-mount). Props: `src/alt/className/ratio`.
+  Aplicados de momento (con `assetUrl` de `lib/assets.ts`): galería pública y
+  pedidos (lista, grid y detalle).
+- [ ] Resto de reemplazos de `<img>` por `AssetImage` — van junto a la
+  extracción de cards: materiales (`materiales/page.tsx:161,234` y
+  `materiales/[id]/page.tsx:96`); patrones (`patrones/page.tsx:139,208` y
+  `patrones/[id]/page.tsx:96` + `cover-picker.tsx`,
   `manual-standardize.tsx:87`); gasto `gastos/[id]/page.tsx:107`; previews de
   forms (`expense-form.tsx:463`, `order-form.tsx:226`,
   `pattern-form.tsx:164,216`, `convertidor-form.tsx:717`) y
   `material-color-field.tsx:150`. Lazy loading igual que hoy (se mantiene
   `<img>`, NO next/image).
-- [ ] **`lib/status.ts`** + `lib/status.test.ts`
+- [x] **`lib/status.ts`** + `lib/status.test.ts`
   Metadatos únicos de estado (claves i18n + clases badge con puntito de
-  color) para estados de pedido y `AiStatus` de patrones. Borra la
-  duplicación de `STATUS_CLASSES`.
+  color) para estados de pedido y `AiStatus` de patrones. Borrada la
+  duplicación de `STATUS_CLASSES`; nuevo `components/dashboard/status-badge.tsx`
+  (server, con fallback `Common.unknownStatus` para String libres de BD) y
+  `AiStatusBadge` delega en él.
 - [ ] **`components/dashboard/cards.tsx`** — `OrderCard`, `MaterialCard`,
   `PatternCard` (+ fila de gasto si aplica)
   Consumidas por las vistas grid y lista de cada `page.tsx` (hoy JSX inline).

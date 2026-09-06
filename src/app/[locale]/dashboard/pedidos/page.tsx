@@ -1,11 +1,13 @@
 import { Package, Plus } from "lucide-react";
 import { getFormatter, getLocale, getTranslations } from "next-intl/server";
 import { cookies } from "next/headers";
+import { AssetImage } from "@/components/asset-image";
+import { assetUrl } from "@/lib/assets";
 import { ListSearch } from "@/components/dashboard/list-search";
 import { RowActions } from "@/components/dashboard/row-actions";
+import { StatusBadge } from "@/components/dashboard/status-badge";
 import { ViewToggle } from "@/components/dashboard/view-toggle";
 import { EmptyState } from "@/components/empty-state";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -27,18 +29,10 @@ import { formatCents } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 import { normalizeSearch } from "@/lib/search";
 import { parseView, viewCookieName } from "@/lib/view";
-import type { OrderStatus } from "@/lib/validations";
 import { deleteOrder } from "./actions";
 
 const BASE_PATH = "/dashboard/pedidos";
 const SECTION = "pedidos";
-
-const STATUS_CLASSES: Record<OrderStatus, string> = {
-  SIN_EMPEZAR: "bg-muted text-muted-foreground",
-  EMPEZADO: "bg-accent text-accent-foreground",
-  TERMINADO: "bg-primary/15 text-primary",
-  COBRADO: "bg-primary text-primary-foreground",
-};
 
 // Portada del pedido: su foto propia o, si no tiene, la del patrón asociado.
 function orderCover(order: {
@@ -66,9 +60,8 @@ export default async function OrdersPage({
       }
     : undefined;
 
-  const [t, tStatus, locale, format] = await Promise.all([
+  const [t, locale, format] = await Promise.all([
     getTranslations("Orders"),
-    getTranslations("OrderStatus"),
     getLocale(),
     getFormatter(),
   ]);
@@ -139,18 +132,12 @@ export default async function OrdersPage({
                 <TableRow key={order.id}>
                   <TableCell className="font-medium">
                     <div className="flex items-center gap-3">
-                      {cover ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={`/api/files/${cover}`}
-                          alt=""
-                          className="size-9 rounded-lg border object-cover"
-                        />
-                      ) : (
-                        <span className="flex size-9 items-center justify-center rounded-lg bg-accent text-accent-foreground">
-                          <Package className="size-4" />
-                        </span>
-                      )}
+                      <AssetImage
+                        src={cover ? assetUrl(cover) : null}
+                        alt=""
+                        fallbackIcon={<Package className="size-4" />}
+                        className="size-9 rounded-lg border object-cover"
+                      />
                       <div>
                         {order.name}
                         {order.customer && (
@@ -162,12 +149,7 @@ export default async function OrdersPage({
                     </div>
                   </TableCell>
                   <TableCell>
-                    <Badge
-                      variant="outline"
-                      className={`border-transparent ${STATUS_CLASSES[order.status as OrderStatus] ?? ""}`}
-                    >
-                      {tStatus(order.status)}
-                    </Badge>
+                    <StatusBadge status={order.status} kind="order" />
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
                     {order.quantity}
@@ -203,18 +185,12 @@ export default async function OrdersPage({
               key={order.id}
               className="overflow-hidden rounded-2xl pt-0 shadow-sm"
             >
-              {cover ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={`/api/files/${cover}`}
-                  alt={order.name}
-                  className="h-40 w-full object-cover"
-                />
-              ) : (
-                <div className="flex h-40 w-full items-center justify-center bg-accent text-accent-foreground">
-                  <Package className="size-8" />
-                </div>
-              )}
+              <AssetImage
+                src={cover ? assetUrl(cover) : null}
+                alt={order.name}
+                fallbackIcon={<Package className="size-8" />}
+                className="h-40 w-full object-cover"
+              />
               <CardHeader className="pb-2">
                 <div className="flex items-start justify-between gap-2">
                   <CardTitle className="text-base leading-snug">
@@ -226,12 +202,7 @@ export default async function OrdersPage({
                     )}
                   </CardTitle>
                   <div className="flex shrink-0 flex-col items-end gap-1.5">
-                    <Badge
-                      variant="outline"
-                      className={`border-transparent ${STATUS_CLASSES[order.status as OrderStatus] ?? ""}`}
-                    >
-                      {tStatus(order.status)}
-                    </Badge>
+                    <StatusBadge status={order.status} kind="order" />
                     <RowActions
                       viewHref={`${BASE_PATH}/${order.id}`}
                       editHref={`${BASE_PATH}/editar/${order.id}`}

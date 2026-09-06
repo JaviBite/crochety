@@ -1,7 +1,8 @@
 {
   "Common": {
     "appName": "Zgz Stitches",
-    "loading": "Cargando…"
+    "loading": "Cargando…",
+    "unknownStatus": "Estado desconocido"
   },
   "Errors": {
     "title": "Esta página no se ha podido cargar",
