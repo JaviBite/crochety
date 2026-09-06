@@ -9,7 +9,7 @@ export default async function EditExpensePage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [t, expense, users] = await Promise.all([
+  const [t, expense, users, stores, materials] = await Promise.all([
     getTranslations("Expenses"),
     prisma.expense.findUnique({
       where: { id },
@@ -24,6 +24,16 @@ export default async function EditExpensePage({
       select: { id: true, name: true },
       orderBy: { createdAt: "asc" },
     }),
+    prisma.expense.findMany({
+      where: { store: { not: null } },
+      distinct: ["store"],
+      select: { store: true },
+      orderBy: { store: "asc" },
+    }),
+    prisma.material.findMany({
+      select: { name: true },
+      orderBy: { name: "asc" },
+    }),
   ]);
 
   if (!expense) notFound();
@@ -36,6 +46,8 @@ export default async function EditExpensePage({
       </div>
       <ExpenseForm
         users={users}
+        stores={stores.map((row) => row.store!)}
+        materialNames={materials.map((material) => material.name)}
         expense={{
           id: expense.id,
           date: expense.date,

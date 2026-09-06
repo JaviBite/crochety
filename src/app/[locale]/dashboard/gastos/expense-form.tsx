@@ -5,6 +5,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { type ChangeEvent, useActionState, useRef, useState, useTransition } from "react";
 import { ImageCropper } from "@/components/form/image-cropper";
 import { SubmitButton } from "@/components/form/submit-button";
+import { SuggestInput } from "@/components/form/suggest-input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -18,6 +19,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Link } from "@/i18n/navigation";
+import { toDateInputValue, todayInputValue } from "@/lib/dates";
 import { centsToEur, eurToCents, formatCents } from "@/lib/money";
 import { createExpense, extractExpenseAction, updateExpense } from "./actions";
 
@@ -49,13 +51,6 @@ export type ExpenseFormValues = {
   photos: { path: string }[];
 };
 
-function toDateInputValue(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
 const emptyRow = (): ItemRow => ({
   item: "",
   quantity: "1",
@@ -73,9 +68,15 @@ const num = (value: string) => {
 export function ExpenseForm({
   users,
   expense,
+  stores = [],
+  materialNames = [],
 }: {
   users: Option[];
   expense?: ExpenseFormValues;
+  /** Tiendas ya usadas en otros gastos, para el datalist. */
+  stores?: string[];
+  /** Nombres de materiales del inventario, para sugerir las líneas. */
+  materialNames?: string[];
 }) {
   const t = useTranslations("Expenses");
   const tForms = useTranslations("Forms");
@@ -117,9 +118,9 @@ export function ExpenseForm({
   const [photoError, setPhotoError] = useState<string | null>(null);
   const photoFileRef = useRef<HTMLInputElement>(null);
 
-  const defaultDate = expense
-    ? toDateInputValue(expense.date)
-    : new Date().toISOString().slice(0, 10);
+  // toISOString desfasea al día UTC (00:00–02:00 CEST fecha el día anterior);
+  // toDateInputValue formatea en la zona local.
+  const defaultDate = expense ? toDateInputValue(expense.date) : todayInputValue();
 
   function patchRow(index: number, patch: Partial<ItemRow>) {
     setItems((rows) =>
@@ -312,7 +313,12 @@ export function ExpenseForm({
             {t("fieldStore")}{" "}
             <span className="text-muted-foreground">({tForms("optional")})</span>
           </Label>
-          <Input id="store" name="store" defaultValue={expense?.store ?? undefined} />
+          <SuggestInput
+            id="store"
+            name="store"
+            options={stores}
+            defaultValue={expense?.store ?? undefined}
+          />
         </div>
         <div className="space-y-2">
           <Label htmlFor="paidById">{t("fieldPaidBy")}</Label>
@@ -346,9 +352,10 @@ export function ExpenseForm({
               key={index}
               className="grid grid-cols-[1fr_auto] gap-2 rounded-xl border p-3 sm:grid-cols-[1fr_5rem_6rem_auto]"
             >
-              <Input
+              <SuggestInput
                 aria-label={t("colItem")}
                 placeholder={t("colItem")}
+                options={materialNames}
                 value={row.item}
                 onChange={(event) => patchRow(index, { item: event.target.value })}
                 className="col-span-2 sm:col-span-1"

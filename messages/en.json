@@ -105,6 +105,11 @@
     "taglineHint": "Leave blank to use the translated default text.",
     "fieldGalleryEnabled": "Public gallery",
     "galleryEnabledHint": "Turn it off to hide the photos from the landing page.",
+    "fieldLocations": "Material locations",
+    "locationsHint": "They are offered as a dropdown when creating or editing a material.",
+    "locationAdd": "Add",
+    "locationAddPlaceholder": "Add a location…",
+    "locationRemove": "Remove {location}",
     "appearanceTitle": "Appearance",
     "appearanceDescription": "Site-wide defaults",
     "fieldDefaultAccent": "Default accent",
@@ -147,7 +152,10 @@
     "uploadFailed": "Could not upload the file",
     "search": "Search",
     "searchPlaceholder": "Search…",
-    "searchClear": "Clear search"
+    "searchClear": "Clear search",
+    "comboboxSearch": "Search…",
+    "comboboxEmpty": "No results",
+    "comboboxClear": "Clear selection"
   },
   "OrderStatus": {
     "SIN_EMPEZAR": "Not started",

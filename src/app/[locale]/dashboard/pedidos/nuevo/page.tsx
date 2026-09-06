@@ -4,7 +4,7 @@ import { OrderForm } from "../order-form";
 
 export default async function NewOrderPage() {
   const t = await getTranslations("Orders");
-  const [users, patterns, materials] = await Promise.all([
+  const [users, patterns, materials, customers] = await Promise.all([
     prisma.user.findMany({
       select: { id: true, name: true },
       orderBy: { createdAt: "asc" },
@@ -17,6 +17,12 @@ export default async function NewOrderPage() {
       select: { id: true, name: true, priceCents: true },
       orderBy: { name: "asc" },
     }),
+    prisma.order.findMany({
+      where: { customer: { not: null } },
+      distinct: ["customer"],
+      select: { customer: true },
+      orderBy: { customer: "asc" },
+    }),
   ]);
 
   return (
@@ -25,7 +31,12 @@ export default async function NewOrderPage() {
         <h1 className="text-2xl font-bold tracking-tight">{t("newTitle")}</h1>
         <p className="text-muted-foreground">{t("newDescription")}</p>
       </div>
-      <OrderForm users={users} patterns={patterns} materials={materials} />
+      <OrderForm
+        users={users}
+        patterns={patterns}
+        materials={materials}
+        customers={customers.map((order) => order.customer!)}
+      />
     </div>
   );
 }
