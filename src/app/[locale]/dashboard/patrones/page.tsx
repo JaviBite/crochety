@@ -1,18 +1,15 @@
-import { BookOpen, ExternalLink, FileDown, FilePlus2, FileText, Plus, ScrollText } from "lucide-react";
+import { FilePlus2, Plus, ScrollText } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import { cookies } from "next/headers";
+import { AssetImage, } from "@/components/asset-image";
+import { assetUrl } from "@/lib/assets";
+import { PatternCard, PatternSourceLinks } from "@/components/dashboard/cards";
 import { ListSearch } from "@/components/dashboard/list-search";
 import { RowActions } from "@/components/dashboard/row-actions";
 import { TagChips, TagFilter } from "@/components/dashboard/tag-filter";
 import { ViewToggle } from "@/components/dashboard/view-toggle";
 import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Link } from "@/i18n/navigation";
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
@@ -20,32 +17,6 @@ import { normalizeSearch } from "@/lib/search";
 import { parseView, viewCookieName } from "@/lib/view";
 import { deletePattern } from "./actions";
 import { AiStatusBadge } from "./ai-status-badge";
-
-/** Enlaces de exportación de la versión estandarizada (misma ruta para todo). */
-function ExportLinks({ id }: { id: string }) {
-  return (
-    <>
-      <a
-        href={`/api/patterns/${id}/export?format=md`}
-        aria-label="Markdown"
-        title="Markdown"
-        className="flex items-center gap-1 transition-colors hover:text-foreground"
-      >
-        <FileDown className="size-3.5" />
-        MD
-      </a>
-      <a
-        href={`/api/patterns/${id}/export?format=epub`}
-        aria-label="EPUB"
-        title="EPUB"
-        className="flex items-center gap-1 transition-colors hover:text-foreground"
-      >
-        <BookOpen className="size-3.5" />
-        EPUB
-      </a>
-    </>
-  );
-}
 
 const BASE_PATH = "/dashboard/patrones";
 const SECTION = "patrones";
@@ -133,88 +104,23 @@ export default async function PatternsPage({
       ) : view === "grid" ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {patterns.map((pattern) => (
-            <Card key={pattern.id} className="overflow-hidden rounded-2xl pt-0 shadow-sm">
-              {pattern.coverImagePath ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={`/api/files/${pattern.coverImagePath}`}
-                  alt={pattern.title}
-                  className="h-36 w-full object-cover"
-                />
-              ) : (
-                <div className="flex h-36 w-full items-center justify-center bg-accent text-accent-foreground">
-                  <ScrollText className="size-8" />
-                </div>
-              )}
-              <CardHeader className="pb-2">
-                <div className="flex items-start justify-between gap-2">
-                  <CardTitle className="text-base leading-snug">
-                    <Link
-                      href={`${BASE_PATH}/${pattern.id}`}
-                      className="hover:underline"
-                    >
-                      {pattern.title}
-                    </Link>
-                  </CardTitle>
-                  <div className="flex shrink-0 flex-col items-end gap-1.5">
-                    <AiStatusBadge status={pattern.aiStatus} />
-                    <RowActions
-                      editHref={`${BASE_PATH}/editar/${pattern.id}`}
-                      deleteAction={deletePattern.bind(null, pattern.id)}
-                    />
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-2 text-sm text-muted-foreground">
-                <div className="flex items-center gap-3">
-                  {pattern.filePath && (
-                    <a
-                      href={`/api/files/${pattern.filePath}`}
-                      target="_blank"
-                      rel="noreferrer noopener"
-                      className="flex items-center gap-1 transition-colors hover:text-foreground"
-                    >
-                      <FileText className="size-3.5" />
-                      {t("viewFile")}
-                    </a>
-                  )}
-                  {pattern.externalUrl && (
-                    <a
-                      href={pattern.externalUrl}
-                      target="_blank"
-                      rel="noreferrer noopener"
-                      className="flex items-center gap-1 transition-colors hover:text-foreground"
-                    >
-                      <ExternalLink className="size-3.5" />
-                      {t("viewLink")}
-                    </a>
-                  )}
-                  {pattern.standardizedContent && <ExportLinks id={pattern.id} />}
-                  {!pattern.filePath && !pattern.externalUrl && (
-                    <span className="text-xs">{t("noSource")}</span>
-                  )}
-                </div>
-                <TagChips tags={pattern.tags} basePath={BASE_PATH} />
-              </CardContent>
-            </Card>
+            <PatternCard
+              key={pattern.id}
+              pattern={pattern}
+              deleteAction={deletePattern.bind(null, pattern.id)}
+            />
           ))}
         </div>
       ) : (
         <div className="divide-y overflow-hidden rounded-2xl border bg-card shadow-sm">
           {patterns.map((pattern) => (
             <div key={pattern.id} className="flex items-center gap-3 p-3">
-              {pattern.coverImagePath ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={`/api/files/${pattern.coverImagePath}`}
-                  alt={pattern.title}
-                  className="size-12 shrink-0 rounded-lg border object-cover"
-                />
-              ) : (
-                <span className="flex size-12 shrink-0 items-center justify-center rounded-lg bg-accent text-accent-foreground">
-                  <ScrollText className="size-5" />
-                </span>
-              )}
+              <AssetImage
+                src={pattern.coverImagePath ? assetUrl(pattern.coverImagePath) : null}
+                alt={pattern.title}
+                fallbackIcon={<ScrollText className="size-5" />}
+                className="size-12 shrink-0 rounded-lg border object-cover"
+              />
               <div className="min-w-0 flex-1 space-y-1">
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                   <Link
@@ -226,32 +132,7 @@ export default async function PatternsPage({
                   <AiStatusBadge status={pattern.aiStatus} />
                 </div>
                 <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                  {pattern.filePath && (
-                    <a
-                      href={`/api/files/${pattern.filePath}`}
-                      target="_blank"
-                      rel="noreferrer noopener"
-                      className="flex items-center gap-1 transition-colors hover:text-foreground"
-                    >
-                      <FileText className="size-3.5" />
-                      {t("viewFile")}
-                    </a>
-                  )}
-                  {pattern.externalUrl && (
-                    <a
-                      href={pattern.externalUrl}
-                      target="_blank"
-                      rel="noreferrer noopener"
-                      className="flex items-center gap-1 transition-colors hover:text-foreground"
-                    >
-                      <ExternalLink className="size-3.5" />
-                      {t("viewLink")}
-                    </a>
-                  )}
-                  {pattern.standardizedContent && <ExportLinks id={pattern.id} />}
-                  {!pattern.filePath && !pattern.externalUrl && (
-                    <span className="text-xs">{t("noSource")}</span>
-                  )}
+                  <PatternSourceLinks pattern={pattern} />
                 </div>
                 <TagChips tags={pattern.tags} basePath={BASE_PATH} />
               </div>

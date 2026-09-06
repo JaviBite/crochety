@@ -34,7 +34,9 @@ beforeEach(() => {
 });
 
 describe("getSetting", () => {
-  it("prefiere el valor de la BD sobre la variable de entorno", async () => {
+  // La cadena de imports de settings arrastra el adapter de Prisma: en
+  // máquinas cargadas puede superar el timeout por defecto de 5 s.
+  it("prefiere el valor de la BD sobre la variable de entorno", { timeout: 15_000 }, async () => {
     vi.stubEnv("AI_MODEL", "modelo-env");
     const settings = await loadSettings([
       { key: "aiModel", value: "modelo-bd" },

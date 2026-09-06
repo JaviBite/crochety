@@ -86,25 +86,30 @@ Todo lo demás reutiliza esto. Empezar aquí.
   (`naturalWidth === 0` post-mount). Props: `src/alt/className/ratio`.
   Aplicados de momento (con `assetUrl` de `lib/assets.ts`): galería pública y
   pedidos (lista, grid y detalle).
-- [ ] Resto de reemplazos de `<img>` por `AssetImage` — van junto a la
-  extracción de cards: materiales (`materiales/page.tsx:161,234` y
-  `materiales/[id]/page.tsx:96`); patrones (`patrones/page.tsx:139,208` y
-  `patrones/[id]/page.tsx:96` + `cover-picker.tsx`,
+- [ ] Resto de reemplazos de `<img>` por `AssetImage` — quedan: detalle de
+  patrones (`patrones/[id]/page.tsx:96` + `cover-picker.tsx`,
   `manual-standardize.tsx:87`); gasto `gastos/[id]/page.tsx:107`; previews de
   forms (`expense-form.tsx:463`, `order-form.tsx:226`,
   `pattern-form.tsx:164,216`, `convertidor-form.tsx:717`) y
-  `material-color-field.tsx:150`. Lazy loading igual que hoy (se mantiene
-  `<img>`, NO next/image).
+  `material-color-field.tsx:150`. Ya aplicados: galería, pedidos (lista, grid,
+  detalle) y materiales/patrones (grid + lista). Lazy loading igual que hoy
+  (se mantiene `<img>`, NO next/image).
+- [x] **Fix test flaky** — `settings.test.ts` con timeout 15 s (la cadena de
+  imports del adapter de Prisma expiraba a 5 s con la máquina cargada).
 - [x] **`lib/status.ts`** + `lib/status.test.ts`
   Metadatos únicos de estado (claves i18n + clases badge con puntito de
   color) para estados de pedido y `AiStatus` de patrones. Borrada la
   duplicación de `STATUS_CLASSES`; nuevo `components/dashboard/status-badge.tsx`
   (server, con fallback `Common.unknownStatus` para String libres de BD) y
   `AiStatusBadge` delega en él.
-- [ ] **`components/dashboard/cards.tsx`** — `OrderCard`, `MaterialCard`,
-  `PatternCard` (+ fila de gasto si aplica)
-  Consumidas por las vistas grid y lista de cada `page.tsx` (hoy JSX inline).
-  Con `.cozy-card`, `AssetImage` y badges de `lib/status.ts`.
+- [x] **`components/dashboard/cards.tsx`** — `MaterialCard`, `PatternCard`
+  (+ helpers `PatternSourceLinks`, `ExportLinks`, `MaterialLinkBadge`)
+  Consumidas por las vistas grid (y helpers por la lista) de cada `page.tsx`
+  (hoy JSX inline). Estructura: portada a proporción fija (3/2 patrones,
+  4/3 materiales) con badge de estado arriba-izquierda y acciones en píldora
+  arriba-derecha (fuera del enlace de portada), título enlazado a la ficha
+  (line-clamp), `.cozy-card` con hover-lift + zoom de portada, pies
+  consistentes. Faltan: `OrderCard` (pedidos) y fila de gasto si aplica.
 - [ ] **`EmptyState` con CTA** — `src/components/empty-state.tsx`
   Añadir `action?: {href,label}`; usar en galería pública cuando no haya
   fotos (hoy tiene bloque inline propio).
