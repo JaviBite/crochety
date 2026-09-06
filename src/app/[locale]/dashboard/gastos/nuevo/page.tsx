@@ -4,10 +4,22 @@ import { ExpenseForm } from "../expense-form";
 
 export default async function NewExpensePage() {
   const t = await getTranslations("Expenses");
-  const users = await prisma.user.findMany({
-    select: { id: true, name: true },
-    orderBy: { createdAt: "asc" },
-  });
+  const [users, stores, materials] = await Promise.all([
+    prisma.user.findMany({
+      select: { id: true, name: true },
+      orderBy: { createdAt: "asc" },
+    }),
+    prisma.expense.findMany({
+      where: { store: { not: null } },
+      distinct: ["store"],
+      select: { store: true },
+      orderBy: { store: "asc" },
+    }),
+    prisma.material.findMany({
+      select: { name: true },
+      orderBy: { name: "asc" },
+    }),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -15,7 +27,11 @@ export default async function NewExpensePage() {
         <h1 className="text-2xl font-bold tracking-tight">{t("newTitle")}</h1>
         <p className="text-muted-foreground">{t("newDescription")}</p>
       </div>
-      <ExpenseForm users={users} />
+      <ExpenseForm
+        users={users}
+        stores={stores.map((expense) => expense.store!)}
+        materialNames={materials.map((material) => material.name)}
+      />
     </div>
   );
 }

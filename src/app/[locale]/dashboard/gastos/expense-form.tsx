@@ -5,6 +5,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { type ChangeEvent, useActionState, useRef, useState, useTransition } from "react";
 import { ImageCropper } from "@/components/form/image-cropper";
 import { SubmitButton } from "@/components/form/submit-button";
+import { SuggestInput } from "@/components/form/suggest-input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -67,9 +68,15 @@ const num = (value: string) => {
 export function ExpenseForm({
   users,
   expense,
+  stores = [],
+  materialNames = [],
 }: {
   users: Option[];
   expense?: ExpenseFormValues;
+  /** Tiendas ya usadas en otros gastos, para el datalist. */
+  stores?: string[];
+  /** Nombres de materiales del inventario, para sugerir las líneas. */
+  materialNames?: string[];
 }) {
   const t = useTranslations("Expenses");
   const tForms = useTranslations("Forms");
@@ -306,7 +313,12 @@ export function ExpenseForm({
             {t("fieldStore")}{" "}
             <span className="text-muted-foreground">({tForms("optional")})</span>
           </Label>
-          <Input id="store" name="store" defaultValue={expense?.store ?? undefined} />
+          <SuggestInput
+            id="store"
+            name="store"
+            options={stores}
+            defaultValue={expense?.store ?? undefined}
+          />
         </div>
         <div className="space-y-2">
           <Label htmlFor="paidById">{t("fieldPaidBy")}</Label>
@@ -340,9 +352,10 @@ export function ExpenseForm({
               key={index}
               className="grid grid-cols-[1fr_auto] gap-2 rounded-xl border p-3 sm:grid-cols-[1fr_5rem_6rem_auto]"
             >
-              <Input
+              <SuggestInput
                 aria-label={t("colItem")}
                 placeholder={t("colItem")}
+                options={materialNames}
                 value={row.item}
                 onChange={(event) => patchRow(index, { item: event.target.value })}
                 className="col-span-2 sm:col-span-1"

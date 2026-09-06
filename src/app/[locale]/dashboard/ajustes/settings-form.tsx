@@ -1,8 +1,12 @@
 "use client";
 
+import { X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useActionState, useState } from "react";
 import { SubmitButton } from "@/components/form/submit-button";
+import { SuggestInput } from "@/components/form/suggest-input";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,7 +26,11 @@ import {
 } from "@/components/ui/select";
 import type { SettingsSnapshot } from "@/lib/settings";
 import { ACCENTS } from "@/lib/theme";
-import { AI_PROVIDERS, type AiProvider } from "@/lib/validations";
+import {
+  AI_PROVIDERS,
+  SUGGESTED_AI_MODELS,
+  type AiProvider,
+} from "@/lib/validations";
 import { updateSettings } from "./actions";
 
 // Nombres de marca, no se traducen.
@@ -32,6 +40,74 @@ const PROVIDER_LABELS: Record<AiProvider, string> = {
   openrouter: "OpenRouter",
   ollama: "Ollama (local)",
 };
+
+/**
+ * Editor de ubicaciones de materiales (chips añadir/quitar). Viaja en un
+ * hidden input JSON; el servidor lo parsea de forma tolerante
+ * (parseLocationsJson) y lo guarda en el Setting `locations`.
+ */
+function LocationsEditor({ initial }: { initial: string[] }) {
+  const t = useTranslations("Settings");
+  const [locations, setLocations] = useState<string[]>(initial);
+  const [draft, setDraft] = useState("");
+
+  function add() {
+    const value = draft.trim().slice(0, 60);
+    setDraft("");
+    if (!value) return;
+    setLocations((current) =>
+      current.includes(value) ? current : [...current, value],
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      <Label htmlFor="locationDraft">{t("fieldLocations")}</Label>
+      <input type="hidden" name="locations" value={JSON.stringify(locations)} />
+      {locations.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {locations.map((location) => (
+            <Badge key={location} variant="secondary" className="gap-1 pr-1">
+              {location}
+              <button
+                type="button"
+                onClick={() =>
+                  setLocations((current) =>
+                    current.filter((value) => value !== location),
+                  )
+                }
+                aria-label={t("locationRemove", { location })}
+                className="rounded-full opacity-70 transition-opacity hover:opacity-100"
+              >
+                <X className="size-3" />
+              </button>
+            </Badge>
+          ))}
+        </div>
+      )}
+      <div className="flex gap-2">
+        <Input
+          id="locationDraft"
+          value={draft}
+          maxLength={60}
+          placeholder={t("locationAddPlaceholder")}
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              add();
+            }
+          }}
+          className="flex-1"
+        />
+        <Button type="button" variant="outline" onClick={add}>
+          {t("locationAdd")}
+        </Button>
+      </div>
+      <p className="text-xs text-muted-foreground">{t("locationsHint")}</p>
+    </div>
+  );
+}
 
 export function SettingsForm({ snapshot }: { snapshot: SettingsSnapshot }) {
   const t = useTranslations("Settings");
@@ -86,6 +162,7 @@ export function SettingsForm({ snapshot }: { snapshot: SettingsSnapshot }) {
               </p>
             </div>
           </div>
+          <LocationsEditor initial={snapshot.locations} />
         </CardContent>
       </Card>
 
@@ -144,9 +221,10 @@ export function SettingsForm({ snapshot }: { snapshot: SettingsSnapshot }) {
             </div>
             <div className="space-y-2">
               <Label htmlFor="aiModel">{t("fieldAiModel")}</Label>
-              <Input
+              <SuggestInput
                 id="aiModel"
                 name="aiModel"
+                options={SUGGESTED_AI_MODELS[provider]}
                 defaultValue={snapshot.aiModel}
                 placeholder={snapshot.defaultModel[provider]}
               />

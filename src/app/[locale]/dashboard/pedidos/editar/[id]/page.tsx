@@ -9,7 +9,7 @@ export default async function EditOrderPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [t, order, users, patterns, materials] = await Promise.all([
+  const [t, order, users, patterns, materials, customers] = await Promise.all([
     getTranslations("Orders"),
     prisma.order.findUnique({
       where: { id },
@@ -30,6 +30,12 @@ export default async function EditOrderPage({
       select: { id: true, name: true, priceCents: true },
       orderBy: { name: "asc" },
     }),
+    prisma.order.findMany({
+      where: { customer: { not: null } },
+      distinct: ["customer"],
+      select: { customer: true },
+      orderBy: { customer: "asc" },
+    }),
   ]);
 
   if (!order) notFound();
@@ -44,6 +50,7 @@ export default async function EditOrderPage({
         users={users}
         patterns={patterns}
         materials={materials}
+        customers={customers.map((row) => row.customer!)}
         order={{
           id: order.id,
           name: order.name,

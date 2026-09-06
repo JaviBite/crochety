@@ -197,6 +197,40 @@ describe("parseMaterialForm", () => {
       ).ok,
     ).toBe(false);
   });
+
+  it("convierte el centinela NONE_VALUE a null en location/fiberType/weight", () => {
+    const result = parseMaterialForm(
+      fd({
+        name: "Ovillos",
+        category: "LANA",
+        location: "none",
+        fiberType: "none",
+        weight: "none",
+      }),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.location).toBeNull();
+    expect(result.data.fiberType).toBeNull();
+    expect(result.data.weight).toBeNull();
+  });
+
+  it("conserva valores históricos fuera del conjunto cerrado", () => {
+    const result = parseMaterialForm(
+      fd({
+        name: "Ovillos",
+        category: "LANA",
+        location: "Caja azul",
+        fiberType: "Algodón reciclado",
+        weight: "extra fino",
+      }),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.location).toBe("Caja azul");
+    expect(result.data.fiberType).toBe("Algodón reciclado");
+    expect(result.data.weight).toBe("extra fino");
+  });
 });
 
 describe("parsePatternForm", () => {
@@ -381,6 +415,7 @@ describe("parseSettingsForm", () => {
         workshopTagline: "",
         galleryEnabled: "on",
         defaultAccent: "lavender",
+        locations: JSON.stringify(["Caja azul", "Estantería 2"]),
         aiProvider: "openrouter",
         aiModel: "openrouter/free",
         apiKey: "sk-or-123",
@@ -394,6 +429,7 @@ describe("parseSettingsForm", () => {
         workshopTagline: null,
         galleryEnabled: true,
         defaultAccent: "lavender",
+        locations: ["Caja azul", "Estantería 2"],
         aiProvider: "openrouter",
         aiModel: "openrouter/free",
         apiKey: "sk-or-123",
@@ -401,6 +437,22 @@ describe("parseSettingsForm", () => {
         ollamaBaseUrl: null,
       },
     });
+  });
+
+  it("parsea ubicaciones de forma tolerante (JSON inválido -> vacío)", () => {
+    const base = {
+      defaultAccent: "mint",
+      aiProvider: "anthropic",
+    };
+    const locationsOf = (result: ReturnType<typeof parseSettingsForm>) =>
+      result.ok ? result.data.locations : null;
+
+    expect(locationsOf(parseSettingsForm(fd({ ...base, locations: "no-json" })))).toEqual([]);
+    expect(
+      locationsOf(
+        parseSettingsForm(fd({ ...base, locations: '["Caja", 42, "", "Caja"]' })),
+      ),
+    ).toEqual(["Caja"]);
   });
 
   it("rechaza proveedores y acentos desconocidos", () => {

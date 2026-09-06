@@ -2,7 +2,9 @@
 
 import { useTranslations } from "next-intl";
 import { useActionState, useState } from "react";
+import { ComboboxField } from "@/components/form/combobox-field";
 import { SubmitButton } from "@/components/form/submit-button";
+import { SuggestInput } from "@/components/form/suggest-input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -51,11 +53,14 @@ export function OrderForm({
   patterns,
   materials,
   order,
+  customers = [],
 }: {
   users: Option[];
   patterns: PatternOption[];
   materials: MaterialOption[];
   order?: OrderFormValues;
+  /** Clientes ya asignados en otros pedidos, para el datalist. */
+  customers?: string[];
 }) {
   const t = useTranslations("Orders");
   const tForms = useTranslations("Forms");
@@ -145,9 +150,10 @@ export function OrderForm({
             {t("fieldCustomer")}{" "}
             <span className="text-muted-foreground">({tForms("optional")})</span>
           </Label>
-          <Input
+          <SuggestInput
             id="customer"
             name="customer"
+            options={customers}
             defaultValue={order?.customer ?? undefined}
           />
         </div>
@@ -175,19 +181,19 @@ export function OrderForm({
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="patternId">{t("fieldPattern")}</Label>
-          <Select name="patternId" defaultValue={order?.patternId ?? NONE_VALUE}>
-            <SelectTrigger id="patternId" className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={NONE_VALUE}>{tForms("none")}</SelectItem>
-              {patterns.map((pattern) => (
-                <SelectItem key={pattern.id} value={pattern.id}>
-                  {pattern.title}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {/* Combobox buscable: con muchos patrones el select plano no da
+              abasto. Valor en input hidden ("" = ninguno, optId lo trata). */}
+          <ComboboxField
+            id="patternId"
+            name="patternId"
+            options={patterns.map((pattern) => ({
+              value: pattern.id,
+              label: pattern.title,
+            }))}
+            defaultValue={order?.patternId ?? ""}
+            placeholder={tForms("none")}
+            allowClear
+          />
         </div>
         <div className="space-y-2">
           <Label htmlFor="dueDate">

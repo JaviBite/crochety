@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { prisma } from "@/lib/prisma";
+import { getMaterialLocations } from "@/lib/settings";
 import { MaterialForm } from "../../material-form";
 
 export default async function EditMaterialPage({
@@ -9,13 +10,20 @@ export default async function EditMaterialPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [t, material, tags] = await Promise.all([
+  const [t, material, tags, brands, locations] = await Promise.all([
     getTranslations("Materials"),
     prisma.material.findUnique({
       where: { id },
       include: { tags: { select: { name: true }, orderBy: { name: "asc" } } },
     }),
     prisma.tag.findMany({ orderBy: { name: "asc" }, select: { name: true } }),
+    prisma.material.findMany({
+      where: { brand: { not: null } },
+      distinct: ["brand"],
+      select: { brand: true },
+      orderBy: { brand: "asc" },
+    }),
+    getMaterialLocations(),
   ]);
 
   if (!material) notFound();
@@ -29,6 +37,8 @@ export default async function EditMaterialPage({
       <MaterialForm
         material={material}
         suggestions={tags.map((tag) => tag.name)}
+        brands={brands.map((row) => row.brand!)}
+        locations={locations}
       />
     </div>
   );

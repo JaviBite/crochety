@@ -28,6 +28,8 @@ export async function updateSettings(
     workshopTagline: data.workshopTagline,
     galleryEnabled: data.galleryEnabled ? null : "false",
     defaultAccent: data.defaultAccent,
+    // Sin ubicaciones se borra la fila (el desplegable queda vacío).
+    locations: data.locations.length ? JSON.stringify(data.locations) : null,
     aiProvider: data.aiProvider,
     aiModel: data.aiModel,
     ollamaBaseUrl: data.ollamaBaseUrl,

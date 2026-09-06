@@ -15,7 +15,7 @@ Análisis de UX/calidad de vida sobre forms, listados, dashboard y feedback.
 | Bloque | Tema | Estado |
 |---|---|---|
 | 1 | Fundación de componentes (SuggestInput, Combobox, TagInput, fechas) | ✅ Hecho |
-| 2 | Campos con opciones (store, customer, brand, fiber/weight, location…) | ☐ Pendiente |
+| 2 | Campos con opciones (store, customer, brand, fiber/weight, location…) | ✅ Hecho |
 | 3 | Bugs pequeños (total reactivo, a11y, steps, viewHref…) | ☐ Pendiente |
 | 4 | Listados (patrones select, filtros pedidos/gastos/materiales) | ☐ Pendiente |
 | 5 | Dashboard operativo (entregas, estados, stock bajo) | ☐ Pendiente |
@@ -48,30 +48,29 @@ Todo lo demás reutiliza esto. Empezar aquí.
 
 ## Bloque 2 — Campos con opciones
 
-- [ ] **`store` (gasto)** — `expense-form.tsx:310-316`
-  `SuggestInput` con `prisma.expense.findMany({ distinct: ["store"] })`.
-  Query en `nuevo/page.tsx` y `editar/[id]/page.tsx`.
-- [ ] **`customer` (pedido)** — `order-form.tsx:150-160`
-  `SuggestInput` con `distinct customer` de Order (no null).
-- [ ] **`brand` (material)** — `material-form.tsx:142-145`
+- [x] **`store` (gasto)** — `expense-form.tsx`
+  `SuggestInput` con `distinct store` de Expense en las pages nuevo/editar.
+- [x] **`customer` (pedido)** — `order-form.tsx`
+  `SuggestInput` con `distinct customer` de Order (not null).
+- [x] **`brand` (material)** — `material-form.tsx`
   `SuggestInput` con `distinct brand` de Material.
-- [ ] **`fiberType` / `weight` (material)** — `material-form.tsx:146-163`
-  Constantes `YARN_FIBERS` y `YARN_WEIGHTS` en `lib/validations.ts` (estilo
-  `MATERIAL_CATEGORIES`) + Select en el form. En edición, si el valor guardado
-  no está en la lista, añadirlo como opción (sin migración de datos).
-- [ ] **`location` (material) → dropdown gestionable** — `material-form.tsx:110-120`
-  Setting `locations` (JSON array) gestionado en Ajustes (listado añadir/
-  quitar). Select en el form alimentado por `lib/settings.ts`; en edición el
-  valor antiguo se añade como opción si falta. Cumple TODO de AGENTS.md sin
-  migración. Parser de settings + test.
-- [ ] **`aiModel` (Ajustes)** — `settings-form.tsx:146-153`
-  `SuggestInput` con modelos típicos por proveedor (static map en
-  `lib/validations.ts` o el propio form).
-- [ ] **Items de gasto (nombre)** — `expense-form.tsx:349-355`
-  `SuggestInput` con nombres de `Material` existente.
-- [ ] **`patternId` (pedido) y `materialId` (OrderMaterialsField)**
-  `ComboboxField` buscable: `order-form.tsx:182-198` y
-  `order-materials-field.tsx` (lista `{name} · precio`).
+- [x] **`fiberType` / `weight` (material)** — `material-form.tsx`
+  Constantes `YARN_FIBERS` / `YARN_WEIGHTS` en `lib/validations.ts` + Select.
+  En edición el valor guardado fuera de la lista se ofrece como opción extra;
+  parser pasa a `optId` (centinela NONE_VALUE → null) y sigue aceptando
+  cualquier string (valores históricos intactos). Tests en forms.test.ts.
+- [x] **`location` (material) → dropdown gestionable** — `material-form.tsx`
+  Setting `locations` (JSON) gestionado en Ajustes con `LocationsEditor`
+  (chips añadir/quitar). `getMaterialLocations()` en lib/settings.ts,
+  `parseLocationsJson` tolerante en validations.ts (tests). Select en el form
+  con valor histórico como opción extra si hace falta.
+- [x] **`aiModel` (Ajustes)** — `settings-form.tsx`
+  `SuggestInput` con `SUGGESTED_AI_MODELS[provider]` (map estático en
+  validations.ts).
+- [x] **Items de gasto (nombre)** — `expense-form.tsx`
+  `SuggestInput` con nombres de `Material` existente (prop `materialNames`).
+- [x] **`patternId` (pedido) y `materialId` (OrderMaterialsField)**
+  `ComboboxField` buscable (label con `name · precio` en materiales).
 
 ## Bloque 3 — Bugs pequeños
 

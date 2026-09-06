@@ -3,16 +3,10 @@
 import { Calculator, Plus, X } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { useMemo, useState } from "react";
+import { ComboboxField } from "@/components/form/combobox-field";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { centsToEur, formatCents } from "@/lib/money";
 import { materialsCostCents, suggestedPriceCents } from "@/lib/pricing";
 
@@ -111,21 +105,19 @@ export function OrderMaterialsField({
         <div className="space-y-2">
           {lines.map((line, index) => (
             <div key={index} className="flex items-center gap-2">
-              <Select
-                value={line.materialId || undefined}
+              {/* Combobox buscable: el select plano no escala con el
+                  inventario. La etiqueta incluye el precio unitario. */}
+              <ComboboxField
+                name={`materialId-${index}`}
+                value={line.materialId}
                 onValueChange={(value) => updateLine(index, { materialId: value })}
-              >
-                <SelectTrigger className="min-w-0 flex-1">
-                  <SelectValue placeholder={t("selectMaterial")} />
-                </SelectTrigger>
-                <SelectContent>
-                  {materials.map((material) => (
-                    <SelectItem key={material.id} value={material.id}>
-                      {material.name} · {formatCents(material.priceCents, locale)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                options={materials.map((material) => ({
+                  value: material.id,
+                  label: `${material.name} · ${formatCents(material.priceCents, locale)}`,
+                }))}
+                placeholder={t("selectMaterial")}
+                className="min-w-0 flex-1"
+              />
               <Input
                 type="number"
                 min={0}
