@@ -1,3 +1,5 @@
+import { AssetImage } from "@/components/asset-image";
+import { assetUrl } from "@/lib/assets";
 import { getTranslations } from "next-intl/server";
 import { prisma } from "@/lib/prisma";
 import { getWorkshopSettings } from "@/lib/settings";
@@ -70,11 +72,9 @@ export default async function LandingPage() {
               className="break-inside-avoid overflow-hidden rounded-xl border bg-card shadow-sm"
             >
               {/* Imágenes servidas en runtime por el proxy /api/files */}
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={`/api/files/${tile.path}`}
+              <AssetImage
+                src={assetUrl(tile.path)}
                 alt={tile.name}
-                loading="lazy"
                 className="w-full object-cover transition-transform duration-300 hover:scale-105"
               />
             </figure>

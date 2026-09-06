@@ -1,28 +1,21 @@
 import { ArrowLeft, Package, Pencil } from "lucide-react";
 import { getFormatter, getLocale, getTranslations } from "next-intl/server";
 import { notFound } from "next/navigation";
-import { Badge } from "@/components/ui/badge";
+import { AssetImage } from "@/components/asset-image";
+import { assetUrl } from "@/lib/assets";
+import { StatusBadge } from "@/components/dashboard/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Link } from "@/i18n/navigation";
 import { formatCents } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
-import type { OrderStatus } from "@/lib/validations";
 
 const BASE_PATH = "/dashboard/pedidos";
 
-const STATUS_CLASSES: Record<OrderStatus, string> = {
-  SIN_EMPEZAR: "bg-muted text-muted-foreground",
-  EMPEZADO: "bg-accent text-accent-foreground",
-  TERMINADO: "bg-primary/15 text-primary",
-  COBRADO: "bg-primary text-primary-foreground",
-};
-
 export default async function OrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [t, tStatus, locale, format, order] = await Promise.all([
+  const [t, locale, format, order] = await Promise.all([
     getTranslations("Orders"),
-    getTranslations("OrderStatus"),
     getLocale(),
     getFormatter(),
     prisma.order.findUnique({
@@ -49,9 +42,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-2xl font-bold tracking-tight">{order.name}</h1>
-            <Badge variant="outline" className={`border-transparent ${STATUS_CLASSES[order.status as OrderStatus] ?? ""}`}>
-              {tStatus(order.status)}
-            </Badge>
+            <StatusBadge status={order.status} kind="order" />
           </div>
           <p className="text-muted-foreground">{order.description ?? t("fieldDescription")}</p>
         </div>
@@ -126,7 +117,12 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
             ) : (
               <div className="grid gap-3">
                 {order.photos.map((photo) => (
-                  <img key={photo.id} src={`/api/files/${photo.path}`} alt={order.name} className="w-full rounded-xl border object-cover" />
+                  <AssetImage
+                    key={photo.id}
+                    src={assetUrl(photo.path)}
+                    alt={order.name}
+                    className="w-full rounded-xl border object-cover"
+                  />
                 ))}
               </div>
             )}

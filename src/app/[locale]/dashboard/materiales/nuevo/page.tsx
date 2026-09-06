@@ -1,11 +1,19 @@
 import { getTranslations } from "next-intl/server";
 import { prisma } from "@/lib/prisma";
+import { getMaterialLocations } from "@/lib/settings";
 import { MaterialForm } from "../material-form";
 
 export default async function NewMaterialPage() {
-  const [t, tags] = await Promise.all([
+  const [t, tags, brands, locations] = await Promise.all([
     getTranslations("Materials"),
     prisma.tag.findMany({ orderBy: { name: "asc" }, select: { name: true } }),
+    prisma.material.findMany({
+      where: { brand: { not: null } },
+      distinct: ["brand"],
+      select: { brand: true },
+      orderBy: { brand: "asc" },
+    }),
+    getMaterialLocations(),
   ]);
 
   return (
@@ -14,7 +22,11 @@ export default async function NewMaterialPage() {
         <h1 className="text-2xl font-bold tracking-tight">{t("newTitle")}</h1>
         <p className="text-muted-foreground">{t("newDescription")}</p>
       </div>
-      <MaterialForm suggestions={tags.map((tag) => tag.name)} />
+      <MaterialForm
+        suggestions={tags.map((tag) => tag.name)}
+        brands={brands.map((material) => material.brand!)}
+        locations={locations}
+      />
     </div>
   );
 }

@@ -1,7 +1,8 @@
 {
   "Common": {
     "appName": "Zgz Stitches",
-    "loading": "Cargando…"
+    "loading": "Cargando…",
+    "unknownStatus": "Estado desconocido"
   },
   "Errors": {
     "title": "Esta página no se ha podido cargar",
@@ -105,6 +106,11 @@
     "taglineHint": "En blanco se usa el texto por defecto traducido.",
     "fieldGalleryEnabled": "Galería pública",
     "galleryEnabledHint": "Desactívala para ocultar las fotos de la portada.",
+    "fieldLocations": "Ubicaciones de materiales",
+    "locationsHint": "Se ofrecen como desplegable al dar de alta o editar un material.",
+    "locationAdd": "Añadir",
+    "locationAddPlaceholder": "Añade una ubicación…",
+    "locationRemove": "Quitar {location}",
     "appearanceTitle": "Apariencia",
     "appearanceDescription": "Valores por defecto de la web",
     "fieldDefaultAccent": "Acento por defecto",
@@ -147,7 +153,10 @@
     "uploadFailed": "No se pudo subir el fichero",
     "search": "Buscar",
     "searchPlaceholder": "Buscar…",
-    "searchClear": "Limpiar búsqueda"
+    "searchClear": "Limpiar búsqueda",
+    "comboboxSearch": "Buscar…",
+    "comboboxEmpty": "Sin resultados",
+    "comboboxClear": "Quitar selección"
   },
   "OrderStatus": {
     "SIN_EMPEZAR": "Sin empezar",

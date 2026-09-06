@@ -2,6 +2,7 @@ import { z } from "zod";
 import { eurToCents } from "@/lib/money";
 import { parseTagNames } from "@/lib/tags";
 import { ACCENTS } from "@/lib/theme";
+import { parseLocationsJson } from "@/lib/validations";
 import {
   aiProviderSchema,
   materialCategorySchema,
@@ -278,11 +279,13 @@ export function parseMaterialForm(
     category: str(formData.get("category")),
     priceEur: str(formData.get("priceEur")) || "0",
     stock: str(formData.get("stock")) || "0",
-    location: opt(formData.get("location")),
+    location: optId(formData.get("location")),
     link: opt(formData.get("link")),
     brand: opt(formData.get("brand")),
-    fiberType: opt(formData.get("fiberType")),
-    weight: opt(formData.get("weight")),
+    // Selects opcionales con centinela NONE_VALUE ("" y "none" -> null); los
+    // valores históricos en texto libre pasan sin cambios.
+    fiberType: optId(formData.get("fiberType")),
+    weight: optId(formData.get("weight")),
     // El color solo se guarda si el checkbox "hasColor" está marcado.
     colorHex: checkbox(formData.get("hasColor"))
       ? str(formData.get("colorHex")).toLowerCase() || null
@@ -421,6 +424,8 @@ const settingsFormSchema = z.object({
   workshopTagline: z.string().nullable(),
   galleryEnabled: z.boolean(),
   defaultAccent: z.enum(ACCENTS),
+  // JSON array de ubicaciones de materiales (parseado de forma tolerante).
+  locations: z.array(z.string()),
   aiProvider: aiProviderSchema,
   aiModel: z.string().nullable(),
   // Solo del proveedor seleccionado; en blanco = conservar la guardada.
@@ -439,6 +444,7 @@ export function parseSettingsForm(
     workshopTagline: opt(formData.get("workshopTagline")),
     galleryEnabled: checkbox(formData.get("galleryEnabled")),
     defaultAccent: str(formData.get("defaultAccent")),
+    locations: parseLocationsJson(str(formData.get("locations"))),
     aiProvider: str(formData.get("aiProvider")),
     aiModel: opt(formData.get("aiModel")),
     apiKey: optPassword(formData.get("apiKey")),

@@ -60,6 +60,9 @@ export default async function LocaleLayout({
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col">
+        {/* Marca JS activo antes del primer paint: el CSS de .reveal solo
+            oculta contenido al animarlo si hay JS para revelarlo. */}
+        <script dangerouslySetInnerHTML={{ __html: "document.documentElement.classList.add('js')" }} />
         <NextIntlClientProvider messages={messages}>
           <ThemeProvider
             attribute="class"
