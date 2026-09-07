@@ -37,7 +37,7 @@ export async function TagFilter({
       <Link href={{ pathname: basePath, query: base }}>
         <Badge
           variant={activeTag ? "outline" : "default"}
-          className="cursor-pointer"
+          className="h-8 cursor-pointer px-3 text-sm"
         >
           {tForms("tagFilterAll")}
         </Badge>
@@ -51,7 +51,7 @@ export async function TagFilter({
           >
             <Badge
               variant={active ? "default" : "outline"}
-              className="cursor-pointer"
+              className="h-8 cursor-pointer px-3 text-sm"
             >
               {tag}
             </Badge>

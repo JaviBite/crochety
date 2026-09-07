@@ -290,6 +290,7 @@
     "noResultsDescription": "Prueba con otra búsqueda o quita los filtros.",
     "colorFilterAll": "Todos",
     "colorFilterOne": "Color {color}",
+    "colorFilter": "Color",
     "add": "Nuevo material",
     "newTitle": "Nuevo material",
     "newDescription": "Añade un material al inventario",

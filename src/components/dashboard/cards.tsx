@@ -33,6 +33,10 @@ function CoverActions({
   );
 }
 
+/** Chip-enlace compacto para acciones secundarias del pie de tarjeta. */
+const FOOTER_CHIP =
+  "inline-flex h-7 items-center gap-1 rounded-full border px-2.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground";
+
 /** Enlaces de exportación de la versión estandarizada (misma ruta para todo). */
 export function ExportLinks({ id }: { id: string }) {
   return (
@@ -41,7 +45,7 @@ export function ExportLinks({ id }: { id: string }) {
         href={`/api/patterns/${id}/export?format=md`}
         aria-label="Markdown"
         title="Markdown"
-        className="flex items-center gap-1 transition-colors hover:text-foreground"
+        className={FOOTER_CHIP}
       >
         <FileDown className="size-3.5" />
         MD
@@ -50,7 +54,7 @@ export function ExportLinks({ id }: { id: string }) {
         href={`/api/patterns/${id}/export?format=epub`}
         aria-label="EPUB"
         title="EPUB"
-        className="flex items-center gap-1 transition-colors hover:text-foreground"
+        className={FOOTER_CHIP}
       >
         <BookOpen className="size-3.5" />
         EPUB
@@ -78,7 +82,7 @@ export async function PatternSourceLinks({
           href={assetUrl(pattern.filePath)}
           target="_blank"
           rel="noreferrer noopener"
-          className="flex items-center gap-1 transition-colors hover:text-foreground"
+          className={FOOTER_CHIP}
         >
           <FileText className="size-3.5" />
           {t("viewFile")}
@@ -89,7 +93,7 @@ export async function PatternSourceLinks({
           href={pattern.externalUrl}
           target="_blank"
           rel="noreferrer noopener"
-          className="flex items-center gap-1 transition-colors hover:text-foreground"
+          className={FOOTER_CHIP}
         >
           <ExternalLink className="size-3.5" />
           {t("viewLink")}
@@ -166,7 +170,7 @@ export async function PatternCard({
           />
         </Link>
         <div className="absolute left-2 top-2">
-          <StatusBadge status={pattern.aiStatus} kind="patternAi" />
+          <StatusBadge status={pattern.aiStatus} kind="patternAi" overlay />
         </div>
         <CoverActions>
           <RowActions
