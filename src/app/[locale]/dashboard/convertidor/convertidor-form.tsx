@@ -13,13 +13,12 @@ import {
   X,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
-import {
-  type ChangeEvent,
-  useRef,
-  useState,
-  useTransition,
-} from "react";
+import { type ChangeEvent, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
+import { AssetImage } from "@/components/asset-image";
+import { assetUrl } from "@/lib/assets";
+import { FileField } from "@/components/form/file-field";
+import { PhotoChip } from "@/components/form/photo-chip";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -282,18 +281,12 @@ function PatternResultCard({
     <Card className="rounded-2xl shadow-sm">
       <CardContent className="space-y-4">
         <div className="flex flex-wrap items-start gap-4">
-          {coverDisplay ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={coverDisplay}
-              alt={doc.title}
-              className="size-20 rounded-xl border object-cover"
-            />
-          ) : (
-            <span className="flex size-20 items-center justify-center rounded-xl bg-accent text-accent-foreground">
-              <ImageIcon className="size-7" />
-            </span>
-          )}
+          <AssetImage
+            src={coverDisplay}
+            alt={doc.title}
+            fallbackIcon={<ImageIcon className="size-7" />}
+            className="size-20 shrink-0 rounded-xl border object-cover"
+          />
           <div className="min-w-0 flex-1 space-y-1">
             <h3 className="truncate text-lg font-semibold">{doc.title}</h3>
             <p className="text-sm text-muted-foreground">
@@ -388,8 +381,7 @@ function PatternResultCard({
         {showCandidates && (
           <div className="flex flex-wrap gap-2 rounded-xl border p-3">
             {covers.candidates.map((src) => (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
+              <AssetImage
                 key={src}
                 src={src}
                 alt=""
@@ -600,13 +592,7 @@ export function ConvertidorForm() {
     });
   }
 
-  function onPickUpload(
-    event: ChangeEvent<HTMLInputElement>,
-    onDone: (path: string) => void,
-  ) {
-    const input = event.target;
-    const file = input.files?.[0];
-    if (!file) return;
+  function uploadOneFile(file: File, onDone: (path: string) => void) {
     setUploadError(null);
     setUploading(true);
     void (async () => {
@@ -615,7 +601,6 @@ export function ConvertidorForm() {
         if ("path" in result) {
           onDone(result.path);
         } else {
-          input.value = "";
           setUploadError(result.error);
         }
       } finally {
@@ -625,9 +610,7 @@ export function ConvertidorForm() {
     })();
   }
 
-  function onPickImages(event: ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(event.target.files ?? []);
-    event.target.value = "";
+  function uploadMany(files: File[]) {
     if (files.length === 0) return;
     setUploadError(null);
     setUploading(true);
@@ -694,13 +677,15 @@ export function ConvertidorForm() {
             {t("fileReady")}
           </p>
         )}
-        <Input
+        <FileField
           id="file"
-          type="file"
           accept=".pdf,.docx,.html,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/html"
-          onChange={(event) => onPickUpload(event, setFilePath)}
+          hint={t("fileHint")}
+          onFiles={(files) => {
+            const file = files[0];
+            if (file) uploadOneFile(file, setFilePath);
+          }}
         />
-        <p className="text-xs text-muted-foreground">{t("fileHint")}</p>
       </div>
 
       <div className="space-y-2">
@@ -711,37 +696,25 @@ export function ConvertidorForm() {
         {imagePaths.length > 0 && (
           <div className="flex flex-wrap gap-2">
             {imagePaths.map((path) => (
-              <div key={path} className="relative">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={`/api/files/${path}`}
-                  alt=""
-                  className="size-16 rounded-lg border object-cover"
-                />
-                <button
-                  type="button"
-                  onClick={() =>
-                    setImagePaths((current) =>
-                      current.filter((entry) => entry !== path),
-                    )
-                  }
-                  aria-label={tForms("delete")}
-                  className="absolute -right-1.5 -top-1.5 rounded-full border bg-background p-0.5 text-muted-foreground hover:text-destructive"
-                >
-                  <X className="size-3" />
-                </button>
-              </div>
+              <PhotoChip
+                key={path}
+                src={assetUrl(path)}
+                onDelete={() =>
+                  setImagePaths((current) =>
+                    current.filter((entry) => entry !== path),
+                  )
+                }
+              />
             ))}
           </div>
         )}
-        <Input
+        <FileField
           id="images"
-          type="file"
           accept="image/*"
           multiple
-          onChange={onPickImages}
+          hint={t("imagesHint")}
+          onFiles={uploadMany}
         />
-        <p className="text-xs text-muted-foreground">{t("imagesHint")}</p>
       </div>
 
       <div className="space-y-2">

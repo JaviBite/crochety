@@ -4,6 +4,7 @@ import { ImageIcon, LoaderCircle } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import { AssetImage } from "@/components/asset-image";
 import { Button } from "@/components/ui/button";
 import { loadCoverCandidates, setPatternCover } from "../actions";
 
@@ -83,8 +84,7 @@ export function CoverPicker({ id }: { id: string }) {
                     aria-label={t("coverSelectOne", { n: index + 1 })}
                     className="group relative aspect-square overflow-hidden rounded-lg border transition-colors hover:border-primary disabled:opacity-60"
                   >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
+                    <AssetImage
                       src={src}
                       alt=""
                       className="size-full object-cover transition-transform group-hover:scale-105"

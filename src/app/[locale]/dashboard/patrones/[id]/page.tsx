@@ -11,6 +11,8 @@ import {
 } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import { notFound } from "next/navigation";
+import { AssetImage } from "@/components/asset-image";
+import { assetUrl } from "@/lib/assets";
 import { TagChips } from "@/components/dashboard/tag-filter";
 import { EmptyState } from "@/components/empty-state";
 import { Badge } from "@/components/ui/badge";
@@ -90,21 +92,15 @@ export default async function PatternDetailPage({
 
       {/* Cabecera */}
       <div className="flex flex-wrap items-start gap-4">
-        {pattern.coverImagePath ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={`/api/files/${pattern.coverImagePath}`}
-            alt={pattern.title}
-            className="size-24 rounded-2xl border object-cover"
-          />
-        ) : (
-          <span className="flex size-24 items-center justify-center rounded-2xl bg-accent text-accent-foreground">
-            <ScrollText className="size-8" />
-          </span>
-        )}
+        <AssetImage
+          src={pattern.coverImagePath ? assetUrl(pattern.coverImagePath) : null}
+          alt={pattern.title}
+          fallbackIcon={<ScrollText className="size-8" />}
+          className="size-24 shrink-0 rounded-2xl border object-cover"
+        />
         <div className="min-w-0 flex-1 space-y-2">
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-bold tracking-tight">
+            <h1 className="h1-display">
               {pattern.title}
             </h1>
             <AiStatusBadge status={pattern.aiStatus} />
@@ -205,13 +201,13 @@ export default async function PatternDetailPage({
         />
       ) : aiStatus === "PENDING" || aiStatus === "PROCESSING" ? (
         <EmptyState
-          icon={Sparkles}
+          icon={<Sparkles className="size-6" />}
           title={t("standardizedEmptyTitle")}
           description={t("standardizedProcessing")}
         />
       ) : (
         <EmptyState
-          icon={Sparkles}
+          icon={<Sparkles className="size-6" />}
           title={t("standardizedEmptyTitle")}
           description={t("standardizedEmptyDescription")}
         />
@@ -280,155 +276,167 @@ function StandardizedView({
         )}
       </div>
 
-      <div className="grid gap-5 lg:grid-cols-2">
-        {standardized.materials.length > 0 && (
-          <Card className="rounded-2xl shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-base">{labels.materials}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ul className="list-disc space-y-1 pl-5 text-sm">
-                {standardized.materials.map((material) => (
-                  <li key={material}>{material}</li>
-                ))}
-              </ul>
-            </CardContent>
-          </Card>
-        )}
-
-        {standardized.abbreviations.length > 0 && (
-          <Card className="rounded-2xl shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-base">{labels.abbreviations}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>{labels.colAbbr}</TableHead>
-                    <TableHead>{labels.colMeaning}</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {standardized.abbreviations.map((abbr) => (
-                    <TableRow key={abbr.abbr}>
-                      <TableCell className="font-medium">{abbr.abbr}</TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {abbr.meaning}
-                      </TableCell>
-                    </TableRow>
+      {/* Secciones a la izquierda; materiales + abreviaturas en columna
+          lateral sticky en pantallas anchas (stack en móvil, arriba). */}
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
+        <aside className="space-y-5 lg:order-2 lg:sticky lg:top-20">
+          {standardized.materials.length > 0 && (
+            <Card className="rounded-2xl shadow-sm">
+              <CardHeader>
+                <CardTitle className="text-base">{labels.materials}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ul className="list-disc space-y-1 pl-5 text-sm">
+                  {standardized.materials.map((material) => (
+                    <li key={material}>{material}</li>
                   ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        )}
-      </div>
+                </ul>
+              </CardContent>
+            </Card>
+          )}
 
-      {/* Secciones con sus rondas */}
-      {standardized.sections.map((section) => (
-        <Card key={section.name} className="rounded-2xl shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-base">{section.name}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="space-y-2">
-              {buildRenderItems(section.rounds).map((item, itemIndex) => {
-                if (item.type === "step") {
-                  return (
-                    <div
-                      key={`${section.name}-step-${itemIndex}`}
-                      className="rounded-xl border-l-2 border-l-primary bg-muted/40 px-3 py-2 text-sm italic"
-                    >
-                      {item.round.label && (
-                        <span className="mr-2 font-medium not-italic">
-                          {item.round.label}:
-                        </span>
-                      )}
-                      {item.round.instruction}
-                    </div>
-                  );
-                }
+          {standardized.abbreviations.length > 0 && (
+            <Card className="rounded-2xl shadow-sm">
+              <CardHeader>
+                <CardTitle className="text-base">{labels.abbreviations}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>{labels.colAbbr}</TableHead>
+                      <TableHead>{labels.colMeaning}</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {standardized.abbreviations.map((abbr) => (
+                      <TableRow key={abbr.abbr}>
+                        <TableCell className="font-medium">{abbr.abbr}</TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {abbr.meaning}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
+        </aside>
 
-                const group = item.rounds;
-                if (group.length === 1) {
-                  const round = group[0];
-                  return (
-                    <div
-                      key={`${section.name}-${round.label}-${itemIndex}`}
-                      className="grid gap-2 rounded-xl border px-3 py-2 sm:grid-cols-[90px_minmax(0,1fr)_80px]"
-                    >
-                      <div className="font-medium">{round.label}</div>
-                      <div className="whitespace-normal">{round.instruction}</div>
-                      <div className="text-right tabular-nums text-muted-foreground">
-                        {round.stitchCount ?? "—"}
-                      </div>
-                    </div>
-                  );
-                }
-
-                const summaryLabel =
-                  group[0]?.label && group[group.length - 1]?.label
-                    ? `${group[0].label}–${group[group.length - 1].label}`
-                    : `${group.length}x`;
-
-                return (
-                  <details
-                    key={`${section.name}-${group[0]?.label ?? itemIndex}-${itemIndex}`}
-                    className="rounded-xl border px-3 py-2"
-                  >
-                    <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="font-medium">{summaryLabel}</div>
-                        <div className="text-sm text-muted-foreground">
-                          {group[0]?.instruction}
-                        </div>
-                      </div>
-                      <div className="flex shrink-0 items-center gap-2 text-sm text-muted-foreground">
-                        <span>{labels.repeatRounds?.replace("{count}", `${group.length}`)}</span>
-                        <ChevronDown className="size-4 transition-transform group-open:rotate-180" />
-                      </div>
-                    </summary>
-                    <div className="mt-3 space-y-2 border-t pt-3">
-                      {group.map((round) => (
+        <div className="min-w-0 space-y-5 lg:order-1">
+          {standardized.sections.map((section) => (
+            <Card key={section.name} className="rounded-2xl shadow-sm">
+              <CardHeader>
+                <CardTitle className="text-base">{section.name}</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="space-y-2">
+                  {buildRenderItems(section.rounds).map((item, itemIndex) => {
+                    if (item.type === "step") {
+                      return (
                         <div
-                          key={`${section.name}-${round.label}-${round.instruction}`}
-                          className="grid gap-2 rounded-lg bg-muted/40 px-3 py-2 sm:grid-cols-[90px_minmax(0,1fr)_80px]"
+                          key={`${section.name}-step-${itemIndex}`}
+                          className="rounded-xl border-l-2 border-l-primary bg-muted/40 px-3 py-2 text-sm italic"
+                        >
+                          {item.round.label && (
+                            <span className="mr-2 font-medium not-italic">
+                              {item.round.label}:
+                            </span>
+                          )}
+                          {item.round.instruction}
+                        </div>
+                      );
+                    }
+
+                    const group = item.rounds;
+                    if (group.length === 1) {
+                      const round = group[0];
+                      return (
+                        <div
+                          key={`${section.name}-${round.label}-${itemIndex}`}
+                          className="grid gap-2 rounded-xl border px-3 py-2 sm:grid-cols-[90px_minmax(0,1fr)_auto]"
                         >
                           <div className="font-medium">{round.label}</div>
                           <div className="whitespace-normal">{round.instruction}</div>
-                          <div className="text-right tabular-nums text-muted-foreground">
+                          <Badge
+                            variant="secondary"
+                            className="tabular-nums"
+                          >
                             {round.stitchCount ?? "—"}
-                          </div>
+                          </Badge>
                         </div>
-                      ))}
-                    </div>
-                  </details>
-                );
-              })}
-            </div>
-            {section.notes && (
-              <p className="text-sm text-muted-foreground">
-                <span className="font-medium text-foreground">
-                  {labels.notes}:
-                </span>{" "}
-                {section.notes}
-              </p>
-            )}
-          </CardContent>
-        </Card>
-      ))}
+                      );
+                    }
 
-      {standardized.assemblyNotes && (
-        <Card className="rounded-2xl shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-base">{labels.assembly}</CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm text-muted-foreground">
-            {standardized.assemblyNotes}
-          </CardContent>
-        </Card>
-      )}
+                    const summaryLabel =
+                      group[0]?.label && group[group.length - 1]?.label
+                        ? `${group[0].label}–${group[group.length - 1].label}`
+                        : `${group.length}x`;
+
+                    return (
+                      <details
+                        key={`${section.name}-${group[0]?.label ?? itemIndex}-${itemIndex}`}
+                        // group: activa group-open para el chevron del summary.
+                        className="group rounded-xl border px-3 py-2"
+                      >
+                        <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="font-medium">{summaryLabel}</div>
+                            <div className="text-sm text-muted-foreground">
+                              {group[0]?.instruction}
+                            </div>
+                          </div>
+                          <div className="flex shrink-0 items-center gap-2 text-sm text-muted-foreground">
+                            <span>{labels.repeatRounds?.replace("{count}", `${group.length}`)}</span>
+                            <ChevronDown className="size-4 transition-transform group-open:rotate-180" />
+                          </div>
+                        </summary>
+                        <div className="mt-3 space-y-2 border-t pt-3">
+                          {group.map((round) => (
+                            <div
+                              key={`${section.name}-${round.label}-${round.instruction}`}
+                              className="grid gap-2 rounded-lg bg-muted/40 px-3 py-2 sm:grid-cols-[90px_minmax(0,1fr)_auto]"
+                            >
+                              <div className="font-medium">{round.label}</div>
+                              <div className="whitespace-normal">{round.instruction}</div>
+                              <Badge
+                                variant="secondary"
+                                className="tabular-nums"
+                              >
+                                {round.stitchCount ?? "—"}
+                              </Badge>
+                            </div>
+                          ))}
+                        </div>
+                      </details>
+                    );
+                  })}
+                </div>
+                {section.notes && (
+                  <p className="text-sm text-muted-foreground">
+                    <span className="font-medium text-foreground">
+                      {labels.notes}:
+                    </span>{" "}
+                    {section.notes}
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+
+          {standardized.assemblyNotes && (
+            <Card className="rounded-2xl shadow-sm">
+              <CardHeader>
+                <CardTitle className="text-base">{labels.assembly}</CardTitle>
+              </CardHeader>
+              <CardContent className="text-sm text-muted-foreground">
+                {standardized.assemblyNotes}
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

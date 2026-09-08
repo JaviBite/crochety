@@ -27,7 +27,7 @@ export default async function EditUserPage({
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">{t("editTitle")}</h1>
+        <h1 className="h1-display">{t("editTitle")}</h1>
         <p className="text-muted-foreground">{t("editDescription")}</p>
       </div>
       <UserForm user={user} isSelf={user.id === session!.user.id} />

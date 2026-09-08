@@ -4,7 +4,7 @@ import { Check, ChevronDown } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Popover as PopoverPrimitive } from "radix-ui";
 import { Link } from "@/i18n/navigation";
-import { colorToParam } from "@/lib/search";
+import { colorToParam, sortByColorHue } from "@/lib/search";
 import { cn } from "@/lib/utils";
 
 /**
@@ -32,8 +32,11 @@ export function ColorFilter({
   const base = Object.fromEntries(
     Object.entries(preserveQuery).filter(([, value]) => value),
   ) as Record<string, string>;
+  // El selector muestra el arcoíris ordenado por familia de tono, no el orden
+  // alfabético de la BD.
+  const sortedColors = sortByColorHue(colors);
   const activeHex = activeColor
-    ? colors.find((color) => colorToParam(color) === activeColor)
+    ? sortedColors.find((color) => colorToParam(color) === activeColor)
     : undefined;
 
   return (
@@ -61,9 +64,9 @@ export function ColorFilter({
           sideOffset={6}
           className="z-50 w-64 rounded-xl bg-popover p-3 text-popover-foreground shadow-md ring-1 ring-foreground/10 duration-100 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95"
         >
-          {colors.length > 0 && (
+          {sortedColors.length > 0 && (
             <div className="grid grid-cols-8 gap-1.5">
-              {colors.map((color) => {
+              {sortedColors.map((color) => {
                 const value = colorToParam(color);
                 const active = activeColor === value;
                 return (

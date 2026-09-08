@@ -12,9 +12,11 @@
   },
   "Landing": {
     "tagline": "Amigurumis y crochet hechos a mano en Zaragoza",
+    "galleryCta": "Ver la galería",
     "emptyTitle": "Aún estamos tejiendo…",
     "emptyDescription": "Muy pronto encontrarás aquí nuestras creaciones terminadas.",
-    "login": "Acceso"
+    "login": "Acceso",
+    "footerNote": "Hecho a mano, punto a punto."
   },
   "Login": {
     "title": "Bienvenida de nuevo",
@@ -151,12 +153,15 @@
     "uploading": "Subiendo…",
     "finalizing": "Finalizando…",
     "uploadFailed": "No se pudo subir el fichero",
+    "fileDrop": "Arrastra aquí o haz clic para elegir",
+    "fileDropMulti": "Arrastra aquí o haz clic para elegir (admite varios)",
     "search": "Buscar",
     "searchPlaceholder": "Buscar…",
     "searchClear": "Limpiar búsqueda",
     "comboboxSearch": "Buscar…",
     "comboboxEmpty": "Sin resultados",
-    "comboboxClear": "Quitar selección"
+    "comboboxClear": "Quitar selección",
+    "Acciones": "Acciones"
   },
   "OrderStatus": {
     "SIN_EMPEZAR": "Sin empezar",
@@ -221,7 +226,16 @@
     "colQuantity": "Cant.",
     "colPrice": "Precio",
     "colAssignedTo": "Asignado a",
-    "colDueDate": "Fecha prevista"
+    "colDueDate": "Fecha prevista",
+    "filterAllStatuses": "Todos",
+    "filterAssigned": "Filtrar por asignado",
+    "filterAssignedAll": "Cualquiera",
+    "sortLabel": "Ordenar por",
+    "sortRecent": "Más recientes",
+    "sortDueDate": "Fecha de entrega",
+    "sortPriceDesc": "Precio (mayor primero)",
+    "sortPriceAsc": "Precio (menor primero)",
+    "detailTitle": "Detalles"
   },
   "Expenses": {
     "title": "Gastos",
@@ -279,7 +293,8 @@
     "photosUploading": "Subiendo…",
     "photosLinkPlaceholder": "…o pega el enlace de una imagen",
     "photosAddLink": "Añadir enlace",
-    "photosHint": "Se guardan con la compra (son privadas)."
+    "photosHint": "Se guardan con la compra (son privadas).",
+    "spentThisMonth": "Gastado este mes: {total}"
   },
   "Materials": {
     "title": "Materiales",

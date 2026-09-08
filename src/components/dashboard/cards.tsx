@@ -1,5 +1,5 @@
-import { BookOpen, Boxes, ExternalLink, FileDown, FileText, MapPin, ScrollText } from "lucide-react";
-import { getTranslations } from "next-intl/server";
+import { BookOpen, Boxes, ExternalLink, FileDown, FileText, MapPin, Package, ScrollText } from "lucide-react";
+import { getFormatter, getLocale, getTranslations } from "next-intl/server";
 import { AssetImage, } from "@/components/asset-image";
 import { RowActions } from "@/components/dashboard/row-actions";
 import { StatusBadge } from "@/components/dashboard/status-badge";
@@ -292,6 +292,89 @@ export async function MaterialCard({
           </p>
         )}
         <TagChips tags={material.tags} basePath={MATERIALS_PATH} />
+      </CardContent>
+    </Card>
+  );
+}
+
+export type OrderCardData = {
+  id: string;
+  name: string;
+  customer: string | null;
+  status: string;
+  quantity: number;
+  priceCents: number;
+  assignedToName: string | null;
+  dueDate: Date | null;
+  /** Foto propia del pedido o portada del patrón asociado (resuelta fuera). */
+  coverPath: string | null;
+};
+
+const ORDERS_PATH = "/dashboard/pedidos";
+
+export async function OrderCard({
+  order,
+  deleteAction,
+}: {
+  order: OrderCardData;
+  deleteAction: () => Promise<DeleteResult>;
+}) {
+  const [t, locale, format] = await Promise.all([
+    getTranslations("Orders"),
+    getLocale(),
+    getFormatter(),
+  ]);
+  return (
+    <Card className="group cozy-card overflow-hidden rounded-2xl pt-0 shadow-sm">
+      <div className="relative">
+        <Link
+          href={`${ORDERS_PATH}/${order.id}`}
+          aria-label={order.name}
+          className="block"
+        >
+          <AssetImage
+            src={order.coverPath ? assetUrl(order.coverPath) : null}
+            alt={order.name}
+            fallbackIcon={<Package className="size-8" />}
+            className="aspect-[4/3] w-full object-cover transition-transform duration-300 group-hover:scale-105"
+          />
+        </Link>
+        <div className="absolute left-2 top-2">
+          <StatusBadge status={order.status} kind="order" overlay />
+        </div>
+        <CoverActions>
+          <RowActions
+            viewHref={`${ORDERS_PATH}/${order.id}`}
+            editHref={`${ORDERS_PATH}/editar/${order.id}`}
+            deleteAction={deleteAction}
+          />
+        </CoverActions>
+      </div>
+      <CardContent className="space-y-1.5 py-3 text-sm text-muted-foreground">
+        <Link
+          href={`${ORDERS_PATH}/${order.id}`}
+          className="line-clamp-2 font-heading text-base font-medium leading-snug text-foreground hover:underline"
+        >
+          {order.name}
+          {order.customer && (
+            <span className="block text-xs font-normal text-muted-foreground">
+              {t("forCustomer", { name: order.customer })}
+            </span>
+          )}
+        </Link>
+        <div className="flex items-center justify-between gap-2">
+          <span className="tabular-nums">
+            {order.quantity} · {formatCents(order.priceCents, locale)}
+          </span>
+          {order.assignedToName && (
+            <span className="truncate text-xs">{order.assignedToName}</span>
+          )}
+        </div>
+        {order.dueDate && (
+          <p className="text-xs">
+            {format.dateTime(order.dueDate, { dateStyle: "medium" })}
+          </p>
+        )}
       </CardContent>
     </Card>
   );

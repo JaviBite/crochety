@@ -6,7 +6,7 @@ export default function PublicLoading() {
   return (
     <div className="space-y-10" aria-busy="true">
       <section className="pt-8 text-center">
-        <h1 className="text-4xl font-extrabold tracking-tight sm:text-5xl">
+        <h1 className="h1-display">
           Zgz Stitches
         </h1>
         <Skeleton className="mx-auto mt-4 h-6 w-64" />

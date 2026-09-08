@@ -1,9 +1,14 @@
 "use client";
 
-import { ImagePlus, Plus, Sparkles, Trash2, X } from "lucide-react";
+import { ImagePlus, Plus, Sparkles, Trash2 } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { type ChangeEvent, useActionState, useRef, useState, useTransition } from "react";
+import { AssetImage } from "@/components/asset-image";
+import { assetUrl } from "@/lib/assets";
+import { FileField } from "@/components/form/file-field";
+import { FormFooter } from "@/components/form/form-footer";
 import { ImageCropper } from "@/components/form/image-cropper";
+import { PhotoChip } from "@/components/form/photo-chip";
 import { SubmitButton } from "@/components/form/submit-button";
 import { SuggestInput } from "@/components/form/suggest-input";
 import { Button } from "@/components/ui/button";
@@ -116,7 +121,6 @@ export function ExpenseForm({
   const [linkInput, setLinkInput] = useState("");
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
-  const photoFileRef = useRef<HTMLInputElement>(null);
 
   // toISOString desfasea al día UTC (00:00–02:00 CEST fecha el día anterior);
   // toDateInputValue formatea en la zona local.
@@ -141,9 +145,7 @@ export function ExpenseForm({
     const reader = new FileReader();
     reader.onload = () => setCropSrc(String(reader.result));
     reader.readAsDataURL(file);
-  }
-
-  function runExtract() {
+  }  function runExtract() {
     setAiError(null);
     startExtract(async () => {
       const result = await extractExpenseAction({
@@ -174,9 +176,7 @@ export function ExpenseForm({
     });
   }
 
-  async function onPickPhoto(event: ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(event.target.files ?? []);
-    event.target.value = "";
+  async function onPickPhotos(files: File[]) {
     if (files.length === 0) return;
     setPhotoError(null);
     setUploadingPhoto(true);
@@ -251,8 +251,7 @@ export function ExpenseForm({
         {aiImages.length > 0 && (
           <div className="flex flex-wrap gap-2">
             {aiImages.map((src, index) => (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
+              <AssetImage
                 key={src.slice(-32) + index}
                 src={src}
                 alt=""
@@ -457,86 +456,54 @@ export function ExpenseForm({
         {(photoPaths.length > 0 || photoLinks.length > 0) && (
           <div className="flex flex-wrap gap-2">
             {photoPaths.map((path) => (
-              <div key={path} className="relative">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={`/api/files/${path}`}
-                  alt=""
-                  className="size-16 rounded-lg border object-cover"
-                />
-                <button
-                  type="button"
-                  onClick={() =>
-                    setPhotoPaths((prev) => prev.filter((value) => value !== path))
-                  }
-                  aria-label={tForms("delete")}
-                  className="absolute -top-1.5 -right-1.5 rounded-full border bg-background p-0.5 text-muted-foreground hover:text-destructive"
-                >
-                  <X className="size-3" />
-                </button>
-              </div>
+              <PhotoChip
+                key={path}
+                src={assetUrl(path)}
+                onDelete={() =>
+                  setPhotoPaths((prev) => prev.filter((value) => value !== path))
+                }
+              />
             ))}
             {photoLinks.map((url) => (
-              <div key={url} className="relative">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={url}
-                  alt=""
-                  className="size-16 rounded-lg border object-cover"
-                />
-                <button
-                  type="button"
-                  onClick={() =>
-                    setPhotoLinks((prev) => prev.filter((value) => value !== url))
-                  }
-                  aria-label={tForms("delete")}
-                  className="absolute -top-1.5 -right-1.5 rounded-full border bg-background p-0.5 text-muted-foreground hover:text-destructive"
-                >
-                  <X className="size-3" />
-                </button>
-              </div>
+              <PhotoChip
+                key={url}
+                src={url}
+                onDelete={() =>
+                  setPhotoLinks((prev) => prev.filter((value) => value !== url))
+                }
+              />
             ))}
           </div>
         )}
-        <input
-          ref={photoFileRef}
-          type="file"
-          accept="image/*"
-          multiple
-          aria-label={t("photosAdd")}
-          className="hidden"
-          onChange={onPickPhoto}
-        />
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => photoFileRef.current?.click()}
+        <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
+          <FileField
+            id="photos"
+            accept="image/*"
+            multiple
+            hint={t("photosHint")}
             disabled={uploadingPhoto}
-          >
-            <ImagePlus />
-            {uploadingPhoto ? t("photosUploading") : t("photosAdd")}
-          </Button>
-          <Input
-            type="url"
-            placeholder={t("photosLinkPlaceholder")}
-            value={linkInput}
-            onChange={(event) => setLinkInput(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                event.preventDefault();
-                addLink();
-              }
-            }}
-            className="min-w-40 flex-1"
+            onFiles={onPickPhotos}
           />
-          <Button type="button" variant="outline" size="sm" onClick={addLink}>
-            {t("photosAddLink")}
-          </Button>
+          <div className="flex items-end gap-2">
+            <Input
+              type="url"
+              placeholder={t("photosLinkPlaceholder")}
+              value={linkInput}
+              onChange={(event) => setLinkInput(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  addLink();
+                }
+              }}
+              className="min-w-40 flex-1"
+            />
+            <Button type="button" variant="outline" onClick={addLink}>
+              {t("photosAddLink")}
+            </Button>
+          </div>
         </div>
         {photoError && <p className="text-sm text-destructive">{photoError}</p>}
-        <p className="text-xs text-muted-foreground">{t("photosHint")}</p>
       </fieldset>
 
       <div className="space-y-2">
@@ -563,12 +530,12 @@ export function ExpenseForm({
         </p>
       )}
 
-      <div className="flex gap-3">
+      <FormFooter>
         <SubmitButton />
         <Button variant="outline" asChild>
           <Link href="/dashboard/gastos">{tForms("cancel")}</Link>
         </Button>
-      </div>
+      </FormFooter>
     </form>
   );
 }

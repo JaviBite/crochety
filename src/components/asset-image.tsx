@@ -15,6 +15,7 @@ export function AssetImage({
   fallbackColor,
   fallbackIcon,
   loading = "lazy",
+  onClick,
 }: {
   src: string | null;
   alt: string;
@@ -25,6 +26,8 @@ export function AssetImage({
   /** Icono del placeholder cuando no hay swatch (por defecto, ImageOff). */
   fallbackIcon?: ReactNode;
   loading?: "lazy" | "eager";
+  /** Pasa a la <img> (p. ej. candidatos clicables del convertidor). */
+  onClick?: React.MouseEventHandler<HTMLImageElement>;
 }) {
   const [broken, setBroken] = useState(false);
   const imgRef = useRef<HTMLImageElement>(null);
@@ -68,6 +71,7 @@ export function AssetImage({
       alt={alt}
       loading={loading}
       className={className}
+      onClick={onClick}
       onError={() => setBroken(true)}
     />
   );

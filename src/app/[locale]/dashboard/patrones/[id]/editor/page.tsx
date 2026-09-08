@@ -41,7 +41,7 @@ export default async function PatternEditorPage({
         {t("editorBack")}
       </Link>
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">
+        <h1 className="h1-display">
           {t("editorTitle")}
         </h1>
         <p className="text-muted-foreground">

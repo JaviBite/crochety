@@ -59,7 +59,7 @@ export default async function PatternsPage({
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">{t("title")}</h1>
+          <h1 className="h1-display">{t("title")}</h1>
           <p className="text-muted-foreground">{t("description")}</p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -78,24 +78,27 @@ export default async function PatternsPage({
         </div>
       </div>
 
-      <div className="space-y-3">
+      {/* Toolbar compacta: búsqueda + vista + etiquetas. */}
+      <div className="space-y-3 rounded-2xl border bg-card p-3 shadow-sm">
         <div className="flex flex-wrap items-center gap-3">
           <ListSearch className="min-w-56 flex-1" />
           {(patterns.length > 0 || hasFilters) && (
             <ViewToggle section={SECTION} value={view} />
           )}
         </div>
-        <TagFilter
-          tags={filterTags.map((tag) => tag.name)}
-          activeTag={activeTag}
-          basePath={BASE_PATH}
-          preserveQuery={preserve}
-        />
+        {filterTags.length > 0 && (
+          <TagFilter
+            tags={filterTags.map((tag) => tag.name)}
+            activeTag={activeTag}
+            basePath={BASE_PATH}
+            preserveQuery={preserve}
+          />
+        )}
       </div>
 
       {patterns.length === 0 ? (
         <EmptyState
-          icon={ScrollText}
+          icon={<ScrollText className="size-6" />}
           title={hasFilters ? t("noResultsTitle") : t("emptyTitle")}
           description={
             hasFilters ? t("noResultsDescription") : t("emptyDescription")

@@ -103,10 +103,12 @@ Todo lo demás reutiliza esto. Empezar aquí.
   `tags: { some: { name: { contains: normalizeSearch(q) } } }` al OR.
 - [ ] **Patrones: filtro `aiStatus`** — chips (PENDING/PROCESSING/ERROR
   principalmente) vía searchParam, patrón `TagFilter`.
-- [ ] **Pedidos: filtros** (TODO de AGENTS.md)
-  Chips de estado (`ORDER_STATUSES`), filtro por asignado (select de users),
-  orden alternativo por `dueDate` con resaltado de vencidos. Ver
-  `pedidos/page.tsx:54,76-84`.
+- [~] **Pedidos: filtros** (TODO de AGENTS.md) — **parcial hecho en
+  `feat/ui-facelift`** (solape con spec_new_ui Bloque 5): chips de estado
+  (`ORDER_STATUSES`), filtro por asignado (select de users) y orden
+  (recientes/entrega/precio ↑↓) en `components/dashboard/order-filters.tsx`.
+  Falta aquí: resaltado de vencidos al ordenar por `dueDate`. Ver
+  `pedidos/page.tsx`.
 - [ ] **Gastos: filtros**
   Toggle recibido/pendiente, filtro por `paidBy`. `_sum totalCents` del
   resultado filtrado junto al `findMany` (`gastos/page.tsx:49-56`).

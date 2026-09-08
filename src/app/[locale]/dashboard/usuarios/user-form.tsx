@@ -2,6 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { useActionState } from "react";
+import { FormFooter } from "@/components/form/form-footer";
 import { SubmitButton } from "@/components/form/submit-button";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -116,12 +117,12 @@ export function UserForm({
         </p>
       )}
 
-      <div className="flex gap-3">
+      <FormFooter>
         <SubmitButton />
         <Button variant="outline" asChild>
           <Link href="/dashboard/usuarios">{tForms("cancel")}</Link>
         </Button>
-      </div>
+      </FormFooter>
     </form>
   );
 }

@@ -46,11 +46,11 @@ animación).
 | Bloque | Tema | Estado |
 |---|---|---|
 | 1 | Fundación visual (tokens cozy, sombras, reveal) | ✅ Hecho |
-| 2 | Infra de UI (AssetImage, status, cards, FileField) | ☐ Pendiente |
-| 3 | Vitrina pública (hero, masonry, login) | ☐ Pendiente |
-| 4 | Dashboard (KPIs, balance Splitwise) | ☐ Pendiente |
-| 5 | Listados (pedidos+filtros, gastos, materiales, patrones) | ☐ Pendiente |
-| 6 | Detalles y forms (tooltips, sticky, patrón, dark) | ☐ Pendiente |
+| 2 | Infra de UI (AssetImage, status, cards, FileField) | ✅ Hecho |
+| 3 | Vitrina pública (hero, masonry, login) | ✅ Hecho |
+| 4 | Dashboard (KPIs, balance Splitwise) | ✅ Hecho |
+| 5 | Listados (pedidos+filtros, gastos, materiales, patrones) | ✅ Hecho |
+| 6 | Detalles y forms (tooltips, sticky, patrón, dark) | ✅ Hecho (dark QA en B7) |
 | 7 | QA final (capturas, contraste, i18n espejado) | ☐ Pendiente |
 
 ---
@@ -72,8 +72,9 @@ Todo lo demás reutiliza esto. Empezar aquí.
   stagger). El estado inicial oculto solo aplica con `html.js` (script inline
   añadido al layout) para no ocultar contenido sin JS; respeta
   `prefers-reduced-motion`. Sin deps nuevas.
-- [ ] **Tipografía/dinero**: h1 display (Nunito 800, tracking-tight); dinero
-  siempre `tabular-nums` en tablas y KPIs.
+- [x] **Tipografía/dinero** — `globals.css`: utilidad compartida `.h1-display`
+  (Nunito 800, tracking-tight) aplicada a los 27 h1 de la app; dinero siempre
+  `tabular-nums` en tablas y KPIs (balance del dashboard incluido).
 - [x] **Swatches del `AccentPicker`** sincronizados con los oklch reales de
   `globals.css` (hoy estaban hardcodeados distintos).
 
@@ -86,14 +87,15 @@ Todo lo demás reutiliza esto. Empezar aquí.
   (`naturalWidth === 0` post-mount). Props: `src/alt/className/ratio`.
   Aplicados de momento (con `assetUrl` de `lib/assets.ts`): galería pública y
   pedidos (lista, grid y detalle).
-- [ ] Resto de reemplazos de `<img>` por `AssetImage` — quedan: detalle de
-  patrones (`patrones/[id]/page.tsx:96` + `cover-picker.tsx`,
-  `manual-standardize.tsx:87`); gasto `gastos/[id]/page.tsx:107`; previews de
-  forms (`expense-form.tsx:463`, `order-form.tsx:226`,
-  `pattern-form.tsx:164,216`, `convertidor-form.tsx:717`) y
-  `material-color-field.tsx:150`. Ya aplicados: galería, pedidos (lista, grid,
-  detalle) y materiales/patrones (grid + lista). Lazy loading igual que hoy
-  (se mantiene `<img>`, NO next/image).
+- [x] Resto de reemplazos de `<img>` por `AssetImage` — aplicados en detalle de
+  patrones (`patrones/[id]/page.tsx` + `cover-picker.tsx` + `manual-standardize.tsx`
+  vía `PhotoChip`), gasto `gastos/[id]/page.tsx`, previews de forms
+  (`expense-form.tsx`, `order-form.tsx`, `pattern-form.tsx`,
+  `convertidor-form.tsx`) y `materiales/[id]/page.tsx` (el cuentagotas de
+  `material-color-field` usa canvas, no `<img>`). Ya aplicados antes: galería,
+  pedidos (lista, grid, detalle), materiales/patrones (grid + lista), previews
+  con `PhotoChip` (chips con borrar compartido por 4 formularios). Lazy loading
+  igual que hoy (se mantiene `<img>`, NO next/image).
 - [x] **Fix test flaky** — `settings.test.ts` con timeout 15 s (la cadena de
   imports del adapter de Prisma expiraba a 5 s con la máquina cargada).
 - [x] **`lib/status.ts`** + `lib/status.test.ts`
@@ -109,68 +111,82 @@ Todo lo demás reutiliza esto. Empezar aquí.
   4/3 materiales) con badge de estado arriba-izquierda y acciones en píldora
   arriba-derecha (fuera del enlace de portada), título enlazado a la ficha
   (line-clamp), `.cozy-card` con hover-lift + zoom de portada, pies
-  consistentes. Faltan: `OrderCard` (pedidos) y fila de gasto si aplica.
-- [ ] **`EmptyState` con CTA** — `src/components/empty-state.tsx`
-  Añadir `action?: {href,label}`; usar en galería pública cuando no haya
-  fotos (hoy tiene bloque inline propio).
-- [ ] **`FileField`** — `src/components/form/file-field.tsx`
-  Dropzone con drag&drop, preview y botón de borrar; sustituye los inputs
-  nativos ("Choose File…") en pedido/material/patrón/gasto/convertidor.
-  Reutiliza la lógica de subida ya existente de cada form (solo UI).
+  consistentes. `OrderCard` añadido (pedidos: grid y bloque móvil del
+  listado); la fila de gasto no se extrae: gastos sigue como libro contable
+  con tarjetas inline para móvil (Bloque 5).
+- [x] **`EmptyState` con CTA** — `src/components/empty-state.tsx`
+  `action?: {href,label}` (y `icon: ReactNode` para admitir el 🧶). Usado en la
+  galería pública (sin CTA para anónimos) y con CTA en el vacío de pedidos.
+- [x] **`FileField`** — `src/components/form/file-field.tsx`
+  Dropzone con drag&drop y texto i18n; sustituye los inputs nativos
+  ("Choose File…") en pedido/material/patrón/gasto/convertidor (también batch y
+  manual-standardize). Con `name`, el fichero viaja en el FormData de la action
+  (pedido/material); sin `name`, la subida es en cliente y el input se resetea
+  (patrones/convertidor/gasto). Reutiliza la lógica de subida ya existente de
+  cada form (solo UI).
 
 ## Bloque 3 — Vitrina pública
 
-- [ ] **Header sticky** — `(public)/layout.tsx`: backdrop-blur al hacer
-  scroll; footer pulido.
-- [ ] **Hero**: título display + tagline, blob/gradiente sutil del acento
-  detrás, CTA ancla a la mampostería; hero vacío con el 🧶 animado suave
-  (`(public)/page.tsx`).
-- [ ] **Masonry**: tiles con `AssetImage`, overlay hover con nombre + zoom
-  (ya hay `scale-105`), aparición al scroll con `useReveal` y stagger por
-  columna (TODO del roadmap de `AGENTS.md`).
-- [ ] **Login** — `(public)/login/page.tsx`: card centrada con fondo
-  decorado sutil (patrón de punto en CSS, sin imágenes).
+- [x] **Header sticky** — `(public)/header.tsx` (client): sticky, borde y
+  `bg-background/80 backdrop-blur` al hacer scroll; footer pulido con nota.
+- [x] **Hero**: título display + tagline, blob/gradiente sutil del acento
+  detrás, CTA ancla a la mampostería (`#galeria`); hero vacío con el 🧶
+  animado suave (`animate-bounce-slow`, `globals.css`).
+- [x] **Masonry**: tiles con `AssetImage`, overlay hover con nombre (gradiente
+  inferior) + zoom, aparición al scroll con `<Reveal>` y stagger por índice
+  (TODO del roadmap de `AGENTS.md`).
+- [x] **Login** — `(public)/login/page.tsx`: card centrada con fondo
+  decorado sutil (blob del acento + patrón de punto `.stitch-pattern` en CSS,
+  sin imágenes).
 
 ## Bloque 4 — Dashboard
 
-- [ ] **KPIs con identidad** — `dashboard/page.tsx`: icono + tinte por
-  métrica (ganado=acento, gastado=muted, beneficio=positivo), cifras
-  `tabular-nums`.
-- [ ] **Balance estilo Splitwise** — `dashboard/page.tsx` + `lib/balance.ts`
+- [x] **KPIs con identidad** — `dashboard/page.tsx`: icono + tinte por
+  métrica (ganado=acento, gastado=muted, beneficio=positivo/negativo),
+  cifras `tabular-nums` + font-heading.
+- [x] **Balance estilo Splitwise** — `dashboard/page.tsx` + `lib/balance.ts`
   (solo render): tarjetas por persona con avatar de iniciales y color
-  derivado del nombre, flechas de deuda ("Alba → Natalia 37,58 €"), netos
-  en color. Sin cambiar el algoritmo (tiene tests).
+  derivado del nombre (`lib/avatar.ts` + clase `.initials-avatar` temática),
+  flechas de deuda ("Alba → Natalia  37,58 €") con `aria-label` del mensaje
+  `owes`, netos en color (positivo=verde, negativo=destructive). Algoritmo
+  intacto (tiene tests); helper nuevo con test (`lib/avatar.test.ts`).
 
 ## Bloque 5 — Listados
 
-- [ ] **Pedidos**: `OrderCard` en grid; lista con thumbs `AssetImage`;
-  **filtros** por estado (chips: Sin empezar/Terminado/Cobrado), asignado y
-  orden por precio/fecha vía query params junto al `ListSearch` (solape con
-  QoL bloque 4). **Móvil**: tabla → lista de tarjetas (`hidden sm:table` +
-  bloque `sm:hidden`).
-- [ ] **Gastos**: badge "Pendiente" solo cuando toque (destructive-soft);
-  importes alineados a la derecha `tabular-nums`; total del mes en la
-  cabecera; móvil: cards.
-- [ ] **Materiales**: toolbar compacta (búsqueda + tags + colores); card con
-  fallback swatch del color dominante (quedará natural en lanas).
-- [ ] **Patrones**: `PatternCard` con cover + `AiStatusBadge` + export links
-  (Ver fichero/Ver enlace/MD/EPUB) en una fila consistente; tags chips.
-- [ ] **Usuarios**: tabla al mismo patrón visual.
+- [x] **Pedidos**: `OrderCard` en grid; lista con thumbs `AssetImage`;
+  **filtros** por estado (chips de `ORDER_STATUSES`), asignado (select de
+  users) y orden (recientes/entrega/precio ↑↓) vía query params junto al
+  `ListSearch` (`components/dashboard/order-filters.tsx`, solape con QoL
+  bloque 4). **Móvil**: tabla → lista de tarjetas (`hidden sm:table` +
+  bloque `sm:hidden` con `OrderCard`).
+- [x] **Gastos**: badge "Pendiente" solo cuando toque (destructive-soft;
+  recibido = "—"); importes alineados a la derecha `tabular-nums`; total del
+  mes en la cabecera (`spentThisMonth`); móvil: cards.
+- [x] **Materiales**: toolbar compacta (búsqueda + vista + tags + colores en
+  un contenedor card); card con fallback swatch del color dominante
+  (ya en `MaterialCard`).
+- [x] **Patrones**: `PatternCard` con cover + `AiStatusBadge` + export links
+  (Ver fichero/Ver enlace/MD/EPUB) en una fila consistente; tags chips (hecho
+  con las cards del Bloque 2). Toolbar compacta igual que materiales.
+- [x] **Usuarios**: tabla al mismo patrón visual, con avatar de iniciales.
 
 ## Bloque 6 — Detalles y forms
 
-- [ ] **`RowActions`**: tooltips en desktop; en móvil `DropdownMenu` (⋯) para
-  ganar espacio en la fila.
-- [ ] **Sticky footer de forms** (Guardar/Cancelar) con blur en
-  pedido/gasto/material/patrón/ajustes/perfil/usuarios.
-- [ ] **Estado de pedido como pills** (segmented) en el form; total
-  automático del gasto consolidado en un único campo claro.
-- [ ] **Detalle de patrón** — `patrones/[id]/page.tsx`: totales por ronda
+- [x] **`RowActions`**: tooltips en desktop (con foco de teclado); en móvil
+  `DropdownMenu` (⋯) para ganar espacio en la fila; `DeleteConfirm` compartido.
+- [x] **Sticky footer de forms** (Guardar/Cancelar) con blur:
+  `components/form/form-footer.tsx` aplicado en pedido/gasto/material/patrón/
+  ajustes/perfil/usuarios.
+- [x] **Estado de pedido como pills** (segmented, radios nativos con
+  `has-checked:`) en el form; el total del gasto ya era un único campo con
+  `autoTotal` como hint (resaltado con font-heading en el detalle).
+- [x] **Detalle de patrón** — `patrones/[id]/page.tsx`: totales por ronda
   como badge alineado a la derecha (la columna "rara" del TODO), chevron de
-  rondas repetidas rotando (añadir `group` al `<details>`), abreviaturas
-  sticky en pantallas anchas.
-- [ ] **Detalles de pedido/gasto/material**: jerarquía de títulos, fotos en
-  grid consistente.
+  rondas repetidas rotando (`group` en el `<details>`), abreviaturas/materiales
+  sticky en columna lateral (`lg:sticky top-20`, stack en móvil).
+- [x] **Detalles de pedido/gasto/material**: jerarquía de títulos
+  (`h1-display` + badge, card "Detalles"), fotos en grid consistente
+  (`AssetImage`, rounded-xl + border), total del gasto destacado.
 - [ ] **Dark mode QA**: revisión completa de contraste (AA) con los nuevos
   tokens cálidos.
 

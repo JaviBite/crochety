@@ -3,6 +3,7 @@
 import { X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useActionState, useState } from "react";
+import { FormFooter } from "@/components/form/form-footer";
 import { SubmitButton } from "@/components/form/submit-button";
 import { SuggestInput } from "@/components/form/suggest-input";
 import { Badge } from "@/components/ui/badge";
@@ -290,7 +291,9 @@ export function SettingsForm({ snapshot }: { snapshot: SettingsSnapshot }) {
         </p>
       )}
 
-      <SubmitButton />
+      <FormFooter>
+        <SubmitButton />
+      </FormFooter>
     </form>
   );
 }

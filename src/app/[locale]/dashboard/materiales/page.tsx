@@ -89,7 +89,7 @@ export default async function MaterialsPage({
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">{t("title")}</h1>
+          <h1 className="h1-display">{t("title")}</h1>
           <p className="text-muted-foreground">{t("description")}</p>
         </div>
         <Button asChild>
@@ -100,32 +100,35 @@ export default async function MaterialsPage({
         </Button>
       </div>
 
-      <div className="space-y-3">
+      {/* Toolbar compacta: búsqueda + vista + etiquetas + colores. */}
+      <div className="space-y-3 rounded-2xl border bg-card p-3 shadow-sm">
         <div className="flex flex-wrap items-center gap-3">
           <ListSearch className="min-w-56 flex-1" />
-          {(materials.length > 0 || hasFilters) && (
+          {(materialsBySimilarity.length > 0 || hasFilters) && (
             <ViewToggle section={SECTION} value={view} />
           )}
         </div>
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-          <TagFilter
-            tags={filterTags.map((tag) => tag.name)}
-            activeTag={activeTag}
-            basePath={BASE_PATH}
-            preserveQuery={preserve}
-          />
-          <ColorFilter
-            colors={colors}
-            activeColor={color}
-            basePath={BASE_PATH}
-            preserveQuery={preserve}
-          />
-        </div>
+        {(filterTags.length > 0 || colors.length > 0) && (
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t pt-2">
+            <TagFilter
+              tags={filterTags.map((tag) => tag.name)}
+              activeTag={activeTag}
+              basePath={BASE_PATH}
+              preserveQuery={preserve}
+            />
+            <ColorFilter
+              colors={colors}
+              activeColor={color}
+              basePath={BASE_PATH}
+              preserveQuery={preserve}
+            />
+          </div>
+        )}
       </div>
 
       {materialsBySimilarity.length === 0 ? (
         <EmptyState
-          icon={Boxes}
+          icon={<Boxes className="size-6" />}
           title={hasFilters ? t("noResultsTitle") : t("emptyTitle")}
           description={
             hasFilters ? t("noResultsDescription") : t("emptyDescription")

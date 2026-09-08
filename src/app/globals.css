@@ -284,6 +284,67 @@ html.js .reveal-visible {
   animation: fade-up 0.5s ease-out both;
 }
 
+/* --------------------------------------------------------------------------
+   Título display compartido (Nunito 800 + tracking cerrado) para h1 de
+   portada, hero y páginas de sección.
+--------------------------------------------------------------------------- */
+@layer components {
+  .h1-display {
+    @apply font-heading text-3xl font-extrabold tracking-tight sm:text-4xl;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Balanceo suave para elementos decorativos (🧶 del hero vacío).
+--------------------------------------------------------------------------- */
+@keyframes bounce-slow {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+@utility animate-bounce-slow {
+  animation: bounce-slow 2.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-bounce-slow {
+    animation: none;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Avatar de iniciales (balance del dashboard): el tono llega por la variable
+   --avatar-h (hash del nombre, lib/avatar.ts) y la luz/saturación depende del
+   tema para mantener contraste en claro y oscuro.
+--------------------------------------------------------------------------- */
+.initials-avatar {
+  background-color: hsl(var(--avatar-h, 160) 42% 88%);
+  color: hsl(var(--avatar-h, 160) 50% 26%);
+}
+.dark .initials-avatar {
+  background-color: hsl(var(--avatar-h, 160) 28% 32%);
+  color: hsl(var(--avatar-h, 160) 45% 88%);
+}
+
+/* --------------------------------------------------------------------------
+   Patrón decorativo de "puntada" (dos rejillas de puntos desfasadas). Se
+   usa a baja opacidad como fondo del login y detalles sutiles.
+--------------------------------------------------------------------------- */
+@utility stitch-pattern {
+  background-image:
+    radial-gradient(currentColor 1.1px, transparent 1.6px),
+    radial-gradient(currentColor 1.1px, transparent 1.6px);
+  background-size: 18px 18px;
+  background-position:
+    0 0,
+    9px 9px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .cozy-card,
   .cozy-card:hover,

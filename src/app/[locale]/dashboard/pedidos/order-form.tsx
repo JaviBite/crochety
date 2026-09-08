@@ -3,8 +3,12 @@
 import { useTranslations } from "next-intl";
 import { useActionState, useState } from "react";
 import { ComboboxField } from "@/components/form/combobox-field";
+import { FileField } from "@/components/form/file-field";
+import { FormFooter } from "@/components/form/form-footer";
 import { SubmitButton } from "@/components/form/submit-button";
 import { SuggestInput } from "@/components/form/suggest-input";
+import { AssetImage } from "@/components/asset-image";
+import { assetUrl } from "@/lib/assets";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -21,6 +25,7 @@ import { Link } from "@/i18n/navigation";
 import { toDateInputValue } from "@/lib/dates";
 import { NONE_VALUE } from "@/lib/forms";
 import { centsToEur } from "@/lib/money";
+import { cn } from "@/lib/utils";
 import { ORDER_STATUSES } from "@/lib/validations";
 import { createOrder, updateOrder } from "./actions";
 import {
@@ -128,19 +133,34 @@ export function OrderForm({
           />
         </div>
         <div className="col-span-2 space-y-2 sm:col-span-1">
-          <Label htmlFor="status">{t("fieldStatus")}</Label>
-          <Select name="status" defaultValue={order?.status ?? "SIN_EMPEZAR"}>
-            <SelectTrigger id="status" className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {ORDER_STATUSES.map((status) => (
-                <SelectItem key={status} value={status}>
-                  {tStatus(status)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Label>{t("fieldStatus")}</Label>
+          {/* Pills segmentadas: radios nativos escondidos estilizan la píldora
+              con :has(:checked) y el valor viaja con el form sin JS extra. */}
+          <div
+            role="radiogroup"
+            aria-label={t("fieldStatus")}
+            className="flex flex-wrap gap-1 rounded-full border bg-muted/50 p-1"
+          >
+            {ORDER_STATUSES.map((status) => (
+              <label
+                key={status}
+                className={cn(
+                  "cursor-pointer rounded-full px-3 py-1.5 text-sm font-medium transition-colors",
+                  "text-muted-foreground hover:text-foreground",
+                  "has-checked:bg-primary has-checked:text-primary-foreground has-checked:shadow-sm",
+                )}
+              >
+                <input
+                  type="radio"
+                  name="status"
+                  value={status}
+                  defaultChecked={status === (order?.status ?? "SIN_EMPEZAR")}
+                  className="sr-only"
+                />
+                {tStatus(status)}
+              </label>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -220,15 +240,19 @@ export function OrderForm({
           {t("fieldPhoto")}{" "}
           <span className="text-muted-foreground">({tForms("optional")})</span>
         </Label>
-        {order?.coverPhotoPath && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={`/api/files/${order.coverPhotoPath}`}
-            alt={order.name}
-            className="size-20 rounded-lg border object-cover"
-          />
-        )}
-        <Input id="photo" name="photo" type="file" accept="image/*" />
+        <FileField
+          id="photo"
+          name="photo"
+          accept="image/*"
+        >
+          {order?.coverPhotoPath && (
+            <AssetImage
+              src={assetUrl(order.coverPhotoPath)}
+              alt={order.name}
+              className="size-20 rounded-lg border object-cover"
+            />
+          )}
+        </FileField>
       </div>
 
       <div className="flex items-start gap-3 rounded-xl border p-4">
@@ -250,12 +274,12 @@ export function OrderForm({
         </p>
       )}
 
-      <div className="flex gap-3">
+      <FormFooter>
         <SubmitButton />
         <Button variant="outline" asChild>
           <Link href="/dashboard/pedidos">{tForms("cancel")}</Link>
         </Button>
-      </div>
+      </FormFooter>
     </form>
   );
 }

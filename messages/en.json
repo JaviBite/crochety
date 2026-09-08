@@ -12,9 +12,11 @@
   },
   "Landing": {
     "tagline": "Handmade amigurumi & crochet from Zaragoza",
+    "galleryCta": "See the gallery",
     "emptyTitle": "Still stitching…",
     "emptyDescription": "Our finished creations will show up here very soon.",
-    "login": "Sign in"
+    "login": "Sign in",
+    "footerNote": "Handmade, stitch by stitch."
   },
   "Login": {
     "title": "Welcome back",
@@ -151,12 +153,15 @@
     "uploading": "Uploading…",
     "finalizing": "Finalizing…",
     "uploadFailed": "Could not upload the file",
+    "fileDrop": "Drop here or click to choose",
+    "fileDropMulti": "Drop here or click to choose (multiple allowed)",
     "search": "Search",
     "searchPlaceholder": "Search…",
     "searchClear": "Clear search",
     "comboboxSearch": "Search…",
     "comboboxEmpty": "No results",
-    "comboboxClear": "Clear selection"
+    "comboboxClear": "Clear selection",
+    "Actions": "Actions"
   },
   "OrderStatus": {
     "SIN_EMPEZAR": "Not started",
@@ -221,7 +226,16 @@
     "colQuantity": "Qty",
     "colPrice": "Price",
     "colAssignedTo": "Assigned to",
-    "colDueDate": "Due date"
+    "colDueDate": "Due date",
+    "filterAllStatuses": "All",
+    "filterAssigned": "Filter by assignee",
+    "filterAssignedAll": "Anyone",
+    "sortLabel": "Sort by",
+    "sortRecent": "Most recent",
+    "sortDueDate": "Due date",
+    "sortPriceDesc": "Price (highest first)",
+    "sortPriceAsc": "Price (lowest first)",
+    "detailTitle": "Details"
   },
   "Expenses": {
     "title": "Expenses",
@@ -279,7 +293,8 @@
     "photosUploading": "Uploading…",
     "photosLinkPlaceholder": "…or paste an image link",
     "photosAddLink": "Add link",
-    "photosHint": "Saved with the purchase (private)."
+    "photosHint": "Saved with the purchase (private).",
+    "spentThisMonth": "Spent this month: {total}"
   },
   "Materials": {
     "title": "Materials",

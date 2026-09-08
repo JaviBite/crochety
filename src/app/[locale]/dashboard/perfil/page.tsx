@@ -22,7 +22,7 @@ export default async function ProfilePage() {
     <div className="space-y-6">
       <div>
         <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-2xl font-bold tracking-tight">{t("title")}</h1>
+          <h1 className="h1-display">{t("title")}</h1>
           <Badge variant="secondary">
             {tRole(user.role === "ADMIN" ? "ADMIN" : "USER")}
           </Badge>

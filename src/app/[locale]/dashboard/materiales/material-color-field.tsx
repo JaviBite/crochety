@@ -2,7 +2,8 @@
 
 import { Pipette } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { type ChangeEvent, type MouseEvent, useEffect, useRef, useState } from "react";
+import { type MouseEvent, useEffect, useRef, useState } from "react";
+import { FileField } from "@/components/form/file-field";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -91,9 +92,7 @@ export function MaterialColorField({
     };
   }, []);
 
-  function onFileChange(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    if (!file) return;
+  function handleFile(file: File) {
     if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
     const url = URL.createObjectURL(file);
     objectUrlRef.current = url;
@@ -130,12 +129,14 @@ export function MaterialColorField({
           {t("fieldPhoto")}{" "}
           <span className="text-muted-foreground">({tForms("optional")})</span>
         </Label>
-        <Input
+        <FileField
           id="photo"
           name="photo"
-          type="file"
           accept="image/*"
-          onChange={onFileChange}
+          onFiles={(files) => {
+            const file = files[0];
+            if (file) handleFile(file);
+          }}
         />
       </div>
 

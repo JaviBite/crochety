@@ -2,6 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { useActionState } from "react";
+import { FormFooter } from "@/components/form/form-footer";
 import { SubmitButton } from "@/components/form/submit-button";
 import { SuggestInput } from "@/components/form/suggest-input";
 import { TagInput } from "@/components/form/tag-input";
@@ -232,12 +233,12 @@ export function MaterialForm({
         </p>
       )}
 
-      <div className="flex gap-3">
+      <FormFooter>
         <SubmitButton />
         <Button variant="outline" asChild>
           <Link href="/dashboard/materiales">{tForms("cancel")}</Link>
         </Button>
-      </div>
+      </FormFooter>
     </form>
   );
 }

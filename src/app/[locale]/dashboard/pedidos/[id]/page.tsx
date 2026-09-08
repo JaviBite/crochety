@@ -41,7 +41,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-bold tracking-tight">{order.name}</h1>
+            <h1 className="h1-display">{order.name}</h1>
             <StatusBadge status={order.status} kind="order" />
           </div>
           <p className="text-muted-foreground">{order.description ?? t("fieldDescription")}</p>
@@ -57,7 +57,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
       <div className="grid gap-5 lg:grid-cols-[1.2fr_0.8fr]">
         <Card className="rounded-2xl shadow-sm">
           <CardHeader>
-            <CardTitle className="text-base">{t("fieldDescription")}</CardTitle>
+            <CardTitle className="text-base">{t("detailTitle")}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4 text-sm text-muted-foreground">
             <div className="grid gap-3 sm:grid-cols-2">

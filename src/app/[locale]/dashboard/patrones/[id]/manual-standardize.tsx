@@ -1,9 +1,12 @@
 "use client";
 
-import { ChevronDown, Sparkles, X } from "lucide-react";
+import { ChevronDown, Sparkles } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { type ChangeEvent, useActionState, useState } from "react";
+import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
+import { assetUrl } from "@/lib/assets";
+import { FileField } from "@/components/form/file-field";
+import { PhotoChip } from "@/components/form/photo-chip";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { uploadPatternFile } from "@/lib/pattern-upload";
@@ -33,9 +36,7 @@ export function ManualStandardize({ id }: { id: string }) {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
-  function onPickImages(event: ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(event.target.files ?? []);
-    event.target.value = "";
+  function uploadImages(files: File[]) {
     if (files.length === 0) return;
     setUploadError(null);
     setUploading(true);
@@ -81,35 +82,22 @@ export function ManualStandardize({ id }: { id: string }) {
           {imagePaths.length > 0 && (
             <div className="flex flex-wrap gap-2">
               {imagePaths.map((path) => (
-                <div key={path} className="relative">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={`/api/files/${path}`}
-                    alt=""
-                    className="size-16 rounded-lg border object-cover"
-                  />
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setImagePaths((current) => current.filter((p) => p !== path))
-                    }
-                    aria-label={tForms("delete")}
-                    className="absolute -right-1.5 -top-1.5 rounded-full border bg-background p-0.5 text-muted-foreground hover:text-destructive"
-                  >
-                    <X className="size-3" />
-                  </button>
-                </div>
+                <PhotoChip
+                  key={path}
+                  src={assetUrl(path)}
+                  onDelete={() =>
+                    setImagePaths((current) => current.filter((p) => p !== path))
+                  }
+                />
               ))}
             </div>
           )}
 
-          <input
-            type="file"
+          <FileField
+            id="manual-images"
             accept="image/*"
             multiple
-            onChange={onPickImages}
-            aria-label={t("fieldImages")}
-            className="text-sm"
+            onFiles={uploadImages}
           />
 
           {uploadError && (
