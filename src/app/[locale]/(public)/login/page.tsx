@@ -16,9 +16,10 @@ export default async function LoginPage() {
   return (
     <div className="relative mx-auto flex max-w-sm flex-col justify-center py-20">
       {/* Fondo decorado sutil: blob del acento + patrón de puntadas en CSS */}
+      {/* Fondo decorado sutil: blob del acento + patrón de puntadas en CSS */}
       <div
         aria-hidden
-        className="pointer-events-none absolute top-1/2 left-1/2 -z-10 size-96 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/10 blur-3xl"
+        className="pointer-events-none absolute top-1/2 left-1/2 -z-10 h-96 w-[32rem] max-w-none -translate-x-1/2 -translate-y-1/2 bg-primary/10 [mask-image:radial-gradient(closest-side,black,transparent)]"
       />
       <Card className="rounded-2xl shadow-sm">
         <div

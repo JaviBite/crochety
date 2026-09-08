@@ -50,8 +50,8 @@ animación).
 | 3 | Vitrina pública (hero, masonry, login) | ✅ Hecho |
 | 4 | Dashboard (KPIs, balance Splitwise) | ✅ Hecho |
 | 5 | Listados (pedidos+filtros, gastos, materiales, patrones) | ✅ Hecho |
-| 6 | Detalles y forms (tooltips, sticky, patrón, dark) | ✅ Hecho (dark QA en B7) |
-| 7 | QA final (capturas, contraste, i18n espejado) | ☐ Pendiente |
+| 6 | Detalles y forms (tooltips, sticky, patrón, dark) | ✅ Hecho |
+| 7 | QA final (capturas, contraste, i18n espejado) | ✅ Hecho |
 
 ---
 
@@ -192,14 +192,32 @@ Todo lo demás reutiliza esto. Empezar aquí.
 
 ## Bloque 7 — QA final
 
-- [ ] **i18n**: todo texto nuevo en `messages/es.json` **y** `en.json`
-  (espejo completo; revisar con diff de claves).
-- [ ] **Tests**: `lib/status.test.ts`, helpers puros nuevos (filtros de
-  pedidos si añaden lógica). `npm run test` verde.
-- [ ] **Verificación visual Playwright**: re-capturar TODAS las páginas en
-  claro/oscuro/móvil (desktop 1280×800, móvil 390×844) y comparar contra las
-  de antes del facelift; revisar contraste AA en dark.
-- [ ] `npm run typecheck` + `npx eslint src` limpios.
+- [x] **i18n**: todo texto nuevo en `messages/es.json` **y** `en.json`
+  (espejo verificado con diff de claves: 0 diferencias; fix de
+  `Forms.rowActions` que había quedado con clave literal).
+- [x] **Tests**: `lib/avatar.test.ts` (helper nuevo del balance, 6 tests),
+  `lib/search.test.ts` ampliado con `hexToHsl`/`sortByColorHue` (orden del
+  arcoíris del filtro de color). `npm run test` verde (226 tests, 28 ficheros).
+- [x] **Verificación visual Playwright**: 72+ capturas (desktop 1280×800 y
+  móvil 390×844, claro/oscuro) en `.opencode/shots/` — galería, login,
+  dashboard, pedidos (lista/filtro/nuevo/detalle), gastos (lista/detalle/
+  nuevo), materiales (lista/nuevo), patrones (lista/detalle/nuevo), usuarios,
+  ajustes, perfil. Contrast AA en dark OK (badges con puntito, netos
+  verde/destructive, avatares temáticos); corregido blob del hero con corte
+  visible en dark (máscara radial) y pills de estado que rompían en
+  pantallas estrechas.
+- [x] `npm run typecheck` + `npx eslint src` limpios + `npm run build` OK.
+
+### Bugs encontrados por el QA (arreglados)
+
+- **`repeatRounds` FORMATTING_ERROR**: el mensaje es ICU plural
+  (`{count, plural, …}`) y se formateaba con `.replace("{count}")` — ahora
+  `repeatRoundsLabel(count)` vía `t("repeatRounds", { count })`.
+- **Keys duplicadas "Lana negra"** en el datalist de items de gasto: 3
+  materiales comparten nombre; `materialNames` deduplicado con `Set`.
+- **Pills de estado rotas en desktop estrecho**: el contenedor de 1/3 columna
+  apilaba las 4 pills (círculo gigante); ahora fila completa bajo
+  cantidad/precio.
 
 ## Fuera de alcance
 

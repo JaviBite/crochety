@@ -47,7 +47,7 @@ export default async function EditExpensePage({
       <ExpenseForm
         users={users}
         stores={stores.map((row) => row.store!)}
-        materialNames={materials.map((material) => material.name)}
+        materialNames={[...new Set(materials.map((material) => material.name))]}
         expense={{
           id: expense.id,
           date: expense.date,

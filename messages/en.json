@@ -161,7 +161,7 @@
     "comboboxSearch": "Search…",
     "comboboxEmpty": "No results",
     "comboboxClear": "Clear selection",
-    "Actions": "Actions"
+    "rowActions": "Actions"
   },
   "OrderStatus": {
     "SIN_EMPEZAR": "Not started",

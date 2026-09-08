@@ -30,7 +30,7 @@ export default async function NewExpensePage() {
       <ExpenseForm
         users={users}
         stores={stores.map((expense) => expense.store!)}
-        materialNames={materials.map((material) => material.name)}
+        materialNames={[...new Set(materials.map((material) => material.name))]}
       />
     </div>
   );

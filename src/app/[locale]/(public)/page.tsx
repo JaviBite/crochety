@@ -52,9 +52,11 @@ export default async function LandingPage() {
       {/* Hero: blob suave del acento detrás del título y CTA ancla a la
           mampostería. El gradiente usa currentColor del acento activo. */}
       <section className="relative overflow-hidden pt-10 pb-6 text-center sm:pt-14">
+        {/* Blob suave del acento: gradiente con máscara radial para que no
+            se vea el corte del contenedor (en dark resalta mucho). */}
         <div
           aria-hidden
-          className="pointer-events-none absolute top-1/2 left-1/2 -z-10 size-[28rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/10 blur-3xl"
+          className="pointer-events-none absolute top-0 left-1/2 -z-10 h-full w-[36rem] max-w-none -translate-x-1/2 bg-primary/10 [mask-image:radial-gradient(closest-side,black,transparent)]"
         />
         <h1 className="h1-display sm:text-5xl">{workshop.name}</h1>
         <p className="mx-auto mt-3 max-w-xl text-lg text-muted-foreground">

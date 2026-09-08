@@ -196,8 +196,9 @@ export default async function PatternDetailPage({
             colStitches: t("colStitches"),
             notes: t("sectionNotesLabel"),
             assembly: t("assemblyTitle"),
-            repeatRounds: t("repeatRounds"),
           }}
+          // Mensaje ICU plural: se formatea con el count real de cada grupo.
+          repeatRoundsLabel={(count) => t("repeatRounds", { count })}
         />
       ) : aiStatus === "PENDING" || aiStatus === "PROCESSING" ? (
         <EmptyState
@@ -253,9 +254,11 @@ function buildRenderItems(rounds: Round[]): RenderItem[] {
 function StandardizedView({
   standardized,
   labels,
+  repeatRoundsLabel,
 }: {
   standardized: StandardizedPattern;
   labels: Record<string, string | null>;
+  repeatRoundsLabel: (count: number) => string;
 }) {
   return (
     <div className="space-y-5">
@@ -388,7 +391,7 @@ function StandardizedView({
                             </div>
                           </div>
                           <div className="flex shrink-0 items-center gap-2 text-sm text-muted-foreground">
-                            <span>{labels.repeatRounds?.replace("{count}", `${group.length}`)}</span>
+                            <span>{repeatRoundsLabel(group.length)}</span>
                             <ChevronDown className="size-4 transition-transform group-open:rotate-180" />
                           </div>
                         </summary>

@@ -107,7 +107,7 @@ export function OrderForm({
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="quantity">{t("fieldQuantity")}</Label>
           <Input
@@ -132,35 +132,36 @@ export function OrderForm({
             onChange={(event) => setPriceEur(event.target.value)}
           />
         </div>
-        <div className="col-span-2 space-y-2 sm:col-span-1">
-          <Label>{t("fieldStatus")}</Label>
-          {/* Pills segmentadas: radios nativos escondidos estilizan la píldora
-              con :has(:checked) y el valor viaja con el form sin JS extra. */}
-          <div
-            role="radiogroup"
-            aria-label={t("fieldStatus")}
-            className="flex flex-wrap gap-1 rounded-full border bg-muted/50 p-1"
-          >
-            {ORDER_STATUSES.map((status) => (
-              <label
-                key={status}
-                className={cn(
-                  "cursor-pointer rounded-full px-3 py-1.5 text-sm font-medium transition-colors",
-                  "text-muted-foreground hover:text-foreground",
-                  "has-checked:bg-primary has-checked:text-primary-foreground has-checked:shadow-sm",
-                )}
-              >
-                <input
-                  type="radio"
-                  name="status"
-                  value={status}
-                  defaultChecked={status === (order?.status ?? "SIN_EMPEZAR")}
-                  className="sr-only"
-                />
-                {tStatus(status)}
-              </label>
-            ))}
-          </div>
+      </div>
+
+      <div className="space-y-2">
+        <Label>{t("fieldStatus")}</Label>
+        {/* Pills segmentadas: radios nativos escondidos estilizan la píldora
+            con :has(:checked) y el valor viaja con el form sin JS extra. */}
+        <div
+          role="radiogroup"
+          aria-label={t("fieldStatus")}
+          className="flex flex-wrap gap-1 rounded-full border bg-muted/50 p-1"
+        >
+          {ORDER_STATUSES.map((status) => (
+            <label
+              key={status}
+              className={cn(
+                "cursor-pointer rounded-full px-3 py-1.5 text-sm font-medium transition-colors",
+                "text-muted-foreground hover:text-foreground",
+                "has-checked:bg-primary has-checked:text-primary-foreground has-checked:shadow-sm",
+              )}
+            >
+              <input
+                type="radio"
+                name="status"
+                value={status}
+                defaultChecked={status === (order?.status ?? "SIN_EMPEZAR")}
+                className="sr-only"
+              />
+              {tStatus(status)}
+            </label>
+          ))}
         </div>
       </div>
 
