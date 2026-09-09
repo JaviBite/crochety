@@ -30,6 +30,7 @@ export async function updateSettings(
     defaultAccent: data.defaultAccent,
     // Sin ubicaciones se borra la fila (el desplegable queda vacío).
     locations: data.locations.length ? JSON.stringify(data.locations) : null,
+    lowStockThreshold: String(data.lowStockThreshold),
     aiProvider: data.aiProvider,
     aiModel: data.aiModel,
     ollamaBaseUrl: data.ollamaBaseUrl,

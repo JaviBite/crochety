@@ -75,6 +75,7 @@ export function ExpenseForm({
   expense,
   stores = [],
   materialNames = [],
+  defaultPaidById,
 }: {
   users: Option[];
   expense?: ExpenseFormValues;
@@ -82,6 +83,8 @@ export function ExpenseForm({
   stores?: string[];
   /** Nombres de materiales del inventario, para sugerir las líneas. */
   materialNames?: string[];
+  /** Quién pagó el último gasto (default sensato al crear). */
+  defaultPaidById?: string | null;
 }) {
   const t = useTranslations("Expenses");
   const tForms = useTranslations("Forms");
@@ -214,6 +217,34 @@ export function ExpenseForm({
   );
   const autoTotalCents = linesCents + eurToCents(num(shipping));
 
+  // Líneas con cantidad/precio que el parser ajustará (invalid → default):
+  // aviso en ámbar para que se corrija antes de enviar.
+  const invalidRows = items.filter((row) => {
+    if (!row.item.trim()) return false;
+    const quantity = Number.parseInt(row.quantity, 10);
+    const price = Number.parseFloat(row.unitPriceEur);
+    return (
+      !Number.isFinite(quantity) ||
+      quantity < 1 ||
+      (row.unitPriceEur.trim() !== "" &&
+        (!Number.isFinite(price) || price < 0))
+    );
+  }).length;
+
+  // Total controlado: automático (vacío) salvo override manual. El dirty flag
+  // evita pisar lo que el usuario escribe; el botón vuelve al automático.
+  const initialAutoTotalCents =
+    (expense?.items ?? []).reduce(
+      (sum, line) => sum + line.unitPriceCents * line.quantity,
+      0,
+    ) + (expense?.shippingCents ?? 0);
+  const [totalEur, setTotalEur] = useState<string>(() =>
+    expense && expense.totalCents !== initialAutoTotalCents
+      ? String(centsToEur(expense.totalCents))
+      : "",
+  );
+  const totalDirty = totalEur.trim() !== "";
+
   // Solo se envían las filas con nombre; el total va como null (auto) salvo ajuste.
   const itemsJson = JSON.stringify(
     items
@@ -321,7 +352,10 @@ export function ExpenseForm({
         </div>
         <div className="space-y-2">
           <Label htmlFor="paidById">{t("fieldPaidBy")}</Label>
-          <Select name="paidById" defaultValue={expense?.paidById ?? users[0]?.id}>
+          <Select
+            name="paidById"
+            defaultValue={expense?.paidById ?? defaultPaidById ?? users[0]?.id}
+          >
             <SelectTrigger id="paidById" className="w-full">
               <SelectValue />
             </SelectTrigger>
@@ -345,6 +379,11 @@ export function ExpenseForm({
             {t("addItem")}
           </Button>
         </div>
+        {invalidRows > 0 && (
+          <p className="text-xs text-amber-600 dark:text-amber-400">
+            {t("rowsInvalid", { count: invalidRows })}
+          </p>
+        )}
         <div className="space-y-2">
           {items.map((row, index) => (
             <div
@@ -364,6 +403,10 @@ export function ExpenseForm({
                 type="number"
                 min={1}
                 step={1}
+                aria-invalid={
+                  !Number.isFinite(Number.parseInt(row.quantity, 10)) ||
+                  Number.parseInt(row.quantity, 10) < 1
+                }
                 value={row.quantity}
                 onChange={(event) => patchRow(index, { quantity: event.target.value })}
               />
@@ -373,6 +416,11 @@ export function ExpenseForm({
                 min={0}
                 step="0.01"
                 placeholder="0.00"
+                aria-invalid={
+                  row.unitPriceEur.trim() !== "" &&
+                  (!Number.isFinite(Number.parseFloat(row.unitPriceEur)) ||
+                    Number.parseFloat(row.unitPriceEur) < 0)
+                }
                 value={row.unitPriceEur}
                 onChange={(event) =>
                   patchRow(index, { unitPriceEur: event.target.value })
@@ -388,14 +436,18 @@ export function ExpenseForm({
               >
                 <Trash2 />
               </Button>
-              <label className="col-span-2 flex items-center gap-2 text-xs text-muted-foreground sm:col-span-4">
-                <Checkbox
-                  checked={row.addToMaterials}
-                  onCheckedChange={(checked) =>
-                    patchRow(index, { addToMaterials: checked === true })
-                  }
-                />
-                {t("addToMaterials")}
+              <div className="col-span-2 flex items-center gap-2 text-xs text-muted-foreground sm:col-span-4">
+                {/* Checkbox y enlace separados: un input dentro de un label
+                    anida interactivos y rompe el toggle del checkbox. */}
+                <label className="flex shrink-0 cursor-pointer items-center gap-2">
+                  <Checkbox
+                    checked={row.addToMaterials}
+                    onCheckedChange={(checked) =>
+                      patchRow(index, { addToMaterials: checked === true })
+                    }
+                  />
+                  {t("addToMaterials")}
+                </label>
                 <Input
                   aria-label={t("fieldLink")}
                   type="url"
@@ -404,7 +456,7 @@ export function ExpenseForm({
                   onChange={(event) => patchRow(index, { link: event.target.value })}
                   className="ml-auto h-7 max-w-52"
                 />
-              </label>
+              </div>
             </div>
           ))}
         </div>
@@ -429,7 +481,18 @@ export function ExpenseForm({
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="totalEur">{t("fieldTotal")}</Label>
+          <div className="flex items-center justify-between">
+            <Label htmlFor="totalEur">{t("fieldTotal")}</Label>
+            {totalDirty && (
+              <button
+                type="button"
+                onClick={() => setTotalEur("")}
+                className="text-xs text-primary hover:underline"
+              >
+                {t("resetAutoTotal")}
+              </button>
+            )}
+          </div>
           <Input
             id="totalEur"
             name="totalEur"
@@ -437,11 +500,8 @@ export function ExpenseForm({
             min={0}
             step="0.01"
             placeholder={formatCents(autoTotalCents, locale)}
-            defaultValue={
-              expense && expense.totalCents !== autoTotalCents
-                ? centsToEur(expense.totalCents)
-                : undefined
-            }
+            value={totalEur}
+            onChange={(event) => setTotalEur(event.target.value)}
           />
           <p className="text-xs text-muted-foreground">
             {t("autoTotal", { total: formatCents(autoTotalCents, locale) })}

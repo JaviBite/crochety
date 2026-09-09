@@ -7,38 +7,87 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Link } from "@/i18n/navigation";
 import { auth } from "@/lib/auth";
 import { avatarHue, initialsOf } from "@/lib/avatar";
-import { computeSettlements } from "@/lib/balance";
+import { computeSettlements, filterParticipants } from "@/lib/balance";
+import { getFormatter } from "next-intl/server";
 import { formatCents } from "@/lib/money";
+import { isOrderOverdue } from "@/lib/orders";
+import { getLowStockThreshold } from "@/lib/settings";
 import { prisma } from "@/lib/prisma";
 import { cn } from "@/lib/utils";
+import { ORDER_STATUSES } from "@/lib/validations";
 
 type CssWithHue = React.CSSProperties & { "--avatar-h": number };
 
 export default async function DashboardHome() {
-  const [t, locale, session] = await Promise.all([
+  const [t, locale, format, session] = await Promise.all([
     getTranslations("Dashboard"),
     getLocale(),
+    getFormatter(),
     auth(),
   ]);
 
+  // Inicio del día actual y ventana de 7 días para las entregas.
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const inSevenDays = new Date(today);
+  inSevenDays.setDate(inSevenDays.getDate() + 7);
+
+  // El umbral decide si la consulta de stock bajo tiene sentido (0 = off).
+  const lowStockThreshold = await getLowStockThreshold();
+
   // Métricas globales: ganado = pedidos cobrados; gastado = total de gastos.
-  const [earnedAgg, spentAgg, users, paidByUser, earnedByUser] =
-    await Promise.all([
-      prisma.order.aggregate({
-        _sum: { priceCents: true },
-        where: { status: "COBRADO" },
-      }),
-      prisma.expense.aggregate({ _sum: { totalCents: true } }),
-      prisma.user.findMany({ orderBy: { createdAt: "asc" } }),
-      prisma.expense.groupBy({ by: ["paidById"], _sum: { totalCents: true } }),
-      prisma.order.groupBy({
-        by: ["assignedToId"],
-        _sum: { priceCents: true },
-        where: { status: "COBRADO" },
-      }),
-    ]);
+  const [
+    earnedAgg,
+    spentAgg,
+    users,
+    paidByUser,
+    earnedByUser,
+    dueOrders,
+    statusCounts,
+    lowStock,
+  ] = await Promise.all([
+    prisma.order.aggregate({
+      _sum: { priceCents: true },
+      where: { status: "COBRADO" },
+    }),
+    prisma.expense.aggregate({ _sum: { totalCents: true } }),
+    prisma.user.findMany({ orderBy: { createdAt: "asc" } }),
+    prisma.expense.groupBy({ by: ["paidById"], _sum: { totalCents: true } }),
+    prisma.order.groupBy({
+      by: ["assignedToId"],
+      _sum: { priceCents: true },
+      where: { status: "COBRADO" },
+    }),
+    // Entregas próximas/vencidas: ≤7 días (o pasado) y no cobradas.
+    prisma.order.findMany({
+      where: {
+        dueDate: { not: null, lte: inSevenDays },
+        status: { not: "COBRADO" },
+      },
+      orderBy: { dueDate: "asc" },
+      take: 5,
+      select: {
+        id: true,
+        name: true,
+        dueDate: true,
+        status: true,
+        assignedTo: { select: { name: true } },
+      },
+    }),
+    prisma.order.groupBy({ by: ["status"], _count: { _all: true } }),
+    // Stock bajo (0 = aviso desactivado en Ajustes).
+    lowStockThreshold === 0
+      ? Promise.resolve([])
+      : prisma.material.findMany({
+          where: { stock: { lte: lowStockThreshold } },
+          orderBy: { stock: "asc" },
+          take: 5,
+          select: { id: true, name: true, stock: true },
+        }),
+  ]);
 
   const totalEarned = earnedAgg._sum.priceCents ?? 0;
   const totalSpent = spentAgg._sum.totalCents ?? 0;
@@ -76,7 +125,9 @@ export default async function DashboardHome() {
     },
   ];
 
-  const balances = users.map((user) => {
+  // Balance solo entre quienes participan del bote común (los usuarios
+  // marcados como no participantes quedan fuera del reparto).
+  const balances = filterParticipants(users).map((user) => {
     const paid =
       paidByUser.find((p) => p.paidById === user.id)?._sum.totalCents ?? 0;
     const earned =
@@ -129,6 +180,124 @@ export default async function DashboardHome() {
             </CardContent>
           </Card>
         ))}
+      </div>
+
+      {/* Panel operativo: entregas, estados y stock bajo */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <Card className="cozy-card rounded-2xl shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">{t("deliveriesTitle")}</CardTitle>
+            <CardDescription>{t("deliveriesHint")}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {dueOrders.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                {t("deliveriesEmpty")}
+              </p>
+            ) : (
+              <ul className="space-y-2 text-sm">
+                {dueOrders.map((order) => (
+                  <li key={order.id} className="flex items-center gap-2">
+                    <Link
+                      href={`/dashboard/pedidos/${order.id}`}
+                      className="min-w-0 flex-1 truncate hover:underline"
+                    >
+                      {order.name}
+                    </Link>
+                    <span
+                      className={cn(
+                        "shrink-0 text-xs tabular-nums",
+                        isOrderOverdue(order)
+                          ? "font-medium text-amber-600 dark:text-amber-400"
+                          : "text-muted-foreground",
+                      )}
+                    >
+                      {order.dueDate
+                        ? format.dateTime(order.dueDate, { dateStyle: "short" })
+                        : null}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <Link
+              href="/dashboard/pedidos?sort=due"
+              className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+            >
+              {t("deliveriesSeeAll")}
+              <ArrowRight aria-hidden className="size-3" />
+            </Link>
+          </CardContent>
+        </Card>
+
+        <Card className="cozy-card rounded-2xl shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">{t("statusCountsTitle")}</CardTitle>
+            <CardDescription>{t("statusCountsHint")}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {ORDER_STATUSES.map((status) => {
+              const count =
+                statusCounts.find((entry) => entry.status === status)?._count
+                  ._all ?? 0;
+              return (
+                <Link
+                  key={status}
+                  href={`/dashboard/pedidos?status=${status}`}
+                  className="flex items-center justify-between rounded-lg px-2 py-1.5 text-sm transition-colors hover:bg-accent"
+                >
+                  <span>
+                    {t.has(status) ? t(status) : status}
+                  </span>
+                  <span className="font-medium tabular-nums text-muted-foreground">
+                    {count}
+                  </span>
+                </Link>
+              );
+            })}
+          </CardContent>
+        </Card>
+
+        {lowStockThreshold > 0 && (
+          <Card className="cozy-card rounded-2xl shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">{t("lowStockTitle")}</CardTitle>
+              <CardDescription>
+                {t("lowStockHint", { count: lowStockThreshold })}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {lowStock.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  {t("lowStockEmpty")}
+                </p>
+              ) : (
+                <ul className="space-y-2 text-sm">
+                  {lowStock.map((material) => (
+                    <li key={material.id} className="flex items-center gap-2">
+                      <Link
+                        href={`/dashboard/materiales/${material.id}`}
+                        className="min-w-0 flex-1 truncate hover:underline"
+                      >
+                        {material.name}
+                      </Link>
+                      <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+                        ×{material.stock}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <Link
+                href="/dashboard/materiales"
+                className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+              >
+                {t("lowStockSeeAll")}
+                <ArrowRight aria-hidden className="size-3" />
+              </Link>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       <Card className="rounded-2xl shadow-sm">

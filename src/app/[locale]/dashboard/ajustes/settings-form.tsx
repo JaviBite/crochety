@@ -163,6 +163,22 @@ export function SettingsForm({ snapshot }: { snapshot: SettingsSnapshot }) {
               </p>
             </div>
           </div>
+          <div className="space-y-2">
+            <Label htmlFor="lowStockThreshold">
+              {t("fieldLowStockThreshold")}
+            </Label>
+            <Input
+              id="lowStockThreshold"
+              name="lowStockThreshold"
+              type="number"
+              min={0}
+              step={1}
+              defaultValue={snapshot.lowStockThreshold}
+            />
+            <p className="text-xs text-muted-foreground">
+              {t("lowStockThresholdHint")}
+            </p>
+          </div>
           <LocationsEditor initial={snapshot.locations} />
         </CardContent>
       </Card>

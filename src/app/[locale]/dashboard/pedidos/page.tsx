@@ -5,6 +5,7 @@ import { AssetImage } from "@/components/asset-image";
 import { assetUrl } from "@/lib/assets";
 import { OrderCard } from "@/components/dashboard/cards";
 import { ListSearch } from "@/components/dashboard/list-search";
+import { LoadMore } from "@/components/dashboard/load-more";
 import { OrderFilters } from "@/components/dashboard/order-filters";
 import { RowActions } from "@/components/dashboard/row-actions";
 import { StatusBadge } from "@/components/dashboard/status-badge";
@@ -25,6 +26,8 @@ import { formatCents } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 import { normalizeSearch } from "@/lib/search";
 import { parseView, viewCookieName } from "@/lib/view";
+import { isOrderOverdue } from "@/lib/orders";
+import { cn } from "@/lib/utils";
 import { ORDER_STATUSES } from "@/lib/validations";
 import { deleteOrder } from "./actions";
 
@@ -42,10 +45,19 @@ function orderCover(order: {
 export default async function OrdersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; status?: string; assigned?: string; sort?: string }>;
+  searchParams: Promise<{ q?: string; status?: string; assigned?: string; sort?: string; n?: string }>;
 }) {
-  const { q, status, assigned, sort } = await searchParams;
+  const { q, status, assigned, sort, n } = await searchParams;
   const search = normalizeSearch(q);
+
+  // Paginación "load more" por recuento (?n=): se piden N+1 para saber si
+  // quedan más sin contar la colección entera.
+  const pageSize = 30;
+  const parsedCount = Number.parseInt(n ?? "", 10);
+  const visibleCount =
+    Number.isFinite(parsedCount) && parsedCount > 0
+      ? Math.min(parsedCount, 500)
+      : pageSize;
 
   const filters: Prisma.OrderWhereInput[] = [];
   if (search) {
@@ -80,6 +92,7 @@ export default async function OrdersPage({
     prisma.order.findMany({
       where,
       orderBy,
+      take: visibleCount + 1,
       include: {
         assignedTo: { select: { name: true } },
         photos: { where: { isCover: true }, take: 1 },
@@ -98,6 +111,9 @@ export default async function OrdersPage({
   );
 
   const hasFilters = filters.length > 0;
+  // take N+1: si sobra uno, hay más páginas detrás del botón "Cargar más".
+  const hasMore = orders.length > visibleCount;
+  const visible = hasMore ? orders.slice(0, visibleCount) : orders;
 
   return (
     <div className="space-y-6">
@@ -107,7 +123,7 @@ export default async function OrdersPage({
           <p className="text-muted-foreground">{t("description")}</p>
         </div>
         <div className="flex items-center gap-2">
-          {(orders.length > 0 || hasFilters) && (
+          {(visible.length > 0 || hasFilters) && (
             <ViewToggle section={SECTION} value={view} />
           )}
           <Button asChild>
@@ -122,7 +138,7 @@ export default async function OrdersPage({
       <ListSearch className="max-w-sm" />
       <OrderFilters users={users} />
 
-      {orders.length === 0 ? (
+      {visible.length === 0 ? (
         <EmptyState
           icon={<Package className="size-6" />}
           title={hasFilters ? t("noResultsTitle") : t("emptyTitle")}
@@ -150,7 +166,7 @@ export default async function OrdersPage({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {orders.map((order) => {
+                {visible.map((order) => {
                   const cover = orderCover(order);
                   return (
                     <TableRow key={order.id}>
@@ -182,7 +198,13 @@ export default async function OrdersPage({
                         {formatCents(order.priceCents, locale)}
                       </TableCell>
                       <TableCell>{order.assignedTo?.name ?? "—"}</TableCell>
-                      <TableCell className="whitespace-nowrap">
+                      <TableCell
+                        className={cn(
+                          "whitespace-nowrap",
+                          isOrderOverdue(order) &&
+                            "font-medium text-amber-600 dark:text-amber-400",
+                        )}
+                      >
                         {order.dueDate
                           ? format.dateTime(order.dueDate, { dateStyle: "medium" })
                           : "—"}
@@ -192,6 +214,7 @@ export default async function OrdersPage({
                           viewHref={`${BASE_PATH}/${order.id}`}
                           editHref={`${BASE_PATH}/editar/${order.id}`}
                           deleteAction={deleteOrder.bind(null, order.id)}
+                          entityName={order.name}
                         />
                       </TableCell>
                     </TableRow>
@@ -201,7 +224,7 @@ export default async function OrdersPage({
             </Table>
           </div>
           <div className="space-y-3 sm:hidden">
-            {orders.map((order) => (
+            {visible.map((order) => (
               <OrderCard
                 key={order.id}
                 order={{
@@ -214,6 +237,7 @@ export default async function OrdersPage({
                   assignedToName: order.assignedTo?.name ?? null,
                   dueDate: order.dueDate,
                   coverPath: orderCover(order),
+                  overdue: isOrderOverdue(order),
                 }}
                 deleteAction={deleteOrder.bind(null, order.id)}
               />
@@ -222,7 +246,7 @@ export default async function OrdersPage({
         </>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {orders.map((order) => (
+          {visible.map((order) => (
             <OrderCard
               key={order.id}
               order={{
@@ -235,11 +259,20 @@ export default async function OrdersPage({
                 assignedToName: order.assignedTo?.name ?? null,
                 dueDate: order.dueDate,
                 coverPath: orderCover(order),
+                overdue: isOrderOverdue(order),
               }}
               deleteAction={deleteOrder.bind(null, order.id)}
             />
           ))}
         </div>
+      )}
+
+      {hasMore && (
+        <LoadMore
+          basePath={BASE_PATH}
+          nextCount={visibleCount + pageSize}
+          preserveQuery={{ q: search, status, assigned, sort }}
+        />
       )}
     </div>
   );

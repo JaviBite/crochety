@@ -3,6 +3,7 @@
 import { Ellipsis, Eye, Pencil, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useState, useTransition, type ReactNode } from "react";
+import { toast } from "sonner";
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -29,23 +30,28 @@ function DeleteConfirm({
   action,
   open,
   onOpenChange,
+  entityName,
 }: {
   action: () => Promise<DeleteResult>;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  entityName?: string;
 }) {
   const t = useTranslations("Forms");
-  const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   function onConfirm() {
-    setError(null);
     startTransition(async () => {
       const result = await action();
       if (result && "error" in result && result.error) {
-        setError(result.error);
+        toast.error(result.error);
         return;
       }
+      toast.success(
+        entityName
+          ? t("deletedNamed", { name: entityName })
+          : t("deleted"),
+      );
       onOpenChange(false);
     });
   }
@@ -54,12 +60,15 @@ function DeleteConfirm({
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>{t("deleteConfirmTitle")}</AlertDialogTitle>
+          <AlertDialogTitle>
+            {entityName
+              ? t("deleteConfirmTitleNamed", { name: entityName })
+              : t("deleteConfirmTitle")}
+          </AlertDialogTitle>
           <AlertDialogDescription>
             {t("deleteConfirmDescription")}
           </AlertDialogDescription>
         </AlertDialogHeader>
-        {error && <p className="text-sm text-destructive">{error}</p>}
         <AlertDialogFooter>
           <AlertDialogCancel disabled={pending}>{t("cancel")}</AlertDialogCancel>
           <Button variant="destructive" onClick={onConfirm} disabled={pending}>
@@ -116,15 +125,19 @@ function IconWithTooltip({
 }
 
 /** Editar/Ver/Borrar para una fila/tarjeta de listado.
-    Desktop: iconos con tooltip. Móvil: menú ⋯ para ganar espacio en la fila. */
+    Desktop: iconos con tooltip. Móvil: menú ⋯ para ganar espacio en la fila.
+    Con `entityName` el diálogo y el toast nombran la entidad borrada. */
 export function RowActions({
   viewHref,
   editHref,
   deleteAction,
+  entityName,
 }: {
   viewHref?: string;
   editHref: string;
   deleteAction: () => Promise<DeleteResult>;
+  /** Nombre de la entidad para la confirmación ("¿Borrar "Pulpo"?"). */
+  entityName?: string;
 }) {
   const t = useTranslations("Forms");
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -219,6 +232,7 @@ export function RowActions({
         action={deleteAction}
         open={confirmOpen}
         onOpenChange={setConfirmOpen}
+        entityName={entityName}
       />
     </>
   );

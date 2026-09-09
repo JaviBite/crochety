@@ -156,7 +156,7 @@ export function MaterialForm({
             name="stock"
             type="number"
             min={0}
-            step="0.5"
+            step="0.1"
             defaultValue={material?.stock ?? 0}
           />
         </div>

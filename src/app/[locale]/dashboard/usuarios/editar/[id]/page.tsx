@@ -18,7 +18,7 @@ export default async function EditUserPage({
     getTranslations("Users"),
     prisma.user.findUnique({
       where: { id },
-      select: { id: true, name: true, email: true, role: true },
+      select: { id: true, name: true, email: true, role: true, participates: true },
     }),
   ]);
 

@@ -9,6 +9,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Link } from "@/i18n/navigation";
 import { assetUrl } from "@/lib/assets";
 import { formatCents } from "@/lib/money";
+import { cn } from "@/lib/utils";
 
 type DeleteResult = { error?: string } | undefined | void;
 
@@ -71,7 +72,9 @@ export async function PatternSourceLinks({
     id: string;
     filePath: string | null;
     externalUrl: string | null;
-    standardizedContent: unknown;
+    /** Equivalente a standardizedContent != null (aiStatus DONE/MULTIPLE):
+        evita arrastrar el JSON grande a los listados. */
+    hasStandardized: boolean;
   };
 }) {
   const t = await getTranslations("Patterns");
@@ -99,7 +102,7 @@ export async function PatternSourceLinks({
           {t("viewLink")}
         </a>
       )}
-      {Boolean(pattern.standardizedContent) && <ExportLinks id={pattern.id} />}
+      {pattern.hasStandardized && <ExportLinks id={pattern.id} />}
       {!pattern.filePath && !pattern.externalUrl && (
         <span className="text-xs">{t("noSource")}</span>
       )}
@@ -141,7 +144,7 @@ export type PatternCardData = {
   coverImagePath: string | null;
   filePath: string | null;
   externalUrl: string | null;
-  standardizedContent: unknown;
+  hasStandardized: boolean;
   tags: { name: string }[];
 };
 
@@ -176,6 +179,7 @@ export async function PatternCard({
           <RowActions
             editHref={`${PATTERNS_PATH}/editar/${pattern.id}`}
             deleteAction={deleteAction}
+            entityName={pattern.title}
           />
         </CoverActions>
       </div>
@@ -252,6 +256,7 @@ export async function MaterialCard({
             viewHref={`${MATERIALS_PATH}/${material.id}`}
             editHref={`${MATERIALS_PATH}/editar/${material.id}`}
             deleteAction={deleteAction}
+            entityName={material.name}
           />
         </CoverActions>
       </div>
@@ -308,6 +313,8 @@ export type OrderCardData = {
   dueDate: Date | null;
   /** Foto propia del pedido o portada del patrón asociado (resuelta fuera). */
   coverPath: string | null;
+  /** dueDate pasada y aún no cobrado (resaltado al ordenar por entrega). */
+  overdue?: boolean;
 };
 
 const ORDERS_PATH = "/dashboard/pedidos";
@@ -347,6 +354,7 @@ export async function OrderCard({
             viewHref={`${ORDERS_PATH}/${order.id}`}
             editHref={`${ORDERS_PATH}/editar/${order.id}`}
             deleteAction={deleteAction}
+            entityName={order.name}
           />
         </CoverActions>
       </div>
@@ -371,7 +379,12 @@ export async function OrderCard({
           )}
         </div>
         {order.dueDate && (
-          <p className="text-xs">
+          <p
+            className={cn(
+              "text-xs",
+              order.overdue && "font-medium text-amber-600 dark:text-amber-400",
+            )}
+          >
             {format.dateTime(order.dueDate, { dateStyle: "medium" })}
           </p>
         )}

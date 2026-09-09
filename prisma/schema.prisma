@@ -13,6 +13,7 @@ model User {
   email          String    @unique
   passwordHash   String
   role           String    @default("USER") // ADMIN | USER (constantes en src/lib/validations.ts)
+  participates   Boolean   @default(true) // entra en el balance de gastos/beneficios
   createdAt      DateTime  @default(now())
   ordersAssigned Order[]   @relation("AssignedOrders")
   expensesPaid   Expense[]

@@ -1,9 +1,11 @@
 import { Plus, Receipt } from "lucide-react";
 import { getFormatter, getLocale, getTranslations } from "next-intl/server";
+import { ExpenseFilters } from "@/components/dashboard/expense-filters";
 import { ListSearch } from "@/components/dashboard/list-search";
+import { LoadMore } from "@/components/dashboard/load-more";
+import { ReceivedToggle } from "@/components/dashboard/received-toggle";
 import { RowActions } from "@/components/dashboard/row-actions";
 import { EmptyState } from "@/components/empty-state";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -25,20 +27,34 @@ const BASE_PATH = "/dashboard/gastos";
 export default async function ExpensesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; received?: string; paidBy?: string; n?: string }>;
 }) {
-  const { q } = await searchParams;
+  const { q, received, paidBy, n } = await searchParams;
   const search = normalizeSearch(q);
 
-  const where: Prisma.ExpenseWhereInput | undefined = search
-    ? {
-        OR: [
-          { store: { contains: search, mode: "insensitive" } },
-          { notes: { contains: search, mode: "insensitive" } },
-          { items: { some: { item: { contains: search, mode: "insensitive" } } } },
-        ],
-      }
-    : undefined;
+  // Paginación "load more" por recuento (?n=), igual que pedidos.
+  const pageSize = 30;
+  const parsedCount = Number.parseInt(n ?? "", 10);
+  const visibleCount =
+    Number.isFinite(parsedCount) && parsedCount > 0
+      ? Math.min(parsedCount, 500)
+      : pageSize;
+
+  const filters: Prisma.ExpenseWhereInput[] = [];
+  if (search) {
+    filters.push({
+      OR: [
+        { store: { contains: search, mode: "insensitive" } },
+        { notes: { contains: search, mode: "insensitive" } },
+        { items: { some: { item: { contains: search, mode: "insensitive" } } } },
+      ],
+    });
+  }
+  if (received === "received") filters.push({ received: true });
+  if (received === "pending") filters.push({ received: false });
+  if (paidBy) filters.push({ paidById: paidBy });
+  const where = filters.length > 0 ? { AND: filters } : undefined;
+  const hasFilters = filters.length > 0;
 
   const [t, locale, format] = await Promise.all([
     getTranslations("Expenses"),
@@ -50,10 +66,11 @@ export default async function ExpensesPage({
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
-  const [expenses, monthAgg] = await Promise.all([
+  const [expenses, monthAgg, filteredAgg, users] = await Promise.all([
     prisma.expense.findMany({
       where,
       orderBy: { date: "desc" },
+      take: visibleCount + 1,
       include: {
         paidBy: { select: { name: true } },
         items: { select: { item: true, quantity: true } },
@@ -63,7 +80,17 @@ export default async function ExpensesPage({
       _sum: { totalCents: true },
       where: { date: { gte: monthStart } },
     }),
+    // Suma del resultado filtrado (cabecera del listado cuando hay filtros).
+    prisma.expense.aggregate({ _sum: { totalCents: true }, where }),
+    prisma.user.findMany({
+      orderBy: { name: "asc" },
+      select: { id: true, name: true },
+    }),
   ]);
+
+  // take N+1: si sobra uno, hay más detrás de "Cargar más".
+  const hasMore = expenses.length > visibleCount;
+  const visible = hasMore ? expenses.slice(0, visibleCount) : expenses;
 
   const itemsSummary = (expense: {
     items: { item: string; quantity: number }[];
@@ -84,6 +111,14 @@ export default async function ExpensesPage({
             {t("spentThisMonth", {
               total: formatCents(monthAgg._sum.totalCents ?? 0, locale),
             })}
+            {hasFilters && (
+              <>
+                {" · "}
+                {t("filterTotal", {
+                  total: formatCents(filteredAgg._sum.totalCents ?? 0, locale),
+                })}
+              </>
+            )}
           </p>
         </div>
         <Button asChild>
@@ -95,16 +130,23 @@ export default async function ExpensesPage({
       </div>
 
       <ListSearch className="max-w-sm" />
+      <ExpenseFilters
+        users={users}
+        activeReceived={received}
+        activePaidBy={paidBy}
+        basePath={BASE_PATH}
+        preserveQuery={{ q: search }}
+      />
 
-      {expenses.length === 0 ? (
+      {visible.length === 0 ? (
         <EmptyState
           icon={<Receipt className="size-6" />}
-          title={search ? t("noResultsTitle") : t("emptyTitle")}
+          title={hasFilters ? t("noResultsTitle") : t("emptyTitle")}
           description={
-            search ? t("noResultsDescription") : t("emptyDescription")
+            hasFilters ? t("noResultsDescription") : t("emptyDescription")
           }
           action={
-            search
+            hasFilters
               ? undefined
               : { href: `${BASE_PATH}/nuevo`, label: t("add") }
           }
@@ -125,7 +167,7 @@ export default async function ExpensesPage({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {expenses.map((expense) => (
+                {visible.map((expense) => (
                   <TableRow key={expense.id}>
                     <TableCell className="whitespace-nowrap">
                       {format.dateTime(expense.date, { dateStyle: "medium" })}
@@ -152,24 +194,14 @@ export default async function ExpensesPage({
                     </TableCell>
                     <TableCell>{expense.paidBy.name}</TableCell>
                     <TableCell>
-                      {/* Solo se avisa de lo pendiente: lo recibido es el
-                          estado normal y no necesita ruido visual. */}
-                      {expense.received ? (
-                        <span className="text-xs text-muted-foreground">—</span>
-                      ) : (
-                        <Badge
-                          variant="outline"
-                          className="border-transparent bg-destructive/15 text-destructive"
-                        >
-                          {t("pending")}
-                        </Badge>
-                      )}
+                      <ReceivedToggle id={expense.id} received={expense.received} />
                     </TableCell>
                     <TableCell className="text-right">
                       <RowActions
                         viewHref={`${BASE_PATH}/${expense.id}`}
                         editHref={`${BASE_PATH}/editar/${expense.id}`}
                         deleteAction={deleteExpense.bind(null, expense.id)}
+                        entityName={expense.store ?? itemsSummary(expense)}
                       />
                     </TableCell>
                   </TableRow>
@@ -178,7 +210,7 @@ export default async function ExpensesPage({
             </Table>
           </div>
           <div className="space-y-3 sm:hidden">
-            {expenses.map((expense) => (
+            {visible.map((expense) => (
               <div
                 key={expense.id}
                 className="cozy-card rounded-xl border bg-card p-4 shadow-sm"
@@ -206,18 +238,15 @@ export default async function ExpensesPage({
                     {expense.paidBy.name}
                   </span>
                   <div className="flex items-center gap-2">
-                    {!expense.received && (
-                      <Badge
-                        variant="outline"
-                        className="border-transparent bg-destructive/15 text-destructive"
-                      >
-                        {t("pending")}
-                      </Badge>
-                    )}
+                    <ReceivedToggle
+                      id={expense.id}
+                      received={expense.received}
+                    />
                     <RowActions
                       viewHref={`${BASE_PATH}/${expense.id}`}
                       editHref={`${BASE_PATH}/editar/${expense.id}`}
                       deleteAction={deleteExpense.bind(null, expense.id)}
+                      entityName={expense.store ?? itemsSummary(expense)}
                     />
                   </div>
                 </div>
@@ -225,6 +254,14 @@ export default async function ExpensesPage({
             ))}
           </div>
         </>
+      )}
+
+      {hasMore && (
+        <LoadMore
+          basePath={BASE_PATH}
+          nextCount={visibleCount + pageSize}
+          preserveQuery={{ q: search, received, paidBy }}
+        />
       )}
     </div>
   );

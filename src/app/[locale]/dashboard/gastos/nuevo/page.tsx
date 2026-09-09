@@ -4,7 +4,7 @@ import { ExpenseForm } from "../expense-form";
 
 export default async function NewExpensePage() {
   const t = await getTranslations("Expenses");
-  const [users, stores, materials] = await Promise.all([
+  const [users, stores, materials, lastExpense] = await Promise.all([
     prisma.user.findMany({
       select: { id: true, name: true },
       orderBy: { createdAt: "asc" },
@@ -19,6 +19,11 @@ export default async function NewExpensePage() {
       select: { name: true },
       orderBy: { name: "asc" },
     }),
+    // Default sensato para "pagado por": quien pagó el último gasto.
+    prisma.expense.findFirst({
+      orderBy: { date: "desc" },
+      select: { paidById: true },
+    }),
   ]);
 
   return (
@@ -31,6 +36,7 @@ export default async function NewExpensePage() {
         users={users}
         stores={stores.map((expense) => expense.store!)}
         materialNames={[...new Set(materials.map((material) => material.name))]}
+        defaultPaidById={lastExpense?.paidById}
       />
     </div>
   );

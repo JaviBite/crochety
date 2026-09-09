@@ -49,6 +49,8 @@ export default async function MaterialsPage({
         { brand: { contains: search, mode: "insensitive" } },
         { location: { contains: search, mode: "insensitive" } },
         { fiberType: { contains: search, mode: "insensitive" } },
+        // La búsqueda también mira las etiquetas (además del filtro ?tag=).
+        { tags: { some: { name: { contains: search, mode: "insensitive" } } } },
       ],
     });
   }
@@ -188,6 +190,7 @@ export default async function MaterialsPage({
                 viewHref={`${BASE_PATH}/${material.id}`}
                 editHref={`${BASE_PATH}/editar/${material.id}`}
                 deleteAction={deleteMaterial.bind(null, material.id)}
+                entityName={material.name}
               />
             </div>
           ))}

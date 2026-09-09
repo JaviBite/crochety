@@ -23,7 +23,7 @@ export async function createUser(
 
   const parsed = parseUserForm(formData, { requirePassword: true });
   if (!parsed.ok) return { error: parsed.error };
-  const { name, email, role, password } = parsed.data;
+  const { name, email, role, password, participates } = parsed.data;
 
   try {
     await prisma.user.create({
@@ -31,6 +31,7 @@ export async function createUser(
         name,
         email,
         role,
+        participates,
         passwordHash: await hash(password!, 12),
       },
     });
@@ -56,7 +57,7 @@ export async function updateUser(
 
   const parsed = parseUserForm(formData, { requirePassword: false });
   if (!parsed.ok) return { error: parsed.error };
-  const { name, email, role, password } = parsed.data;
+  const { name, email, role, password, participates } = parsed.data;
 
   // Evita quedarse sin acceso al panel: nadie se quita su propio rol admin.
   if (id === session!.user.id && role !== "ADMIN") {
@@ -76,6 +77,7 @@ export async function updateUser(
         name,
         email,
         role,
+        participates,
         ...(password ? { passwordHash: await hash(password, 12) } : {}),
       },
     });

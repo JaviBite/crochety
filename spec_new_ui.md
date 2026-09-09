@@ -187,8 +187,14 @@ Todo lo demás reutiliza esto. Empezar aquí.
 - [x] **Detalles de pedido/gasto/material**: jerarquía de títulos
   (`h1-display` + badge, card "Detalles"), fotos en grid consistente
   (`AssetImage`, rounded-xl + border), total del gasto destacado.
-- [ ] **Dark mode QA**: revisión completa de contraste (AA) con los nuevos
-  tokens cálidos.
+- [x] **Dark mode QA**: revisión completa de contraste (AA) con los nuevos
+  tokens cálidos. Auditoría programática con Playwright
+  (`.opencode/contrast-audit.mjs`, conversión oklch→sRGB + composición de
+  alfas/opacidades por cadena de ancestros, incluye placeholders): 0 fallos en
+  las 10 páginas clave en claro y oscuro (verificada la fiabilidad con sondas
+  de contraste deliberado). Revisión visual extra en dark de usuarios (nueva
+  columna Balance) y dashboard; arreglada la tabla de usuarios en móvil
+  (Correo/Alta ocultas <md/<sm para que quepan Rol, Balance y acciones).
 
 ## Bloque 7 — QA final
 

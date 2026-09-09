@@ -110,6 +110,32 @@ describe("parseExpenseForm", () => {
     expect(result.data.totalCents).toBe(1260 + 850 + 299);
   });
 
+  it("avisa cuando cantidades/precios caen a los defaults", () => {
+    const result = parseExpenseForm(
+      fd({
+        paidById: "u1",
+        items: items([
+          { item: "Lana", quantity: "raro", unitPriceEur: "sinprecio", totalEur: null, link: null, addToMaterials: false },
+        ]),
+      }),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.items[0]).toMatchObject({ quantity: 1, unitPriceCents: 0 });
+    expect(result.warning).toContain("cantidad inválida");
+    expect(result.warning).toContain("precio inválido");
+  });
+
+  it("no avisa con valores correctos ni con campos ausentes", () => {
+    const result = parseExpenseForm(
+      fd({
+        paidById: "u1",
+        items: items([{ item: "Lana", quantity: 2, unitPriceEur: 1.5, totalEur: null, link: null, addToMaterials: false }]),
+      }),
+    );
+    expect(result.ok && result.warning).toBeUndefined();
+  });
+
   it("respeta un total ajustado a mano", () => {
     const result = parseExpenseForm(
       fd({
@@ -314,6 +340,34 @@ describe("parseOrderForm (materiales)", () => {
     // La cantidad no numérica cae a 1; la línea sin material se descarta.
     expect(invalid.data.materials).toEqual([{ materialId: "ok", quantity: 1 }]);
   });
+
+  it("avisa de líneas descartadas y duplicados fusionados", () => {
+    const result = parseOrderForm(
+      fd({
+        name: "Pulpo",
+        materials: JSON.stringify([
+          { materialId: "m1", quantity: 2 },
+          { materialId: "", quantity: 1 }, // sin material: descartada
+          { materialId: "m1", quantity: 1 }, // duplicado: fusionada
+        ]),
+      }),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.materials).toEqual([{ materialId: "m1", quantity: 3 }]);
+    expect(result.warning).toContain("1 línea(s) de material inválida(s)");
+    expect(result.warning).toContain("duplicada(s)");
+  });
+
+  it("no avisa cuando todo es correcto", () => {
+    const result = parseOrderForm(
+      fd({
+        name: "Pulpo",
+        materials: JSON.stringify([{ materialId: "m1", quantity: 2 }]),
+      }),
+    );
+    expect(result.ok && result.warning).toBeUndefined();
+  });
 });
 
 describe("parseProfileForm", () => {
@@ -375,6 +429,7 @@ describe("parseUserForm", () => {
         email: "bea@taller.es",
         role: "ADMIN",
         password: "12345678",
+        participates: "on",
       }),
       { requirePassword: true },
     );
@@ -385,6 +440,7 @@ describe("parseUserForm", () => {
         email: "bea@taller.es",
         role: "ADMIN",
         password: "12345678",
+        participates: true,
       },
     });
   });
@@ -405,6 +461,23 @@ describe("parseUserForm", () => {
       ).ok,
     ).toBe(false);
   });
+
+  it("participates sigue la casilla del formulario", () => {
+    const marcada = parseUserForm(
+      fd({ name: "Bea", email: "bea@taller.es", role: "USER", participates: "on" }),
+      { requirePassword: false },
+    );
+    if (!marcada.ok) throw new Error("debe parsear");
+    expect(marcada.data.participates).toBe(true);
+
+    // Casilla desmarcada: el navegador no envía la clave.
+    const desmarcada = parseUserForm(
+      fd({ name: "Bea", email: "bea@taller.es", role: "USER" }),
+      { requirePassword: false },
+    );
+    if (!desmarcada.ok) throw new Error("debe parsear");
+    expect(desmarcada.data.participates).toBe(false);
+  });
 });
 
 describe("parseSettingsForm", () => {
@@ -416,6 +489,7 @@ describe("parseSettingsForm", () => {
         galleryEnabled: "on",
         defaultAccent: "lavender",
         locations: JSON.stringify(["Caja azul", "Estantería 2"]),
+        lowStockThreshold: "2",
         aiProvider: "openrouter",
         aiModel: "openrouter/free",
         apiKey: "sk-or-123",
@@ -430,6 +504,7 @@ describe("parseSettingsForm", () => {
         galleryEnabled: true,
         defaultAccent: "lavender",
         locations: ["Caja azul", "Estantería 2"],
+        lowStockThreshold: 2,
         aiProvider: "openrouter",
         aiModel: "openrouter/free",
         apiKey: "sk-or-123",

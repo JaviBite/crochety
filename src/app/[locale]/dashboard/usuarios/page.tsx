@@ -65,9 +65,10 @@ export default async function UsersPage({
             <TableHeader>
               <TableRow>
                 <TableHead>{t("colName")}</TableHead>
-                <TableHead>{t("colEmail")}</TableHead>
+                <TableHead className="hidden md:table-cell">{t("colEmail")}</TableHead>
                 <TableHead>{t("colRole")}</TableHead>
-                <TableHead>{t("colCreatedAt")}</TableHead>
+                <TableHead>{t("colBalance")}</TableHead>
+                <TableHead className="hidden sm:table-cell">{t("colCreatedAt")}</TableHead>
                 <TableHead className="w-10" />
               </TableRow>
             </TableHeader>
@@ -93,7 +94,7 @@ export default async function UsersPage({
                       </div>
                     </div>
                   </TableCell>
-                  <TableCell className="text-muted-foreground">
+                  <TableCell className="hidden text-muted-foreground md:table-cell">
                     {user.email}
                   </TableCell>
                   <TableCell>
@@ -108,13 +109,26 @@ export default async function UsersPage({
                       {tRole(user.role === "ADMIN" ? "ADMIN" : "USER")}
                     </Badge>
                   </TableCell>
-                  <TableCell className="whitespace-nowrap text-muted-foreground">
+                  <TableCell>
+                    <Badge
+                      variant="outline"
+                      className={
+                        user.participates
+                          ? "border-transparent bg-muted text-muted-foreground"
+                          : "border-transparent bg-amber-500/15 text-amber-700 dark:text-amber-400"
+                      }
+                    >
+                      {user.participates ? t("balanceYes") : t("balanceNo")}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="hidden whitespace-nowrap text-muted-foreground sm:table-cell">
                     {format.dateTime(user.createdAt, { dateStyle: "medium" })}
                   </TableCell>
                   <TableCell className="text-right">
                     <RowActions
                       editHref={`${BASE_PATH}/editar/${user.id}`}
                       deleteAction={deleteUser.bind(null, user.id)}
+                      entityName={user.name}
                     />
                   </TableCell>
                 </TableRow>

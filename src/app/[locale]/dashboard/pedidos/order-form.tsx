@@ -3,12 +3,10 @@
 import { useTranslations } from "next-intl";
 import { useActionState, useState } from "react";
 import { ComboboxField } from "@/components/form/combobox-field";
-import { FileField } from "@/components/form/file-field";
+import { ImageUploadField } from "@/components/form/image-upload-field";
 import { FormFooter } from "@/components/form/form-footer";
 import { SubmitButton } from "@/components/form/submit-button";
 import { SuggestInput } from "@/components/form/suggest-input";
-import { AssetImage } from "@/components/asset-image";
-import { assetUrl } from "@/lib/assets";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -77,6 +75,10 @@ export function OrderForm({
   // Controlado para que la calculadora pueda aplicar el precio sugerido.
   const [priceEur, setPriceEur] = useState(
     order ? String(centsToEur(order.priceCents)) : "",
+  );
+  // Foto del pedido: pathname subido a /api/uploads ("" = sin foto).
+  const [photoPath, setPhotoPath] = useState<string | null>(
+    order?.coverPhotoPath ?? null,
   );
 
   return (
@@ -241,19 +243,15 @@ export function OrderForm({
           {t("fieldPhoto")}{" "}
           <span className="text-muted-foreground">({tForms("optional")})</span>
         </Label>
-        <FileField
+        {/* Sube al elegir y manda el pathname (trampa #10). */}
+        <ImageUploadField
           id="photo"
-          name="photo"
-          accept="image/*"
-        >
-          {order?.coverPhotoPath && (
-            <AssetImage
-              src={assetUrl(order.coverPhotoPath)}
-              alt={order.name}
-              className="size-20 rounded-lg border object-cover"
-            />
-          )}
-        </FileField>
+          kind="orders"
+          value={photoPath}
+          initialValue={order?.coverPhotoPath ?? null}
+          onChange={setPhotoPath}
+        />
+        <input type="hidden" name="photoPath" value={photoPath ?? ""} />
       </div>
 
       <div className="flex items-start gap-3 rounded-xl border p-4">

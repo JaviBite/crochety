@@ -7,6 +7,7 @@ import { SubmitButton } from "@/components/form/submit-button";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -23,6 +24,7 @@ export type UserFormValues = {
   name: string;
   email: string;
   role: string;
+  participates: boolean;
 };
 
 export function UserForm({
@@ -89,6 +91,23 @@ export function UserForm({
         {isSelf && (
           <p className="text-xs text-muted-foreground">{t("roleLockedHint")}</p>
         )}
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="participates" className="flex items-start gap-3">
+          <Checkbox
+            id="participates"
+            name="participates"
+            className="mt-0.5"
+            defaultChecked={user?.participates ?? true}
+          />
+          <span className="space-y-1">
+            <span className="block font-normal">{t("fieldParticipates")}</span>
+            <span className="block text-xs text-muted-foreground">
+              {t("participatesHint")}
+            </span>
+          </span>
+        </Label>
       </div>
 
       <div className="space-y-2">

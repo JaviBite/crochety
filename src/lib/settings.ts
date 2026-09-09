@@ -20,6 +20,7 @@ export const SETTING_KEYS = [
   "galleryEnabled",
   "defaultAccent",
   "locations",
+  "lowStockThreshold",
   "aiProvider",
   "aiModel",
   "aiApiKeyAnthropic",
@@ -141,6 +142,13 @@ export async function getMaterialLocations(): Promise<string[]> {
   );
 }
 
+/** Umbral de stock bajo (Setting `lowStockThreshold`); 0 desactiva el aviso. */
+export async function getLowStockThreshold(): Promise<number> {
+  const raw = await getSetting("lowStockThreshold");
+  const value = raw == null ? Number.NaN : Number.parseInt(raw, 10);
+  return Number.isFinite(value) && value >= 0 ? value : 1;
+}
+
 export type AiConfig = {
   provider: AiProvider;
   /** null → usar el modelo por defecto del proveedor. */
@@ -185,6 +193,8 @@ export type SettingsSnapshot = {
   defaultAccent: Accent;
   /** Ubicaciones de materiales (Setting `locations`), ordenadas. */
   locations: string[];
+  /** Umbral de stock bajo (Setting `lowStockThreshold`). */
+  lowStockThreshold: number;
   aiProvider: AiProvider;
   /** "" → se usa el modelo por defecto del proveedor. */
   aiModel: string;
@@ -220,6 +230,7 @@ export async function getSettingsSnapshot(): Promise<SettingsSnapshot> {
     locations: parseLocationsJson(stored.locations).sort((a, b) =>
       a.localeCompare(b, "es"),
     ),
+    lowStockThreshold: await getLowStockThreshold(),
     aiProvider,
     aiModel: stored.aiModel ?? process.env.AI_MODEL ?? "",
     ollamaBaseUrl: (await getSetting("ollamaBaseUrl")) ?? "",

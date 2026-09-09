@@ -169,7 +169,9 @@ Organizado en fases para implementación incremental. `✅` = ya hecho.
   leer la BD.
 - ✅ **Balance fino "quién debe a quién"** en el dashboard: `lib/balance.ts`
   (gastos e ingresos a medias, greedy para N usuarios, redondeo saneado); los
-  pedidos cobrados sin asignar no se reparten.
+  pedidos cobrados sin asignar no se reparten. Cada usuario tiene un flag
+  `participates` (editable en el gestor de usuarios): quien no participa queda
+  fuera del balance (p. ej. cuentas duplicadas del import antiguo).
 
 ### Fase E — Importación de datos y robustez (pendiente)
 

@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { AssetImage, } from "@/components/asset-image";
 import { assetUrl } from "@/lib/assets";
 import { PatternCard, PatternSourceLinks } from "@/components/dashboard/cards";
+import { AiStatusFilter } from "@/components/dashboard/ai-status-filter";
 import { ListSearch } from "@/components/dashboard/list-search";
 import { RowActions } from "@/components/dashboard/row-actions";
 import { TagChips, TagFilter } from "@/components/dashboard/tag-filter";
@@ -15,6 +16,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { normalizeSearch } from "@/lib/search";
 import { parseView, viewCookieName } from "@/lib/view";
+import { PATTERN_AI_STATUSES } from "@/lib/validations";
 import { deletePattern } from "./actions";
 import { AiStatusBadge } from "./ai-status-badge";
 
@@ -24,9 +26,9 @@ const SECTION = "patrones";
 export default async function PatternsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tag?: string; q?: string }>;
+  searchParams: Promise<{ tag?: string; q?: string; ai?: string }>;
 }) {
-  const { tag, q } = await searchParams;
+  const { tag, q, ai } = await searchParams;
   const activeTag = tag?.toLowerCase();
   const search = normalizeSearch(q);
   const view = parseView(
@@ -36,7 +38,18 @@ export default async function PatternsPage({
 
   const filters: Prisma.PatternWhereInput[] = [];
   if (activeTag) filters.push({ tags: { some: { name: activeTag } } });
-  if (search) filters.push({ title: { contains: search, mode: "insensitive" } });
+  if (search) {
+    filters.push({
+      OR: [
+        { title: { contains: search, mode: "insensitive" } },
+        { tags: { some: { name: { contains: search, mode: "insensitive" } } } },
+      ],
+    });
+  }
+  // El estado viaja como String en BD: solo se filtra con valores conocidos.
+  if (ai && (PATTERN_AI_STATUSES as readonly string[]).includes(ai)) {
+    filters.push({ aiStatus: ai });
+  }
   const hasFilters = filters.length > 0;
 
   const [t, patterns, filterTags] = await Promise.all([
@@ -44,7 +57,17 @@ export default async function PatternsPage({
     prisma.pattern.findMany({
       where: hasFilters ? { AND: filters } : undefined,
       orderBy: { createdAt: "desc" },
-      include: { tags: { select: { name: true }, orderBy: { name: "asc" } } },
+      // Select ligero: los listados no necesitan imagePaths ni el JSON
+      // estandarizado (su presencia se deduce de aiStatus DONE/MULTIPLE).
+      select: {
+        id: true,
+        title: true,
+        aiStatus: true,
+        coverImagePath: true,
+        filePath: true,
+        externalUrl: true,
+        tags: { select: { name: true }, orderBy: { name: "asc" } },
+      },
     }),
     prisma.tag.findMany({
       where: { patterns: { some: {} } },
@@ -53,7 +76,14 @@ export default async function PatternsPage({
     }),
   ]);
 
-  const preserve = { q: search, tag: activeTag };
+  // El detalle de "¿tiene versión estandarizada?" sin arrastrar el JSON: los
+  // escritores de standardizedContent siempre dejan aiStatus DONE o MULTIPLE.
+  const toCard = (pattern: (typeof patterns)[number]) => ({
+    ...pattern,
+    hasStandardized: pattern.aiStatus === "DONE" || pattern.aiStatus === "MULTIPLE",
+  });
+
+  const preserve = { q: search, tag: activeTag, ai };
 
   return (
     <div className="space-y-6">
@@ -94,6 +124,7 @@ export default async function PatternsPage({
             preserveQuery={preserve}
           />
         )}
+        <AiStatusFilter active={ai} basePath={BASE_PATH} preserveQuery={preserve} />
       </div>
 
       {patterns.length === 0 ? (
@@ -109,7 +140,7 @@ export default async function PatternsPage({
           {patterns.map((pattern) => (
             <PatternCard
               key={pattern.id}
-              pattern={pattern}
+              pattern={toCard(pattern)}
               deleteAction={deletePattern.bind(null, pattern.id)}
             />
           ))}
@@ -135,13 +166,15 @@ export default async function PatternsPage({
                   <AiStatusBadge status={pattern.aiStatus} />
                 </div>
                 <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                  <PatternSourceLinks pattern={pattern} />
+                  <PatternSourceLinks pattern={toCard(pattern)} />
                 </div>
                 <TagChips tags={pattern.tags} basePath={BASE_PATH} />
               </div>
               <RowActions
+                viewHref={`${BASE_PATH}/${pattern.id}`}
                 editHref={`${BASE_PATH}/editar/${pattern.id}`}
                 deleteAction={deletePattern.bind(null, pattern.id)}
+                entityName={pattern.title}
               />
             </div>
           ))}
