@@ -177,6 +177,7 @@ export async function PatternCard({
         </div>
         <CoverActions>
           <RowActions
+            viewHref={`${PATTERNS_PATH}/${pattern.id}`}
             editHref={`${PATTERNS_PATH}/editar/${pattern.id}`}
             deleteAction={deleteAction}
             entityName={pattern.title}

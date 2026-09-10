@@ -2,7 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { useActionState, useState } from "react";
-import { AssetImage } from "@/components/asset-image";
+import { discardUploadAction } from "@/app/[locale]/dashboard/discard-upload";
 import { assetUrl } from "@/lib/assets";
 import { FileField } from "@/components/form/file-field";
 import { FormFooter } from "@/components/form/form-footer";
@@ -45,12 +45,25 @@ export function PatternForm({
   // Los ficheros se suben a /api/uploads al elegirlos (el body de las server
   // actions está limitado a 1 MB); la action solo recibe los pathnames.
   const [filePath, setFilePath] = useState<string | null>(null);
-  const [coverPath, setCoverPath] = useState<string | null>(null);
+  // La portada parte de la guardada: quitarla envía "" y la action la limpia
+  // (igual que la foto del pedido). Una subida nueva descartada con la X es
+  // huérfano: se borra del storage al instante (la guardada, al guardar).
+  const [coverPath, setCoverPath] = useState<string | null>(
+    pattern?.coverImagePath ?? null,
+  );
   const [imagePaths, setImagePaths] = useState<string[]>(
     pattern?.imagePaths ?? [],
   );
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+
+  /** Subida descartada de esta sesión (≠ guardada): no está en BD, huérfano. */
+  function discardIfNew(
+    path: string | null | undefined,
+    initial: string | null | undefined,
+  ) {
+    if (path && path !== initial) void discardUploadAction(path);
+  }
 
   // Varias imágenes como origen del patrón: la IA las lee por visión.
   function uploadImages(files: File[]) {
@@ -96,7 +109,6 @@ export function PatternForm({
   }
 
   const shownFilePath = filePath ?? pattern?.filePath ?? null;
-  const shownCoverPath = coverPath ?? pattern?.coverImagePath ?? null;
 
   return (
     <form action={formAction} className="max-w-xl space-y-5">
@@ -141,7 +153,11 @@ export function PatternForm({
           hint={t("fileHint")}
           onFiles={(files) => {
             const file = files[0];
-            if (file) uploadOne(file, setFilePath);
+            if (file)
+              uploadOne(file, (path) => {
+                discardIfNew(filePath, pattern?.filePath);
+                setFilePath(path);
+              });
           }}
         />
       </div>
@@ -157,11 +173,12 @@ export function PatternForm({
               <PhotoChip
                 key={path}
                 src={assetUrl(path)}
-                onDelete={() =>
+                onDelete={() => {
+                  discardIfNew(path, pattern?.imagePaths.includes(path) ? path : null);
                   setImagePaths((current) =>
                     current.filter((entry) => entry !== path),
-                  )
-                }
+                  );
+                }}
               />
             ))}
           </div>
@@ -194,12 +211,17 @@ export function PatternForm({
           {t("fieldCover")}{" "}
           <span className="text-muted-foreground">({tForms("optional")})</span>
         </Label>
-        {shownCoverPath && (
-          <AssetImage
-            src={assetUrl(shownCoverPath)}
-            alt={pattern?.title ?? ""}
-            className="size-20 rounded-lg border object-cover"
-          />
+        {coverPath && (
+          <div className="mb-2">
+            <PhotoChip
+              src={assetUrl(coverPath)}
+              size="size-20"
+              onDelete={() => {
+                discardIfNew(coverPath, pattern?.coverImagePath);
+                setCoverPath(null);
+              }}
+            />
+          </div>
         )}
         <FileField
           id="cover"

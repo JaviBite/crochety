@@ -194,17 +194,20 @@ Organizado en fases para implementación incremental. `✅` = ya hecho.
 
 ### TODOS
 
-- Filtros en las busquedas de pedidos (por asigancion, precio, etc)
-- Poder borrar la imagen asociada a un pedido/patroin etc y que se borre en el storage
-- Las ubicaciones deberian ser desplegable, no texto libre y poder añadir más desde administración
 - Arreglar en los patrones cuando hay rondas que se hace lo mismo que aparece un mensaje a la derecha raro
 - Permitir añadir notas entre rondas (para añadir ojos, relleno, etc)
-- Paginacion
-- En la vista publica que las iamgenes hagan animacion de aprecer mientras se scrollea hacia abajo
 - Ver porque da error al subir un pdf (añadir mas datos al mensaje de error de subida)
 
 ### Ya hecho
 
+- ✅ Filtros de pedidos (estado/asignado/orden), búsqueda por tags en
+  materiales y patrones, filtro `aiStatus` en patrones, toggle de "recibido"
+  inline en gastos (spec QoL, bloques 3-5).
+- ✅ Borrar la imagen asociada a pedido/material/patrón y que se limpie el
+  storage (update/delete + descarte de huérfanos en cliente).
+- ✅ Ubicaciones desplegables desde Ajustes (Setting `locations`).
+- ✅ Paginación "cargar más" por recuento en pedidos y gastos (`?n=`).
+- ✅ Galería pública: animación de aparición al scroll (`<Reveal>`).
 - ✅ Galería pública tipo mampostería (Pinterest) con CSS columns en `/`.
 - ✅ **Despliegue self-hosted** con un solo `docker compose up -d --build`:
   `Dockerfile` multi-stage (standalone de Next solo con `DOCKER_BUILD=1`, no

@@ -16,11 +16,11 @@ Análisis de UX/calidad de vida sobre forms, listados, dashboard y feedback.
 |---|---|---|
 | 1 | Fundación de componentes (SuggestInput, Combobox, TagInput, fechas) | ✅ Hecho |
 | 2 | Campos con opciones (store, customer, brand, fiber/weight, location…) | ✅ Hecho |
-| 3 | Bugs pequeños (total reactivo, a11y, steps, viewHref…) | ☐ Pendiente |
-| 4 | Listados (patrones select, filtros pedidos/gastos/materiales) | ☐ Pendiente |
-| 5 | Dashboard operativo (entregas, estados, stock bajo) | ☐ Pendiente |
-| 6 | ImagePickerField unificado + borrado real del storage | ☐ Pendiente |
-| 7 | Feedback (toasts, confirm con contexto) + paginación | ☐ Pendiente |
+| 3 | Bugs pequeños (total reactivo, a11y, steps, viewHref…) | ✅ Hecho |
+| 4 | Listados (patrones select, filtros pedidos/gastos/materiales) | ✅ Hecho |
+| 5 | Dashboard operativo (entregas, estados, stock bajo) | ✅ Hecho |
+| 6 | ImagePickerField unificado + borrado real del storage | ✅ Hecho |
+| 7 | Feedback (toasts, confirm con contexto) + paginación | ✅ Hecho |
 
 ---
 
@@ -74,84 +74,97 @@ Todo lo demás reutiliza esto. Empezar aquí.
 
 ## Bloque 3 — Bugs pequeños
 
-- [ ] **Total de gasto reactivo** — `expense-form.tsx:425-443`
-  Controlado con cálculo automático (líneas + envío) + override manual con
-  dirty flag (si el usuario escribe, no se pisa).
-- [ ] **`paidById` default sensato** — `expense-form.tsx:317-331`
-  Default = `paidBy` del último gasto (query barata), fallback `users[0]`.
-- [ ] **a11y del link anidado** — `expense-form.tsx:385-401`
-  Sacar el input de URL del `<label>` del checkbox "añadir a materiales".
-- [ ] **`stock` step 0.1** — `material-form.tsx:99-109` (consistencia con
-  cantidades de pedido, hoy 0.5 vs 0.1).
-- [ ] **`viewHref` en RowActions de patrones** — `patrones/page.tsx:161-164`
-  y `:258-261` (hoy sin acceso rápido al detalle, a diferencia del resto).
-- [ ] **`ListSearch` sincronizado con searchParams** — `list-search.tsx:16-43`
-  Estado interno desincronizado al navegar atrás/adelante (se inicializa una
-  vez). `useEffect` sobre el param externo.
-- [ ] **Warning de tolerancia silenciosa** — `lib/forms.ts:86,92-105,145-150`
-  Los parsers descartan líneas / imponen defaults (`.catch(1)`, `.catch(0)`,
-  líneas sin material) sin avisar. Añadir `warning` opcional al resultado del
-  parser y pintarlo en los forms (texto ámbar).
+- [x] **Total de gasto reactivo** — `expense-form.tsx`
+  Controlado: automático (líneas + envío) salvo override manual con dirty flag
+  (si el usuario escribe, no se pisa). Al editar, si el total guardado no
+  coincide con el automático, el campo parte rellenado con el guardado.
+- [x] **`paidById` default sensato** — `expense-form.tsx` + `gastos/nuevo/page.tsx`
+  Default = `paidBy` del último gasto (query barata `findFirst`), fallback
+  `users[0]`.
+- [x] **a11y del link anidado** — `expense-form.tsx`
+  Checkbox "añadir a materiales" y campo de URL en contenedores separados (ya
+  no hay un input dentro del `<label>` del checkbox).
+- [x] **`stock` step 0.1** — `material-form.tsx` (consistencia con las
+  cantidades de pedido).
+- [x] **`viewHref` en RowActions de patrones** — accesible en la lista y en
+  `PatternCard` (la portada también enlaza al detalle).
+- [x] **`ListSearch` sincronizado con searchParams** — `list-search.tsx`
+  `useEffect` sobre el parámetro externo (atrás/adelante, enlaces con ?q=),
+  ignorando los ecos del propio debounce.
+- [x] **Warning de tolerancia silenciosa** — `lib/forms.ts` + forms
+  `ParseResult.warning` con avisos de líneas ignoradas/fusionadas (pedido) y
+  cantidades/precios corregidos (gasto). Las actions lo registran con
+  `console.warn("[form]")` y los forms avisan en ámbar ANTES de enviar
+  (`rowsInvalid` en gastos, `materialsWarning` en `order-materials-field`).
 
 ## Bloque 4 — Listados
 
-- [ ] **Patrones: select ligero** — `patrones/page.tsx:73-77`
-  `findMany` sin `select` arrastra `standardizedContent` (JSON enorme) e
-  `imagePaths` de todos los patrones para pintar tarjetas. Añadir `select`
-  con solo los campos pintados (+ `_count` de orders si se usa).
-- [ ] **Patrones: búsqueda por tags** — añadir
-  `tags: { some: { name: { contains: normalizeSearch(q) } } }` al OR.
-- [ ] **Patrones: filtro `aiStatus`** — chips (PENDING/PROCESSING/ERROR
-  principalmente) vía searchParam, patrón `TagFilter`.
-- [~] **Pedidos: filtros** (TODO de AGENTS.md) — **parcial hecho en
-  `feat/ui-facelift`** (solape con spec_new_ui Bloque 5): chips de estado
-  (`ORDER_STATUSES`), filtro por asignado (select de users) y orden
-  (recientes/entrega/precio ↑↓) en `components/dashboard/order-filters.tsx`.
-  Falta aquí: resaltado de vencidos al ordenar por `dueDate`. Ver
-  `pedidos/page.tsx`.
-- [ ] **Gastos: filtros**
-  Toggle recibido/pendiente, filtro por `paidBy`. `_sum totalCents` del
-  resultado filtrado junto al `findMany` (`gastos/page.tsx:49-56`).
-- [ ] **Gastos: toggle "recibido" inline** en la fila (server action pequeña,
-  sin pasar por el form de edición).
-- [ ] **Materiales: búsqueda por tags** — `materiales/page.tsx:66-75`
-  (hoy solo name/brand/location/fiberType; el filtro por tag existe aparte,
-  pero la búsqueda de texto no mira tags).
+- [x] **Patrones: select ligero** — `patrones/page.tsx`
+  `findMany` con `select` de los campos pintados (+ tags); la presencia de
+  versión estandarizada se deduce de `aiStatus` DONE/MULTIPLE sin arrastrar el
+  JSON ni `imagePaths`.
+- [x] **Patrones: búsqueda por tags** — en el OR junto a título.
+- [x] **Patrones: filtro `aiStatus`** — chips vía `?ai=` (chips de
+  `PATTERN_AI_STATUSES`, `components/dashboard/ai-status-filter.tsx`),
+  conservando búsqueda y tag activo.
+- [x] **Pedidos: filtros** (TODO de AGENTS.md) — chips de estado, filtro por
+  asignado y orden (recientes/entrega/precio ↑↓) en
+  `components/dashboard/order-filters.tsx`; **resaltado de vencidos** al ordenar
+  por entrega (`isOrderOverdue` en `lib/orders.ts` + tests, fecha en ámbar en
+  la tabla y en las cards).
+- [x] **Gastos: filtros** — toggle recibido/pendiente y filtro por `paidBy`
+  (`components/dashboard/expense-filters.tsx`); `_sum totalCents` del resultado
+  filtrado junto al total del mes en la cabecera.
+- [x] **Gastos: toggle "recibido" inline** en la fila — `received-toggle.tsx`
+  + server action `toggleExpenseReceived` (sin pasar por el form de edición).
+- [x] **Materiales: búsqueda por tags** — el OR de la búsqueda mira también
+  `tags.some.name` (además del filtro `?tag=`).
 
 ## Bloque 5 — Dashboard operativo
 
-- [ ] **Entregas próximas/vencidas**: pedidos con `dueDate` ≤ 7 días o pasado
-  y estado ≠ COBRADO; lista compacta con deep-link al listado filtrado.
-- [ ] **Counts por estado**: chips `SIN_EMPEZAR/EMPEZADO/TERMINADO/COBRADO`
-  enlazados a pedidos filtrado por ese estado (necesita el filtro del Bloque 4).
-- [ ] **Stock bajo**: materiales con `stock <= lowStockThreshold` (Setting
-  `lowStockThreshold`, default 1) con deep-link. Se mantiene lo financiero +
-  balance actual (`lib/balance.ts` sin tocar).
+- [x] **Entregas próximas/vencidas**: pedidos con `dueDate` ≤ 7 días o pasado
+  y estado ≠ COBRADO; vencidos en ámbar (`isOrderOverdue`) y deep-link al
+  listado ordenado por entrega (`?sort=due`).
+- [x] **Counts por estado**: enlaces `?status=…` por cada estado con su count.
+- [x] **Stock bajo**: materiales con `stock <= lowStockThreshold` (Setting
+  `lowStockThreshold`, default 1, 0 = off) con deep-link a materiales.
+  Lo financiero + balance intactos (`lib/balance.ts` solo recibió el filtro
+  `participates` del flag de usuarios).
 
 ## Bloque 6 — ImagePickerField unificado (+ storage)
 
-- [ ] **`ImageUploadField`** — `src/components/form/image-upload-field.tsx`
-  Componente único: elegir → preview local → sube a `/api/uploads` →
-  miniatura con X. Modo single y multi. Aplicar a:
-  - pedido (foto, hoy `<input file>` crudo sin preview previa al guardado,
-    `order-form.tsx:219-233`)
-  - material (foto, `material-form.tsx:180-184`)
-  - patrón (portada + imágenes, `pattern-form.tsx:158-228`; hace borrable la
-    portada existente)
-  - gastos reutiliza su flujo existente si encaja, si no migrar también.
-- [ ] **Borrado real del storage** (TODO de AGENTS.md): las actions comparan
-  paths antiguos vs nuevos y llaman `deleteUpload()` de los eliminados
-  (pedidos/materiales/patrones). Portada de patrón removible sin huérfanos.
+- [x] **`ImageUploadField`** — `src/components/form/image-upload-field.tsx`
+  Componente único (elegir → sube a `/api/uploads` → miniatura con X, modo
+  single) usado en pedido (foto) y material (foto, dentro del
+  `material-color-field`). El patrón conserva su flujo propio (FileField +
+  PhotoChip, ya con preview y borrado) completado con lo que faltaba:
+  **portada existente borrable** (chip con X que envía "" y la action la
+  limpia) y **descarte inmediato de huérfanos** (`discardUploadAction` al
+  quitar una subida de esta sesión antes de guardar, también en las imágenes
+  de origen y en sustituciones de fichero/portada). Gastos reutiliza su flujo
+  existente (el borrado server-side ya comparaba fotos).
+- [x] **Borrado real del storage** (TODO de AGENTS.md):
+  - pedidos: foto llega como pathname; al cambiar/quitar la portada la action
+    borra registro y fichero (`updateOrder`/`deleteOrder`).
+  - materiales: ídem (`photoChanged` → `deleteUpload` del anterior; `delete`
+    limpia la foto).
+  - gastos: `deleteUpload` de las fotos eliminadas al actualizar/borrar.
+  - patrones: `updatePattern` compara paths enviados vs guardados ("" y "[]"
+    significan "lo quitaron") y limpia con `deleteUploadIfUnreferenced`
+    (compartidos con hermanos multi-patrón protegidos); el form además
+    descarta los huérfanos al vuelo con `discardUploadAction`.
 
 ## Bloque 7 — Feedback y paginación
 
-- [ ] **Toasts con sonner** (ya instalado y montado en `[locale]/layout.tsx:71`,
-  solo se usa en convertidor): éxito/error en `DeleteButton` (`row-actions.tsx`)
-  y en guards de server actions donde aporte.
-- [ ] **Confirmación de borrado con contexto** — `row-actions.tsx`: pasar
-  nombre/entidad al AlertDialog → «¿Borrar "X"?» en vez de genérico.
-- [ ] **Paginación simple "load more" por cursor** en pedidos y gastos
-  (base para el Excel histórico; hoy `findMany` sin `take` en todo el repo).
+- [x] **Toasts con sonner** — éxito/error en el borrado de `RowActions`
+  (`DeleteConfirm`, con nombre de entidad) y feedback del toggle de recibido
+  pendiente de verlo en error (la acción devuelve `{ error }`).
+- [x] **Confirmación de borrado con contexto** — `row-actions.tsx`: todas las
+  secciones pasan `entityName` → «¿Borrar "X"?» + toast «Se ha borrado "X"».
+- [x] **Paginación simple "load more" por recuento** — pedidos y gastos:
+  `?n=` acumulativo (default 30, tope 500), `take N+1` para saber si hay más
+  sin contar la colección entera; `components/dashboard/load-more.tsx` es un
+  enlace server-render que conserva búsqueda y filtros (sin JS).
 
 ---
 

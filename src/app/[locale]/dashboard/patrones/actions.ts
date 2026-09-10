@@ -492,12 +492,21 @@ export async function updatePattern(
   if (!existing) return { error: "Patrón no encontrado" };
 
   // Los ficheros solo se reemplazan si se suben nuevos; si no, se conservan.
+  // filePath/coverPath/imagePaths viajan SIEMPRE: "" y [] significan "lo
+  // quitaron" (la X del form), igual que la foto del pedido.
   const newFilePath = uploadedPath(formData.get("filePath"));
-  const newImagePaths = uploadedImagePaths(formData.get("imagePaths"));
-  let newCoverPath = uploadedPath(formData.get("coverPath"));
+  const rawImages = String(formData.get("imagePaths") ?? "").trim();
+  const newImagePaths = uploadedImagePaths(rawImages);
+  // La lista solo se considera si el form la envió ("" = no toca; "[]" = vaciada).
+  const imagesProvided = rawImages !== "";
+  const rawCover = String(formData.get("coverPath") ?? "").trim();
+  let newCoverPath = uploadedPath(rawCover);
+  const coverCleared = rawCover === "" && Boolean(existing.coverImagePath);
 
   const { tags, ...data } = parsed.data;
-  const imagePaths = newImagePaths.length
+  // Origen efectivo: la lista enviada si vino ("" = no toca la guardada,
+  // "[]" = la vaciaron) o la existente.
+  const imagePaths = imagesProvided
     ? newImagePaths
     : parseImagePaths(existing.imagePaths);
   const source: PatternSource = {
@@ -512,16 +521,22 @@ export async function updatePattern(
   // se conserva esa versión — el usuario decide con el botón "Estandarizar"
   // si quiere regenerarla con el fichero nuevo. Si no había versión, queda
   // PENDING y se programa la estandarización en segundo plano.
+  const imagesChanged =
+    imagesProvided &&
+    JSON.stringify(newImagePaths) !==
+      JSON.stringify(parseImagePaths(existing.imagePaths));
   const sourceChanged =
     Boolean(newFilePath) ||
-    newImagePaths.length > 0 ||
+    imagesChanged ||
     data.externalUrl !== existing.externalUrl;
   const keepStandardized =
     sourceChanged &&
     (existing.aiStatus === "DONE" || existing.aiStatus === "MULTIPLE");
 
+  // Portada: la reenviada (guardada o recién subida) gana; solo se deriva del
+  // origen si no había ni elegida ni guardada.
   if (!newCoverPath && !existing.coverImagePath) {
-    if (newImagePaths.length) newCoverPath = newImagePaths[0];
+    if (imagePaths.length) newCoverPath = imagePaths[0];
     else if (hasSource) newCoverPath = await derivePatternCover(source);
   }
 
@@ -530,10 +545,18 @@ export async function updatePattern(
     data: {
       ...data,
       ...(newFilePath ? { filePath: newFilePath } : {}),
-      ...(newImagePaths.length
-        ? { imagePaths: JSON.stringify(newImagePaths) }
+      ...(imagesProvided
+        ? {
+            imagePaths: newImagePaths.length
+              ? JSON.stringify(newImagePaths)
+              : null,
+          }
         : {}),
-      ...(newCoverPath ? { coverImagePath: newCoverPath } : {}),
+      ...(newCoverPath && newCoverPath !== existing.coverImagePath
+        ? { coverImagePath: newCoverPath }
+        : coverCleared
+          ? { coverImagePath: null }
+          : {}),
       ...(sourceChanged && !keepStandardized
         ? {
             standardizedContent: null,
@@ -544,15 +567,32 @@ export async function updatePattern(
     },
   });
 
-  // Los ficheros antiguos pueden estar compartidos con hermanos multi-patrón:
-  // solo se borran del storage si ningún otro patrón los sigue usando.
-  if (newFilePath) await deleteUploadIfUnreferenced(existing.filePath, id);
-  if (newImagePaths.length) {
+  // Los ficheros antiguos pueden estar compartidos con hermanos multi-patrón
+  // o seguir usados por ESTE patrón (p. ej. portada que también era imagen de
+  // origen): solo se borran del storage si tras el update nadie los usa.
+  const coverAfterUpdate =
+    newCoverPath ??
+    (coverCleared ? null : (existing.coverImagePath ?? null));
+  const imagesAfterUpdate = imagesProvided
+    ? newImagePaths
+    : parseImagePaths(existing.imagePaths);
+  if (newFilePath && newFilePath !== existing.filePath && existing.filePath) {
+    const oldFilePath = existing.filePath;
+    if (oldFilePath !== coverAfterUpdate && !imagesAfterUpdate.includes(oldFilePath)) {
+      await deleteUploadIfUnreferenced(oldFilePath, id);
+    }
+  }
+  if (imagesChanged) {
     for (const old of parseImagePaths(existing.imagePaths)) {
+      if (newImagePaths.includes(old) || old === coverAfterUpdate) continue;
       await deleteUploadIfUnreferenced(old, id);
     }
   }
-  if (newCoverPath) await deleteUploadIfUnreferenced(existing.coverImagePath, id);
+  if (newCoverPath !== (existing.coverImagePath ?? null)) {
+    if (existing.coverImagePath && !imagesAfterUpdate.includes(existing.coverImagePath)) {
+      await deleteUploadIfUnreferenced(existing.coverImagePath, id);
+    }
+  }
   if (sourceChanged && hasSource && !keepStandardized) {
     schedulePatternStandardization(id);
   }
