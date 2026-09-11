@@ -2,6 +2,7 @@ import { generateObject } from "ai";
 import { z } from "zod";
 import { eurToCents } from "@/lib/money";
 import { getModel } from "./provider";
+import { repairPatternJson } from "./standardize-pattern.shared";
 
 // ---------------------------------------------------------------------------
 // Agente de extracción de gastos.
@@ -126,6 +127,8 @@ export async function extractExpense(input: {
     schema: extractedExpenseSchema,
     system: SYSTEM_PROMPT,
     messages: [{ role: "user", content }],
+    // Mismos modelos gratuitos flacos: intentar salvar el JSON ensuciado.
+    experimental_repairText: async ({ text }) => repairPatternJson(text),
   });
   return object;
 }

@@ -8,6 +8,7 @@ import {
   type StandardizedPattern,
 } from "./standardize-pattern.shared";
 import { getModel } from "./provider";
+import { repairPatternJson } from "./standardize-pattern.shared";
 
 // Re-export shared types and functions for backward compatibility.
 export {
@@ -107,8 +108,20 @@ async function segmentPatternText(
     schema: patternSegmentsSchema,
     system: SEGMENTATION_PROMPT,
     prompt: rawText,
+    experimental_repairText: patternRepairText,
   });
   return object.segments;
+}
+
+/**
+ * `repairText` para los modelos gratuitos: intenta salvar respuestas con el
+ * JSON envuelto en texto o truncado (repairPatternJson); null = respuesta
+ * inservible y el SDK lanza su error normal.
+ */
+async function patternRepairText(options: {
+  text: string;
+}): Promise<string | null> {
+  return repairPatternJson(options.text);
 }
 
 export async function standardizePattern(
@@ -203,6 +216,7 @@ export async function standardizePatternFromContent(input: {
     schema: standardizedPatternsSchema,
     system: MIXED_SYSTEM_PROMPT,
     messages: [{ role: "user", content }],
+    experimental_repairText: patternRepairText,
   });
   return normalizeStandardizedPatterns(object.patterns);
 }

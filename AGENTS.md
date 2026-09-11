@@ -180,11 +180,21 @@ Organizado en fases para implementación incremental. `✅` = ya hecho.
   y patrones desde `prisma/legacy-data/*.json` (datos ya parseados del Excel +
   Homebox). Borra las tablas antes de importar (lo pedido), no toca usuarios
   (salvo resetear la contraseña de Javier) ni ajustes. Ya ejecutado en la BD.
-- **Robustez del estandarizador de patrones** (conocido): la segmentación de
-  **múltiples patrones por fichero ya existe** (migración `pattern_auto_split`:
-  `autoSplit` crea hermanos o deja MULTIPLE para revisión humana). Pendiente
-  montar una batería de pruebas con patrones reales para depurar prompt
-  cuando devuelve vacío (no urgente).
+- ✅ **Robustez del estandarizador de patrones**: la segmentación de varios
+  patrones por fichero existe (`pattern_auto_split`: hermanos o MULTIPLE para
+  revisión humana) y la batería de pruebas real es reproducible:
+  `npx tsx prisma/standardize-battery.ts` (dry-run, prioriza los ERROR y
+  mezcla DONE como regresión; `--id`, `--limit`, `--dump`). Hallazgos
+  aplicados: los modelos gratuitos devuelven a ratos JSON ensuciado/truncado
+  → `repairPatternJson` + `experimental_repairText` en el pipeline (patrones
+  y extractor de gastos, con tests); los "vacíos" restantes de la BD son
+  datos inutilizables (enlaces de YouTube/Etsy, ficheros borrados), no bugs
+  del prompt. Limitación local conocida: el rasterizado de PDFs escaneados
+  no funciona en Windows dev (canvas nativo) — en Vercel sí.
+- ✅ **Notas entre rondas** («añadir ojos, relleno, cortar hilo…»): cubierto
+  por los pasos intercalados del contrato (`kind: "step"`) — el editor los
+  añade/reordena entre rondas, el detalle los renderiza aparte y el
+  exportador MD/EPUB los respeta.
 - ✅ **Selector de imagen de portada del patrón**: el detalle ofrece las
   imágenes candidatas extraídas del origen (`cover-picker.tsx` + actions
   `loadCoverCandidates`/`setPatternCover`); si no se elige, sigue
@@ -195,11 +205,14 @@ Organizado en fases para implementación incremental. `✅` = ya hecho.
 
 ### TODOS
 
-- Permitir añadir notas entre rondas (para añadir ojos, relleno, etc)
-  (requiere tocar el contrato JSON de la IA)
+(vacío — la Fase E y los ítems sueltos están en "Ya hecho")
 
 ### Ya hecho
 
+- ✅ **Notas entre rondas** («añadir ojos, relleno, cortar hilo…»): cubierto
+  por los pasos intercalados del contrato (`kind: "step"`) — el editor los
+  añade/reordena entre rondas, el detalle los renderiza aparte y el
+  exportador MD/EPUB los respeta.
 - ✅ Mensajes de error de subida con detalle: `/api/uploads` devuelve JSON
   también en fallos no-previstos (500 con causa en el mensaje, log con
   kind/name/size/mime en el servidor) y el cliente traduce códigos HTTP
