@@ -194,11 +194,15 @@ Organizado en fases para implementación incremental. `✅` = ya hecho.
 
 ### TODOS
 
-- Arreglar en los patrones cuando hay rondas que se hace lo mismo que aparece un mensaje a la derecha raro
 - Permitir añadir notas entre rondas (para añadir ojos, relleno, etc)
-- Ver porque da error al subir un pdf (añadir mas datos al mensaje de error de subida)
+  (requiere tocar el contrato JSON de la IA)
 
 ### Ya hecho
+
+- ✅ Mensajes de error de subida con detalle: `/api/uploads` devuelve JSON
+  también en fallos no-previstos (500 con causa en el mensaje, log con
+  kind/name/size/mime en el servidor) y el cliente traduce códigos HTTP
+  (413 tamaño, 401 sesión caducada, 503 storage) en vez del genérico.
 
 - ✅ Filtros de pedidos (estado/asignado/orden), búsqueda por tags en
   materiales y patrones, filtro `aiStatus` en patrones, toggle de "recibido"

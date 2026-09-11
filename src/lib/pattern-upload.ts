@@ -28,9 +28,20 @@ async function uploadViaRoute(
     const response = await fetch("/api/uploads", { method: "POST", body });
     const data = (await response.json().catch(() => null)) as UploadResponse | null;
     if (response.ok && data?.path) return { path: data.path };
-    return { error: data?.error ?? "No se pudo subir el fichero" };
+    if (data?.error) return { error: data.error };
+    // Respuesta no-JSON (HTML de error del servidor, proxy, AV…): el código
+    // da la pista (413 = body demasiado grande, 401 = sesión caducada…).
+    const reason =
+      response.status === 413
+        ? "el fichero excede el tamaño admitido por la petición"
+        : response.status === 401
+          ? "la sesión ha expirado (recarga la página)"
+          : response.status === 503
+            ? "el almacenamiento de ficheros no está disponible"
+            : `respuesta HTTP ${response.status} del servidor`;
+    return { error: `No se pudo subir el fichero: ${reason}` };
   } catch {
-    return { error: "No se pudo subir el fichero" };
+    return { error: "No se pudo subir el fichero: fallo de red o interrupción" };
   }
 }
 
