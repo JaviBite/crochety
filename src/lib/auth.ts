@@ -42,7 +42,18 @@ export const {
   ],
 });
 
-/** El rol viaja en el JWT: los cambios de rol se aplican al re-loguearse. */
-export function isAdmin(session: Session | null): boolean {
-  return session?.user.role === "ADMIN";
+/**
+ * ¿Es admin AHORA MISMO? El rol se lee de la BD, no del JWT: promocionar o
+ * degradar a alguien (o que le borren la cuenta) surte efecto en la siguiente
+ * petición, sin re-login. Una query por PK; nada de cache() para que los
+ * guards de las server actions también vean el rol fresco.
+ */
+export async function isAdmin(session: Session | null): Promise<boolean> {
+  const id = session?.user.id;
+  if (!id) return false;
+  const user = await prisma.user.findUnique({
+    where: { id },
+    select: { role: true },
+  });
+  return user?.role === "ADMIN";
 }

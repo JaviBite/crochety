@@ -173,24 +173,25 @@ Organizado en fases para implementación incremental. `✅` = ya hecho.
   `participates` (editable en el gestor de usuarios): quien no participa queda
   fuera del balance (p. ej. cuentas duplicadas del import antiguo).
 
-### Fase E — Importación de datos y robustez (pendiente)
+### Fase E — Importación de datos y robustez
 
-- **Importar datos del Excel antiguo** (PRIORITARIO): script puntual e idempotente
-  para poblar la BD con los gastos, pedidos y materiales históricos. Formato a
-  definir con el fichero real (hojas, columnas, importes → céntimos, mapeo de
-  quién paga → `User`).
-- **Robustez del estandarizador de patrones** (conocido): a veces
-  `standardizePattern` devuelve vacío/nada, y si un fichero contiene **varios
-  patrones** solo procesa uno e ignora el resto. Pendiente montar una batería de
-  pruebas con patrones reales para depurar prompt/segmentación (no urgente).
-- **Selector de imagen de portada del patrón**: hoy `derivePatternCover` elige
-  automáticamente (imagen más grande de las 3 primeras páginas del PDF / og:image)
-  y a veces no es representativa; ofrecer elegir entre las imágenes candidatas
-  extraídas del origen.
-- **Rol admin sin re-login**: hoy el rol viaja en el JWT, así que la migración y
-  los cambios de rol no se ven hasta cerrar y volver a iniciar sesión (por eso
-  el menú Usuarios/Ajustes puede parecer "ausente"). Leer el rol de la BD en el
-  layout y en los guards para que aparezca al instante.
+- ✅ **Importar datos del Excel antiguo**: `prisma/import-legacy.ts` (dry-run
+  por defecto, `--confirm` para escribir) inserta pedidos, gastos, materiales
+  y patrones desde `prisma/legacy-data/*.json` (datos ya parseados del Excel +
+  Homebox). Borra las tablas antes de importar (lo pedido), no toca usuarios
+  (salvo resetear la contraseña de Javier) ni ajustes. Ya ejecutado en la BD.
+- **Robustez del estandarizador de patrones** (conocido): la segmentación de
+  **múltiples patrones por fichero ya existe** (migración `pattern_auto_split`:
+  `autoSplit` crea hermanos o deja MULTIPLE para revisión humana). Pendiente
+  montar una batería de pruebas con patrones reales para depurar prompt
+  cuando devuelve vacío (no urgente).
+- ✅ **Selector de imagen de portada del patrón**: el detalle ofrece las
+  imágenes candidatas extraídas del origen (`cover-picker.tsx` + actions
+  `loadCoverCandidates`/`setPatternCover`); si no se elige, sigue
+  `derivePatternCover` como fallback.
+- ✅ **Rol admin sin re-login**: `isAdmin` lee el rol de la BD (no del JWT) en
+  cada guard y en el layout — cambiar roles o perder el admin se ve al
+  instante, sin cerrar sesión.
 
 ### TODOS
 

@@ -10,7 +10,7 @@ export default async function NewUserPage({
 }) {
   const { locale } = await params;
   const session = await auth();
-  if (!isAdmin(session)) redirect({ href: "/dashboard", locale });
+  if (!(await isAdmin(session))) redirect({ href: "/dashboard", locale });
 
   const t = await getTranslations("Users");
 

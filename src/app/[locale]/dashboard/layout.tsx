@@ -31,7 +31,7 @@ export default async function DashboardLayout({
     getTranslations("Nav"),
     getWorkshopSettings(),
   ]);
-  const admin = isAdmin(session);
+  const admin = await isAdmin(session);
   const userName = session!.user.name ?? "";
   const initials = userName
     .split(" ")

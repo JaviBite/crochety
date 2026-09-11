@@ -12,7 +12,7 @@ export default async function EditUserPage({
 }) {
   const { locale, id } = await params;
   const session = await auth();
-  if (!isAdmin(session)) redirect({ href: "/dashboard", locale });
+  if (!(await isAdmin(session))) redirect({ href: "/dashboard", locale });
 
   const [t, user] = await Promise.all([
     getTranslations("Users"),
