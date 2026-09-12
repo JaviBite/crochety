@@ -236,6 +236,23 @@ export function ComboboxField({
             role="listbox"
             className="mt-1 max-h-64 overflow-y-auto"
           >
+            {custom && (
+              <button
+                type="button"
+                role="option"
+                aria-selected={custom === selected}
+                onMouseMove={() => setHighlighted(filtered.length)}
+                id={`${listId}-option-${filtered.length}`}
+                data-index={filtered.length}
+                onClick={commitCustom}
+                className="flex w-full cursor-default items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-sm outline-none text-foreground hover:bg-accent"
+              >
+                <PlusIcon className="size-3.5 shrink-0 text-primary" />
+                <span className="truncate">
+                  {t("comboboxCreate", { value: custom })}
+                </span>
+              </button>
+            )}
             {filtered.map((option, index) => (
               <button
                 key={option.value}
@@ -260,23 +277,6 @@ export function ComboboxField({
                 <span className="truncate">{option.label}</span>
               </button>
             ))}
-            {custom && (
-              <button
-                type="button"
-                role="option"
-                aria-selected={custom === selected}
-                onMouseMove={() => setHighlighted(filtered.length)}
-                id={`${listId}-option-${filtered.length}`}
-                data-index={filtered.length}
-                onClick={commitCustom}
-                className="flex w-full cursor-default items-center gap-1.5 rounded-md border-t px-2 py-1.5 pt-2 text-left text-sm outline-none text-foreground hover:bg-accent"
-              >
-                <PlusIcon className="size-3.5 shrink-0 text-primary" />
-                <span className="truncate">
-                  {t("comboboxCreate", { value: custom })}
-                </span>
-              </button>
-            )}
             {filtered.length === 0 && !custom && (
               <p className="px-2 py-4 text-center text-sm text-muted-foreground">
                 {t("comboboxEmpty")}

@@ -5,7 +5,6 @@ import { useActionState } from "react";
 import { FormFooter } from "@/components/form/form-footer";
 import { ComboboxField } from "@/components/form/combobox-field";
 import { SubmitButton } from "@/components/form/submit-button";
-import { SuggestInput } from "@/components/form/suggest-input";
 import { TagInput } from "@/components/form/tag-input";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -195,11 +194,15 @@ export function MaterialForm({
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
           <div className="space-y-2">
             <Label htmlFor="brand">{t("fieldBrand")}</Label>
-            <SuggestInput
+            <ComboboxField
               id="brand"
               name="brand"
-              options={brands}
-              defaultValue={material?.brand ?? undefined}
+              options={brands.map((brand) => ({ value: brand, label: brand }))}
+              defaultValue={material?.brand ?? ""}
+              allowClear
+              allowCustom
+              placeholder={tForms("none")}
+              className="w-full"
             />
           </div>
           <div className="space-y-2">

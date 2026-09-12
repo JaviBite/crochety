@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { orderStatusTone } from "@/lib/status";
+import { ORDER_STATUS_TONES, orderStatusTone } from "@/lib/status";
 import { ORDER_STATUSES } from "@/lib/validations";
 import { updateOrderStatus } from "@/app/[locale]/dashboard/pedidos/actions";
 
@@ -39,6 +39,10 @@ export function OrderStatusSelect({
   const [pending, startTransition] = useTransition();
   const tone = orderStatusTone(status);
   const label = t.has(status) ? t(status) : tCommon("unknownStatus");
+  // Sobre fotos los sólidos se leen bien; solo el estado "todo" (contorno
+  // transparente) conserva fondo de card para no fundirse con la imagen.
+  const onCover =
+    overlay && tone === ORDER_STATUS_TONES.SIN_EMPEZAR;
 
   function change(next: string) {
     startTransition(async () => {
@@ -56,9 +60,11 @@ export function OrderStatusSelect({
         disabled={pending}
         className={cn(
           "flex h-6 w-fit cursor-pointer items-center gap-1.5 rounded-4xl border px-2.5 py-0 text-xs font-medium whitespace-nowrap outline-none select-none transition-colors disabled:cursor-not-allowed disabled:opacity-50 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 [&_svg]:pointer-events-none [&_svg]:shrink-0",
-          overlay
-            ? "border-transparent bg-card/95 text-foreground shadow-md backdrop-blur-sm hover:bg-card"
-            : cn("hover:opacity-95", tone.className),
+          onCover
+            ? "border-foreground/40 bg-card/95 text-foreground shadow-md backdrop-blur-sm hover:bg-card"
+            : overlay
+              ? cn("border-transparent shadow-md hover:opacity-95", tone.className)
+              : cn("hover:opacity-95", tone.className),
         )}
       >
         <span
