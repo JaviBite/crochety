@@ -3,30 +3,27 @@
 import { useTranslations } from "next-intl";
 import { useTransition } from "react";
 import { toast } from "sonner";
+import { ChevronDownIcon } from "lucide-react";
+import { Select as SelectPrimitive } from "radix-ui";
 import {
   Select,
   SelectContent,
   SelectItem,
-  SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { orderStatusTone, type StatusTone } from "@/lib/status";
+import { orderStatusTone } from "@/lib/status";
 import { ORDER_STATUSES } from "@/lib/validations";
 import { updateOrderStatus } from "@/app/[locale]/dashboard/pedidos/actions";
 
+// Trigger propio (SelectPrimitive.Trigger directo) para NO heredar el
+// `dark:bg-input/30` (y el hover translúcido) del SelectTrigger de shadcn,
+// que pisaba el tono sólido del estado en dark. Aquí los colores van planos.
 /**
  * Estado del pedido editable en línea (tabla y tarjetas del listado): un
  * select con la estética del badge (puntito + tono por estado) que llama a la
  * action de cambio directo, sin pasar por el form de edición. Error → toast.
- *
- * Los tonos van marcados Important: el trigger de shadcn declara
- * `dark:bg-input/30` (y hovers) que pisa cualquier `bg-*` normal en dark.
  */
-function tonePill(tone: StatusTone): string {
-  return tone.className.split(" ").filter(Boolean).map((c) => `${c}!`).join(" ");
-}
-
 export function OrderStatusSelect({
   id,
   status,
@@ -52,15 +49,16 @@ export function OrderStatusSelect({
 
   return (
     <Select value={status} onValueChange={change}>
-      <SelectTrigger
-        aria-label={`${label}.`}
+      <SelectPrimitive.Trigger
+        data-slot="select-trigger"
+        aria-label={label}
         title={label}
         disabled={pending}
         className={cn(
-          "h-6 w-fit gap-1.5 rounded-4xl border-transparent! bg-transparent px-2.5 py-0 text-xs font-medium",
+          "flex h-6 w-fit cursor-pointer items-center gap-1.5 rounded-4xl border px-2.5 py-0 text-xs font-medium whitespace-nowrap outline-none select-none transition-colors disabled:cursor-not-allowed disabled:opacity-50 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 [&_svg]:pointer-events-none [&_svg]:shrink-0",
           overlay
-            ? "bg-card/95! text-foreground! shadow-sm dark:bg-card/95! dark:hover:bg-card!"
-            : tonePill(tone),
+            ? "border-transparent bg-card/95 text-foreground shadow-md backdrop-blur-sm hover:bg-card"
+            : cn("hover:opacity-95", tone.className),
         )}
       >
         <span
@@ -71,7 +69,14 @@ export function OrderStatusSelect({
           )}
         />
         <SelectValue>{label}</SelectValue>
-      </SelectTrigger>
+        <ChevronDownIcon
+          aria-hidden
+          className={cn(
+            "pointer-events-none size-3 shrink-0 opacity-60",
+            overlay ? "text-muted-foreground" : "opacity-70",
+          )}
+        />
+      </SelectPrimitive.Trigger>
       <SelectContent align="start">
         {ORDER_STATUSES.map((statusOption) => (
           <SelectItem key={statusOption} value={statusOption}>

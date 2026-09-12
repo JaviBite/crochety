@@ -12,26 +12,30 @@ export type StatusTone = {
   overlayDot: string;
 };
 
+// Tonos SÓLIDOS: contra fondos claros u oscuros casi conmutables en ambos
+// temas, sin tintes translúcidos que se leen débiles en dark. Jerarquía
+// visual por intensidad: contorno (todo) < ámbar (empezado) < acento
+// (terminado) < invertido (cobrado). Textos siempre con AA en claro y oscuro.
 export const ORDER_STATUS_TONES: Record<OrderStatus, StatusTone> = {
   SIN_EMPEZAR: {
-    className: "bg-muted text-muted-foreground",
-    dot: "bg-muted-foreground/50",
-    overlayDot: "bg-muted-foreground/50",
+    className: "border-foreground/40 bg-background text-foreground",
+    dot: "bg-muted-foreground",
+    overlayDot: "bg-foreground/60",
   },
   EMPEZADO: {
-    className: "bg-accent text-accent-foreground",
-    dot: "bg-accent-foreground/60",
-    overlayDot: "bg-primary/60",
+    className: "border-transparent bg-amber-400 text-amber-950",
+    dot: "bg-amber-700",
+    overlayDot: "bg-amber-700",
   },
   TERMINADO: {
-    className: "bg-primary/15 text-primary",
-    dot: "bg-primary",
+    className: "border-transparent bg-primary text-primary-foreground",
+    dot: "bg-primary-foreground/80",
     overlayDot: "bg-primary",
   },
   COBRADO: {
-    className: "bg-primary text-primary-foreground",
-    dot: "bg-primary-foreground",
-    overlayDot: "bg-primary",
+    className: "border-transparent bg-foreground text-background",
+    dot: "bg-background/60",
+    overlayDot: "bg-foreground",
   },
 };
 
