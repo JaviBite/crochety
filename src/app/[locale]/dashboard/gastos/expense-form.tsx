@@ -1,10 +1,16 @@
 "use client";
 
-import { ImagePlus, Plus, Sparkles, Trash2, X } from "lucide-react";
+import { ImagePlus, Plus, Sparkles, Trash2 } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { type ChangeEvent, useActionState, useRef, useState, useTransition } from "react";
+import { AssetImage } from "@/components/asset-image";
+import { assetUrl } from "@/lib/assets";
+import { FileField } from "@/components/form/file-field";
+import { FormFooter } from "@/components/form/form-footer";
 import { ImageCropper } from "@/components/form/image-cropper";
+import { PhotoChip } from "@/components/form/photo-chip";
 import { SubmitButton } from "@/components/form/submit-button";
+import { SuggestInput } from "@/components/form/suggest-input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -18,6 +24,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Link } from "@/i18n/navigation";
+import { toDateInputValue, todayInputValue } from "@/lib/dates";
 import { centsToEur, eurToCents, formatCents } from "@/lib/money";
 import { createExpense, extractExpenseAction, updateExpense } from "./actions";
 
@@ -49,13 +56,6 @@ export type ExpenseFormValues = {
   photos: { path: string }[];
 };
 
-function toDateInputValue(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
 const emptyRow = (): ItemRow => ({
   item: "",
   quantity: "1",
@@ -73,9 +73,18 @@ const num = (value: string) => {
 export function ExpenseForm({
   users,
   expense,
+  stores = [],
+  materialNames = [],
+  defaultPaidById,
 }: {
   users: Option[];
   expense?: ExpenseFormValues;
+  /** Tiendas ya usadas en otros gastos, para el datalist. */
+  stores?: string[];
+  /** Nombres de materiales del inventario, para sugerir las líneas. */
+  materialNames?: string[];
+  /** Quién pagó el último gasto (default sensato al crear). */
+  defaultPaidById?: string | null;
 }) {
   const t = useTranslations("Expenses");
   const tForms = useTranslations("Forms");
@@ -115,11 +124,10 @@ export function ExpenseForm({
   const [linkInput, setLinkInput] = useState("");
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
-  const photoFileRef = useRef<HTMLInputElement>(null);
 
-  const defaultDate = expense
-    ? toDateInputValue(expense.date)
-    : new Date().toISOString().slice(0, 10);
+  // toISOString desfasea al día UTC (00:00–02:00 CEST fecha el día anterior);
+  // toDateInputValue formatea en la zona local.
+  const defaultDate = expense ? toDateInputValue(expense.date) : todayInputValue();
 
   function patchRow(index: number, patch: Partial<ItemRow>) {
     setItems((rows) =>
@@ -140,9 +148,7 @@ export function ExpenseForm({
     const reader = new FileReader();
     reader.onload = () => setCropSrc(String(reader.result));
     reader.readAsDataURL(file);
-  }
-
-  function runExtract() {
+  }  function runExtract() {
     setAiError(null);
     startExtract(async () => {
       const result = await extractExpenseAction({
@@ -173,9 +179,7 @@ export function ExpenseForm({
     });
   }
 
-  async function onPickPhoto(event: ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(event.target.files ?? []);
-    event.target.value = "";
+  async function onPickPhotos(files: File[]) {
     if (files.length === 0) return;
     setPhotoError(null);
     setUploadingPhoto(true);
@@ -212,6 +216,34 @@ export function ExpenseForm({
     0,
   );
   const autoTotalCents = linesCents + eurToCents(num(shipping));
+
+  // Líneas con cantidad/precio que el parser ajustará (invalid → default):
+  // aviso en ámbar para que se corrija antes de enviar.
+  const invalidRows = items.filter((row) => {
+    if (!row.item.trim()) return false;
+    const quantity = Number.parseInt(row.quantity, 10);
+    const price = Number.parseFloat(row.unitPriceEur);
+    return (
+      !Number.isFinite(quantity) ||
+      quantity < 1 ||
+      (row.unitPriceEur.trim() !== "" &&
+        (!Number.isFinite(price) || price < 0))
+    );
+  }).length;
+
+  // Total controlado: automático (vacío) salvo override manual. El dirty flag
+  // evita pisar lo que el usuario escribe; el botón vuelve al automático.
+  const initialAutoTotalCents =
+    (expense?.items ?? []).reduce(
+      (sum, line) => sum + line.unitPriceCents * line.quantity,
+      0,
+    ) + (expense?.shippingCents ?? 0);
+  const [totalEur, setTotalEur] = useState<string>(() =>
+    expense && expense.totalCents !== initialAutoTotalCents
+      ? String(centsToEur(expense.totalCents))
+      : "",
+  );
+  const totalDirty = totalEur.trim() !== "";
 
   // Solo se envían las filas con nombre; el total va como null (auto) salvo ajuste.
   const itemsJson = JSON.stringify(
@@ -250,8 +282,7 @@ export function ExpenseForm({
         {aiImages.length > 0 && (
           <div className="flex flex-wrap gap-2">
             {aiImages.map((src, index) => (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
+              <AssetImage
                 key={src.slice(-32) + index}
                 src={src}
                 alt=""
@@ -312,11 +343,19 @@ export function ExpenseForm({
             {t("fieldStore")}{" "}
             <span className="text-muted-foreground">({tForms("optional")})</span>
           </Label>
-          <Input id="store" name="store" defaultValue={expense?.store ?? undefined} />
+          <SuggestInput
+            id="store"
+            name="store"
+            options={stores}
+            defaultValue={expense?.store ?? undefined}
+          />
         </div>
         <div className="space-y-2">
           <Label htmlFor="paidById">{t("fieldPaidBy")}</Label>
-          <Select name="paidById" defaultValue={expense?.paidById ?? users[0]?.id}>
+          <Select
+            name="paidById"
+            defaultValue={expense?.paidById ?? defaultPaidById ?? users[0]?.id}
+          >
             <SelectTrigger id="paidById" className="w-full">
               <SelectValue />
             </SelectTrigger>
@@ -340,15 +379,21 @@ export function ExpenseForm({
             {t("addItem")}
           </Button>
         </div>
+        {invalidRows > 0 && (
+          <p className="text-xs text-amber-600 dark:text-amber-400">
+            {t("rowsInvalid", { count: invalidRows })}
+          </p>
+        )}
         <div className="space-y-2">
           {items.map((row, index) => (
             <div
               key={index}
               className="grid grid-cols-[1fr_auto] gap-2 rounded-xl border p-3 sm:grid-cols-[1fr_5rem_6rem_auto]"
             >
-              <Input
+              <SuggestInput
                 aria-label={t("colItem")}
                 placeholder={t("colItem")}
+                options={materialNames}
                 value={row.item}
                 onChange={(event) => patchRow(index, { item: event.target.value })}
                 className="col-span-2 sm:col-span-1"
@@ -358,6 +403,10 @@ export function ExpenseForm({
                 type="number"
                 min={1}
                 step={1}
+                aria-invalid={
+                  !Number.isFinite(Number.parseInt(row.quantity, 10)) ||
+                  Number.parseInt(row.quantity, 10) < 1
+                }
                 value={row.quantity}
                 onChange={(event) => patchRow(index, { quantity: event.target.value })}
               />
@@ -367,6 +416,11 @@ export function ExpenseForm({
                 min={0}
                 step="0.01"
                 placeholder="0.00"
+                aria-invalid={
+                  row.unitPriceEur.trim() !== "" &&
+                  (!Number.isFinite(Number.parseFloat(row.unitPriceEur)) ||
+                    Number.parseFloat(row.unitPriceEur) < 0)
+                }
                 value={row.unitPriceEur}
                 onChange={(event) =>
                   patchRow(index, { unitPriceEur: event.target.value })
@@ -382,14 +436,18 @@ export function ExpenseForm({
               >
                 <Trash2 />
               </Button>
-              <label className="col-span-2 flex items-center gap-2 text-xs text-muted-foreground sm:col-span-4">
-                <Checkbox
-                  checked={row.addToMaterials}
-                  onCheckedChange={(checked) =>
-                    patchRow(index, { addToMaterials: checked === true })
-                  }
-                />
-                {t("addToMaterials")}
+              <div className="col-span-2 flex items-center gap-2 text-xs text-muted-foreground sm:col-span-4">
+                {/* Checkbox y enlace separados: un input dentro de un label
+                    anida interactivos y rompe el toggle del checkbox. */}
+                <label className="flex shrink-0 cursor-pointer items-center gap-2">
+                  <Checkbox
+                    checked={row.addToMaterials}
+                    onCheckedChange={(checked) =>
+                      patchRow(index, { addToMaterials: checked === true })
+                    }
+                  />
+                  {t("addToMaterials")}
+                </label>
                 <Input
                   aria-label={t("fieldLink")}
                   type="url"
@@ -398,7 +456,7 @@ export function ExpenseForm({
                   onChange={(event) => patchRow(index, { link: event.target.value })}
                   className="ml-auto h-7 max-w-52"
                 />
-              </label>
+              </div>
             </div>
           ))}
         </div>
@@ -423,7 +481,18 @@ export function ExpenseForm({
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="totalEur">{t("fieldTotal")}</Label>
+          <div className="flex items-center justify-between">
+            <Label htmlFor="totalEur">{t("fieldTotal")}</Label>
+            {totalDirty && (
+              <button
+                type="button"
+                onClick={() => setTotalEur("")}
+                className="text-xs text-primary hover:underline"
+              >
+                {t("resetAutoTotal")}
+              </button>
+            )}
+          </div>
           <Input
             id="totalEur"
             name="totalEur"
@@ -431,11 +500,8 @@ export function ExpenseForm({
             min={0}
             step="0.01"
             placeholder={formatCents(autoTotalCents, locale)}
-            defaultValue={
-              expense && expense.totalCents !== autoTotalCents
-                ? centsToEur(expense.totalCents)
-                : undefined
-            }
+            value={totalEur}
+            onChange={(event) => setTotalEur(event.target.value)}
           />
           <p className="text-xs text-muted-foreground">
             {t("autoTotal", { total: formatCents(autoTotalCents, locale) })}
@@ -450,86 +516,54 @@ export function ExpenseForm({
         {(photoPaths.length > 0 || photoLinks.length > 0) && (
           <div className="flex flex-wrap gap-2">
             {photoPaths.map((path) => (
-              <div key={path} className="relative">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={`/api/files/${path}`}
-                  alt=""
-                  className="size-16 rounded-lg border object-cover"
-                />
-                <button
-                  type="button"
-                  onClick={() =>
-                    setPhotoPaths((prev) => prev.filter((value) => value !== path))
-                  }
-                  aria-label={tForms("delete")}
-                  className="absolute -top-1.5 -right-1.5 rounded-full border bg-background p-0.5 text-muted-foreground hover:text-destructive"
-                >
-                  <X className="size-3" />
-                </button>
-              </div>
+              <PhotoChip
+                key={path}
+                src={assetUrl(path)}
+                onDelete={() =>
+                  setPhotoPaths((prev) => prev.filter((value) => value !== path))
+                }
+              />
             ))}
             {photoLinks.map((url) => (
-              <div key={url} className="relative">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={url}
-                  alt=""
-                  className="size-16 rounded-lg border object-cover"
-                />
-                <button
-                  type="button"
-                  onClick={() =>
-                    setPhotoLinks((prev) => prev.filter((value) => value !== url))
-                  }
-                  aria-label={tForms("delete")}
-                  className="absolute -top-1.5 -right-1.5 rounded-full border bg-background p-0.5 text-muted-foreground hover:text-destructive"
-                >
-                  <X className="size-3" />
-                </button>
-              </div>
+              <PhotoChip
+                key={url}
+                src={url}
+                onDelete={() =>
+                  setPhotoLinks((prev) => prev.filter((value) => value !== url))
+                }
+              />
             ))}
           </div>
         )}
-        <input
-          ref={photoFileRef}
-          type="file"
-          accept="image/*"
-          multiple
-          aria-label={t("photosAdd")}
-          className="hidden"
-          onChange={onPickPhoto}
-        />
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => photoFileRef.current?.click()}
+        <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
+          <FileField
+            id="photos"
+            accept="image/*"
+            multiple
+            hint={t("photosHint")}
             disabled={uploadingPhoto}
-          >
-            <ImagePlus />
-            {uploadingPhoto ? t("photosUploading") : t("photosAdd")}
-          </Button>
-          <Input
-            type="url"
-            placeholder={t("photosLinkPlaceholder")}
-            value={linkInput}
-            onChange={(event) => setLinkInput(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                event.preventDefault();
-                addLink();
-              }
-            }}
-            className="min-w-40 flex-1"
+            onFiles={onPickPhotos}
           />
-          <Button type="button" variant="outline" size="sm" onClick={addLink}>
-            {t("photosAddLink")}
-          </Button>
+          <div className="flex items-end gap-2">
+            <Input
+              type="url"
+              placeholder={t("photosLinkPlaceholder")}
+              value={linkInput}
+              onChange={(event) => setLinkInput(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  addLink();
+                }
+              }}
+              className="min-w-40 flex-1"
+            />
+            <Button type="button" variant="outline" onClick={addLink}>
+              {t("photosAddLink")}
+            </Button>
+          </div>
         </div>
         {photoError && <p className="text-sm text-destructive">{photoError}</p>}
-        <p className="text-xs text-muted-foreground">{t("photosHint")}</p>
       </fieldset>
 
       <div className="space-y-2">
@@ -556,12 +590,12 @@ export function ExpenseForm({
         </p>
       )}
 
-      <div className="flex gap-3">
+      <FormFooter>
         <SubmitButton />
         <Button variant="outline" asChild>
           <Link href="/dashboard/gastos">{tForms("cancel")}</Link>
         </Button>
-      </div>
+      </FormFooter>
     </form>
   );
 }

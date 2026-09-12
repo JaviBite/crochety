@@ -253,3 +253,121 @@ export function emptyStandardizedPattern(title: string): StandardizedPattern {
     assemblyNotes: null,
   };
 }
+
+// --------------------------------------------------------------------------
+// Reparación de respuestas de LLM flacos: los modelos gratuitos devuelven a
+// ratos el JSON envuelto en texto ("```json …```", frases antes o después)
+// o truncado. `repairText` de la AI SDK recibe la respuesta cruda y esta
+// helper intenta salvarla; null si no hay nada rescatable.
+// --------------------------------------------------------------------------
+
+/** Índice del cierre que balancea el primer carácter de apertura, o menos uno. */
+function balancedCloseIndex(text: string): number {
+  const pairs: Record<string, string> = { "{": "}", "[": "]" };
+  const stack: string[] = [];
+  let insideString = false;
+  let escaped = false;
+  for (let i = 0; i < text.length; i += 1) {
+    const ch = text[i];
+    if (insideString) {
+      if (escaped) escaped = false;
+      else if (ch === "\\") escaped = true;
+      else if (ch === '"') insideString = false;
+      continue;
+    }
+    if (ch === '"') insideString = true;
+    else if (ch in pairs) stack.push(pairs[ch]);
+    else if (ch === "}" || ch === "]") {
+      if (stack.pop() !== ch) return -1;
+      if (stack.length === 0) return i;
+    }
+  }
+  return -1;
+}
+
+/** Pilas de apertura de un JSON (ignora strings) — para cerrar al truncar. */
+function openStack(text: string): string[] {
+  const stack: string[] = [];
+  let insideString = false;
+  let escaped = false;
+  for (let i = 0; i < text.length; i += 1) {
+    const ch = text[i];
+    if (insideString) {
+      if (escaped) escaped = false;
+      else if (ch === "\\") escaped = true;
+      else if (ch === '"') insideString = false;
+      continue;
+    }
+    if (ch === '"') insideString = true;
+    else if (ch === "{" || ch === "[") stack.push(ch);
+    else if ((ch === "}" && stack[stack.length - 1] === "{")
+      || (ch === "]" && stack[stack.length - 1] === "[")) {
+      stack.pop();
+    }
+  }
+  return stack;
+}
+
+/** Índice del último cierre COMPLETO de un elemento (puntos donde truncar). */
+function lastCompleteClose(text: string): number {
+  const stack: string[] = [];
+  let insideString = false;
+  let escaped = false;
+  let lastComplete = -1;
+  for (let i = 0; i < text.length; i += 1) {
+    const ch = text[i];
+    if (insideString) {
+      if (escaped) escaped = false;
+      else if (ch === "\\") escaped = true;
+      else if (ch === '"') insideString = false;
+      continue;
+    }
+    if (ch === '"') insideString = true;
+    else if (ch === "{" || ch === "[") stack.push(ch);
+    else if ((ch === "}" && stack[stack.length - 1] === "{")
+      || (ch === "]" && stack[stack.length - 1] === "[")) {
+      stack.pop();
+      lastComplete = i;
+    }
+  }
+  return lastComplete;
+}
+
+/** Cierra las estructuras abiertas de un JSON truncado (mejor esfuerzo).
+    Trunca tras el último elemento COMPLETO y cierra lo que quedó abierto. */
+function closeBrokenJson(text: string): string {
+  const cut = text.slice(0, lastCompleteClose(text) + 1).replace(/,\s*$/, "");
+  let result = cut;
+  for (const open of openStack(cut).reverse()) {
+    result += open === "{" ? "}" : "]";
+  }
+  return result;
+}
+
+/**
+ * Salva una respuesta de LLM que debería ser JSON: quita cercos de markdown,
+ * texto antes/después del objeto y cierra JSON truncados. Devuelve el JSON
+ * completo parseable como texto, o null si no hay nada rescatable.
+ */
+export function repairPatternJson(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  let s = raw.trim();
+  const fence = s.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (fence) s = fence[1].trim();
+
+  // Solo los contenidos que deben empezar por objeto o lista: fuera el ruido.
+  const firstBrace = s.search(/[{[]/);
+  if (firstBrace < 0) return null;
+  s = s.slice(firstBrace);
+
+  const closeIndex = balancedCloseIndex(s);
+  if (closeIndex >= 0) s = s.slice(0, closeIndex + 1);
+  else s = closeBrokenJson(s);
+
+  try {
+    JSON.parse(s);
+    return s;
+  } catch {
+    return null;
+  }
+}

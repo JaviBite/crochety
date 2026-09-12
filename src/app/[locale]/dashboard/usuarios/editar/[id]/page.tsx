@@ -12,13 +12,13 @@ export default async function EditUserPage({
 }) {
   const { locale, id } = await params;
   const session = await auth();
-  if (!isAdmin(session)) redirect({ href: "/dashboard", locale });
+  if (!(await isAdmin(session))) redirect({ href: "/dashboard", locale });
 
   const [t, user] = await Promise.all([
     getTranslations("Users"),
     prisma.user.findUnique({
       where: { id },
-      select: { id: true, name: true, email: true, role: true },
+      select: { id: true, name: true, email: true, role: true, participates: true },
     }),
   ]);
 
@@ -27,7 +27,7 @@ export default async function EditUserPage({
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">{t("editTitle")}</h1>
+        <h1 className="h1-display">{t("editTitle")}</h1>
         <p className="text-muted-foreground">{t("editDescription")}</p>
       </div>
       <UserForm user={user} isSelf={user.id === session!.user.id} />

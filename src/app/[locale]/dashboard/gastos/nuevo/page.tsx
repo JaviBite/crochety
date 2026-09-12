@@ -4,18 +4,40 @@ import { ExpenseForm } from "../expense-form";
 
 export default async function NewExpensePage() {
   const t = await getTranslations("Expenses");
-  const users = await prisma.user.findMany({
-    select: { id: true, name: true },
-    orderBy: { createdAt: "asc" },
-  });
+  const [users, stores, materials, lastExpense] = await Promise.all([
+    prisma.user.findMany({
+      select: { id: true, name: true },
+      orderBy: { createdAt: "asc" },
+    }),
+    prisma.expense.findMany({
+      where: { store: { not: null } },
+      distinct: ["store"],
+      select: { store: true },
+      orderBy: { store: "asc" },
+    }),
+    prisma.material.findMany({
+      select: { name: true },
+      orderBy: { name: "asc" },
+    }),
+    // Default sensato para "pagado por": quien pagó el último gasto.
+    prisma.expense.findFirst({
+      orderBy: { date: "desc" },
+      select: { paidById: true },
+    }),
+  ]);
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">{t("newTitle")}</h1>
+        <h1 className="h1-display">{t("newTitle")}</h1>
         <p className="text-muted-foreground">{t("newDescription")}</p>
       </div>
-      <ExpenseForm users={users} />
+      <ExpenseForm
+        users={users}
+        stores={stores.map((expense) => expense.store!)}
+        materialNames={[...new Set(materials.map((material) => material.name))]}
+        defaultPaidById={lastExpense?.paidById}
+      />
     </div>
   );
 }

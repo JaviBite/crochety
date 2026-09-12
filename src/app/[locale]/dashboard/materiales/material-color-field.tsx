@@ -2,7 +2,8 @@
 
 import { Pipette } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { type ChangeEvent, type MouseEvent, useEffect, useRef, useState } from "react";
+import { type MouseEvent, useEffect, useRef, useState } from "react";
+import { ImageUploadField } from "@/components/form/image-upload-field";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -35,6 +36,10 @@ export function MaterialColorField({
   const [color, setColor] = useState(defaultColorHex ?? "#a3e2c8");
   const [hasImage, setHasImage] = useState(Boolean(defaultPhotoPath));
   const [canSample, setCanSample] = useState(false);
+  // Pathname de la foto subida en cliente ("" = sin foto; viaja en el form).
+  const [photoPath, setPhotoPath] = useState<string | null>(
+    defaultPhotoPath ?? null,
+  );
 
   // Dibuja la imagen (escalada) en el canvas y comprueba si sus píxeles se
   // pueden leer (mismo origen / CORS permitido) para el cuentagotas.
@@ -91,9 +96,7 @@ export function MaterialColorField({
     };
   }, []);
 
-  function onFileChange(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    if (!file) return;
+  function handleFile(file: File) {
     if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
     const url = URL.createObjectURL(file);
     objectUrlRef.current = url;
@@ -125,17 +128,21 @@ export function MaterialColorField({
 
   return (
     <div className="space-y-3">
+      {/* El pathname viaja en el FormData ("" = sin foto); la subida es en
+          cliente al elegir (ImageUploadField, trampa #10). */}
+      <input type="hidden" name="photoPath" value={photoPath ?? ""} />
       <div className="space-y-2">
         <Label htmlFor="photo">
           {t("fieldPhoto")}{" "}
           <span className="text-muted-foreground">({tForms("optional")})</span>
         </Label>
-        <Input
+        <ImageUploadField
           id="photo"
-          name="photo"
-          type="file"
-          accept="image/*"
-          onChange={onFileChange}
+          kind="materials"
+          value={photoPath}
+          initialValue={defaultPhotoPath ?? null}
+          onChange={setPhotoPath}
+          onFile={handleFile}
         />
       </div>
 

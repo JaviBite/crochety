@@ -2,6 +2,8 @@
 
 import { useTranslations } from "next-intl";
 import { useActionState } from "react";
+import { FormFooter } from "@/components/form/form-footer";
+import { ComboboxField } from "@/components/form/combobox-field";
 import { SubmitButton } from "@/components/form/submit-button";
 import { TagInput } from "@/components/form/tag-input";
 import { Button } from "@/components/ui/button";
@@ -16,8 +18,12 @@ import {
 } from "@/components/ui/select";
 import { Link } from "@/i18n/navigation";
 import { centsToEur } from "@/lib/money";
-import { MATERIAL_CATEGORIES } from "@/lib/validations";
-import { createMaterial, updateMaterial } from "./actions";
+import {
+  MATERIAL_CATEGORIES,
+  YARN_FIBERS,
+  YARN_WEIGHTS,
+} from "@/lib/validations";
+import { addMaterialLocation, createMaterial, updateMaterial } from "./actions";
 import { MaterialColorField } from "./material-color-field";
 
 export type MaterialFormValues = {
@@ -39,9 +45,15 @@ export type MaterialFormValues = {
 export function MaterialForm({
   material,
   suggestions = [],
+  locations = [],
+  brands = [],
 }: {
   material?: MaterialFormValues;
   suggestions?: string[];
+  /** Ubicaciones gestionadas en Ajustes (Setting `locations`). */
+  locations?: string[];
+  /** Marcas ya usadas en otros materiales, para el datalist. */
+  brands?: string[];
 }) {
   const t = useTranslations("Materials");
   const tForms = useTranslations("Forms");
@@ -50,6 +62,47 @@ export function MaterialForm({
     material ? updateMaterial : createMaterial,
     null,
   );
+
+  // Selects con conjunto cerrado + valor histórico: si el material guardado
+  // tiene un valor que ya no está en la lista, se ofrece como opción extra
+  // para que no se pierda al editar.
+  const locationOptions: string[] = [...locations];
+  if (material?.location && !locationOptions.includes(material.location)) {
+    locationOptions.unshift(material.location);
+  }
+  const fiberOptions: string[] = [...YARN_FIBERS];
+  if (material?.fiberType && !fiberOptions.includes(material.fiberType)) {
+    fiberOptions.unshift(material.fiberType);
+  }
+  const weightOptions: string[] = [...YARN_WEIGHTS];
+  if (material?.weight && !weightOptions.includes(material.weight)) {
+    weightOptions.unshift(material.weight);
+  }
+
+  /** Select opcional buscable, con aceptación de valores nuevos
+      ("Añadir «X»"). La ubicación los persiste en el Ajuste `locations`; los
+      demás (fiber/weight) admiten el valor libre sin más. */
+  function renderOptionalSelect(
+    id: string,
+    name: string,
+    options: readonly string[],
+    selected: string | null | undefined,
+    onCustom?: (value: string) => void,
+  ) {
+    return (
+      <ComboboxField
+        id={id}
+        name={name}
+        options={options.map((option) => ({ value: option, label: option }))}
+        defaultValue={selected ?? ""}
+        allowClear
+        allowCustom
+        onCustomValue={onCustom}
+        placeholder={tForms("none")}
+        className="w-full"
+      />
+    );
+  }
 
   return (
     <form action={formAction} className="max-w-xl space-y-5">
@@ -103,7 +156,7 @@ export function MaterialForm({
             name="stock"
             type="number"
             min={0}
-            step="0.5"
+            step="0.1"
             defaultValue={material?.stock ?? 0}
           />
         </div>
@@ -112,11 +165,11 @@ export function MaterialForm({
             {t("fieldLocation")}{" "}
             <span className="text-muted-foreground">({tForms("optional")})</span>
           </Label>
-          <Input
-            id="location"
-            name="location"
-            defaultValue={material?.location ?? undefined}
-          />
+          {renderOptionalSelect("location", "location", locationOptions, material?.location, (value) => {
+            void addMaterialLocation(value).then((result) => {
+              if (result?.error) console.error("[locations]", result.error);
+            });
+          })}
         </div>
       </div>
 
@@ -141,25 +194,24 @@ export function MaterialForm({
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
           <div className="space-y-2">
             <Label htmlFor="brand">{t("fieldBrand")}</Label>
-            <Input id="brand" name="brand" defaultValue={material?.brand ?? undefined} />
+            <ComboboxField
+              id="brand"
+              name="brand"
+              options={brands.map((brand) => ({ value: brand, label: brand }))}
+              defaultValue={material?.brand ?? ""}
+              allowClear
+              allowCustom
+              placeholder={tForms("none")}
+              className="w-full"
+            />
           </div>
           <div className="space-y-2">
             <Label htmlFor="fiberType">{t("fieldFiberType")}</Label>
-            <Input
-              id="fiberType"
-              name="fiberType"
-              placeholder={t("fiberPlaceholder")}
-              defaultValue={material?.fiberType ?? undefined}
-            />
+            {renderOptionalSelect("fiberType", "fiberType", fiberOptions, material?.fiberType)}
           </div>
           <div className="space-y-2">
             <Label htmlFor="weight">{t("fieldWeight")}</Label>
-            <Input
-              id="weight"
-              name="weight"
-              placeholder="DK"
-              defaultValue={material?.weight ?? undefined}
-            />
+            {renderOptionalSelect("weight", "weight", weightOptions, material?.weight)}
           </div>
         </div>
       </fieldset>
@@ -189,12 +241,12 @@ export function MaterialForm({
         </p>
       )}
 
-      <div className="flex gap-3">
+      <FormFooter>
         <SubmitButton />
         <Button variant="outline" asChild>
           <Link href="/dashboard/materiales">{tForms("cancel")}</Link>
         </Button>
-      </div>
+      </FormFooter>
     </form>
   );
 }

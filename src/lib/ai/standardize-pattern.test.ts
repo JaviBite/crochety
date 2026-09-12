@@ -6,8 +6,49 @@ import {
   normalizeStandardizedPattern,
   normalizeStandardizedPatterns,
   parseStandardizedPatternsContent,
+  repairPatternJson,
   type StandardizedPattern,
 } from "./standardize-pattern.shared";
+
+describe("repairPatternJson", () => {
+  const VALID = '{"patterns":[{"title":"Pulpo","language":"es"}]}';
+
+  it("deja pasar un JSON limpio", () => {
+    expect(repairPatternJson(VALID)).toBe(VALID);
+  });
+
+  it("quita el cerco de markdown", () => {
+    const salvado = repairPatternJson(`json\n\`\`\`${VALID}\`\`\``);
+    expect(salvado && JSON.parse(salvado)).toEqual(JSON.parse(VALID));
+  });
+
+  it("rescata JSON con prosa antes y después", () => {
+    const salvado = repairPatternJson(
+      `Aquí tienes el amigo!\n${VALID}\nEspero que te sirva.`,
+    );
+    expect(salvado && JSON.parse(salvado).patterns).toHaveLength(1);
+  });
+
+  it("cierra un JSON truncado al último punto seguro", () => {
+    const truncado = '{"patterns":[{"title":"Pulpo","language":"es"},{"title":"Ara';
+    const salvado = repairPatternJson(truncado);
+    expect(salvado && JSON.parse(salvado)).toEqual({
+      patterns: [{ title: "Pulpo", language: "es" }],
+    });
+  });
+
+  it("descarta basura sin JSON y respuestas vacías", () => {
+    expect(repairPatternJson("no hay nada aqui")).toBeNull();
+    expect(repairPatternJson(null)).toBeNull();
+    expect(repairPatternJson("")).toBeNull();
+  });
+
+  it("respeta llaves dentro de strings al balancear", () => {
+    const trampa = '{"patterns":[{"title":"Sí } no \\\" [ "}]}';
+    const salvado = repairPatternJson(`pre\n${trampa}`);
+    expect(salvado && JSON.parse(salvado)).toEqual(JSON.parse(trampa));
+  });
+});
 
 function basePattern(overrides: Partial<StandardizedPattern> = {}): StandardizedPattern {
   return {

@@ -1,10 +1,10 @@
 "use client";
 
-import { X } from "lucide-react";
+import { Plus, X } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { type KeyboardEvent, useId, useState } from "react";
+import { type KeyboardEvent, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
-import { MAX_TAG_LENGTH, MAX_TAGS } from "@/lib/tags";
+import { MAX_TAG_LENGTH, MAX_TAGS, MAX_TAG_SUGGESTIONS } from "@/lib/tags";
 
 function normalize(value: string): string {
   return value.trim().toLowerCase().slice(0, MAX_TAG_LENGTH);
@@ -29,7 +29,6 @@ export function TagInput({
   const t = useTranslations("Forms");
   const [tags, setTags] = useState<string[]>(() => defaultValue);
   const [draft, setDraft] = useState("");
-  const listId = useId();
 
   function addTag(raw: string) {
     const value = normalize(raw);
@@ -55,6 +54,16 @@ export function TagInput({
 
   const available = suggestions.filter((tag) => !tags.includes(tag));
 
+  // Sugerencias clicables, solo mientras se escribe y filtradas por lo
+  // tecleado (mismo modelo mental que el datalist nativo que sustituye).
+  const shownSuggestions = useMemo(() => {
+    const query = normalize(draft);
+    if (!query) return [];
+    return available
+      .filter((tag) => tag.includes(query))
+      .slice(0, MAX_TAG_SUGGESTIONS);
+  }, [available, draft]);
+
   return (
     <div className="space-y-1.5">
       <input type="hidden" name={name} value={tags.join(",")} />
@@ -74,7 +83,6 @@ export function TagInput({
         ))}
         <input
           id={id}
-          list={available.length > 0 ? listId : undefined}
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
           onKeyDown={onKeyDown}
@@ -84,12 +92,24 @@ export function TagInput({
           className="h-6 min-w-28 flex-1 bg-transparent px-1 text-sm outline-none placeholder:text-muted-foreground"
         />
       </div>
-      {available.length > 0 && (
-        <datalist id={listId}>
-          {available.map((tag) => (
-            <option key={tag} value={tag} />
+      {shownSuggestions.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {shownSuggestions.map((tag) => (
+            <button
+              key={tag}
+              type="button"
+              onClick={() => addTag(tag)}
+              // Sin esto, el mousedown quita el foco del input -> blur ->
+              // desaparecen las sugerencias y el click cae en un botón
+              // desmontado (el tag no se llega a añadir).
+              onMouseDown={(event) => event.preventDefault()}
+              className="inline-flex items-center gap-0.5 rounded-full border border-dashed px-2 py-0.5 text-xs text-muted-foreground transition-colors hover:border-foreground/30 hover:bg-accent hover:text-accent-foreground"
+            >
+              <Plus className="size-3" aria-hidden />
+              {tag}
+            </button>
           ))}
-        </datalist>
+        </div>
       )}
     </div>
   );

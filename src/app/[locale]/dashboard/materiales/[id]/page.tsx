@@ -1,6 +1,8 @@
-import { ArrowLeft, Boxes, ExternalLink, MapPin, Pencil } from "lucide-react";
+import { ArrowLeft, Boxes, ExternalLink, Pencil } from "lucide-react";
 import { getLocale, getTranslations } from "next-intl/server";
 import { notFound } from "next/navigation";
+import { AssetImage } from "@/components/asset-image";
+import { assetUrl } from "@/lib/assets";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -34,7 +36,7 @@ export default async function MaterialDetailPage({ params }: { params: Promise<{
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-bold tracking-tight">{material.name}</h1>
+            <h1 className="h1-display">{material.name}</h1>
             <Badge variant="secondary">{tCategory(material.category)}</Badge>
           </div>
           <p className="text-muted-foreground">{t("inStock", { count: material.stock })} · {formatCents(material.priceCents, locale)}</p>
@@ -93,7 +95,11 @@ export default async function MaterialDetailPage({ params }: { params: Promise<{
           </CardHeader>
           <CardContent>
             {material.photoPath ? (
-              <img src={`/api/files/${material.photoPath}`} alt={material.name} className="w-full rounded-xl border object-cover" />
+              <AssetImage
+                src={assetUrl(material.photoPath)}
+                alt={material.name}
+                className="w-full rounded-xl border object-cover"
+              />
             ) : (
               <div className="flex min-h-40 items-center justify-center rounded-xl border bg-accent/10 text-muted-foreground">
                 <div className="flex items-center gap-2">

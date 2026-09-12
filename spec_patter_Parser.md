@@ -1,7 +1,7 @@
 # Spec — Pattern Parser (convertidor de patrones + exportación MD/EPUB)
 
-> Estado general: 🚧 backend completo y probado; pendiente verificación visual
-> del convertidor (Playwright) · Última actualización: 2026-09-04
+> Estado general: ✅ completo (phases 1-7, incluida la verificación visual)
+> · Última actualización: 2026-09-12
 >
 > Página del dashboard que convierte **imagen / PDF / web / texto** en patrones de
 > crochet **estandarizados** (JSON con secciones, rondas, stitches, abreviaturas y
@@ -122,14 +122,22 @@
   exporta la colección completa.
 - [x] Botones en `[id]/page.tsx` cuando hay versión estandarizada.
 
-## Fase 7 — Transversal ✅ (excepto verificación visual)
+## Fase 7 — Transversal ✅
 
 - [x] `npm i epub-gen-memory @napi-rs/canvas server-only` (+ alias
   `server-only/empty` en vitest.config.ts que arregla 2 suites pre-existentes).
 - [x] Textos nuevos en `messages/es.json` **Y** `messages/en.json`.
 - [x] Verificación: `npm run test` (163 ✓), `npm run typecheck` ✓,
   `npx eslint src` ✓ (solo warnings pre-existentes), `npm run build` ✓.
-- [ ] Verificación visual Playwright del convertidor: 1280×800 y 390×844.
+- [x] Verificación visual Playwright del convertidor: 1280×800 y 390×844,
+  claro/oscuro (`convertidor-{light,dark}-{desktop,movil}.png`) — form limpio
+  sin desbordes. La revisión además descubrió y arregló una regresión: la
+  ruta streaming `/api/convert` perdía el texto pegado a mano (solo pasaba
+  file/url/images al pipeline) → "El patrón no tiene fichero ni enlace" con
+  texto. Fix: `standardizePatternSource` acepta `extraText` (se antepone al
+  texto extraído o se combina con las imágenes de visión; origen vacío =
+  solo texto va directo al LLM). E2E: "Pulpo QA" pegado → 1 patrón, 8 rondas.
+  Capturas de resultados: `convertidor-texto-resultado.png`.
 
 ## Notas / límites
 

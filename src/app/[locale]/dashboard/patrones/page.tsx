@@ -1,51 +1,24 @@
-import { BookOpen, ExternalLink, FileDown, FilePlus2, FileText, Plus, ScrollText } from "lucide-react";
+import { FilePlus2, Plus, ScrollText } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import { cookies } from "next/headers";
+import { AssetImage, } from "@/components/asset-image";
+import { assetUrl } from "@/lib/assets";
+import { PatternCard, PatternSourceLinks } from "@/components/dashboard/cards";
+import { AiStatusFilter } from "@/components/dashboard/ai-status-filter";
 import { ListSearch } from "@/components/dashboard/list-search";
 import { RowActions } from "@/components/dashboard/row-actions";
 import { TagChips, TagFilter } from "@/components/dashboard/tag-filter";
 import { ViewToggle } from "@/components/dashboard/view-toggle";
 import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Link } from "@/i18n/navigation";
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { normalizeSearch } from "@/lib/search";
 import { parseView, viewCookieName } from "@/lib/view";
+import { PATTERN_AI_STATUSES } from "@/lib/validations";
 import { deletePattern } from "./actions";
 import { AiStatusBadge } from "./ai-status-badge";
-
-/** Enlaces de exportación de la versión estandarizada (misma ruta para todo). */
-function ExportLinks({ id }: { id: string }) {
-  return (
-    <>
-      <a
-        href={`/api/patterns/${id}/export?format=md`}
-        aria-label="Markdown"
-        title="Markdown"
-        className="flex items-center gap-1 transition-colors hover:text-foreground"
-      >
-        <FileDown className="size-3.5" />
-        MD
-      </a>
-      <a
-        href={`/api/patterns/${id}/export?format=epub`}
-        aria-label="EPUB"
-        title="EPUB"
-        className="flex items-center gap-1 transition-colors hover:text-foreground"
-      >
-        <BookOpen className="size-3.5" />
-        EPUB
-      </a>
-    </>
-  );
-}
 
 const BASE_PATH = "/dashboard/patrones";
 const SECTION = "patrones";
@@ -53,9 +26,9 @@ const SECTION = "patrones";
 export default async function PatternsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tag?: string; q?: string }>;
+  searchParams: Promise<{ tag?: string; q?: string; ai?: string }>;
 }) {
-  const { tag, q } = await searchParams;
+  const { tag, q, ai } = await searchParams;
   const activeTag = tag?.toLowerCase();
   const search = normalizeSearch(q);
   const view = parseView(
@@ -65,7 +38,18 @@ export default async function PatternsPage({
 
   const filters: Prisma.PatternWhereInput[] = [];
   if (activeTag) filters.push({ tags: { some: { name: activeTag } } });
-  if (search) filters.push({ title: { contains: search, mode: "insensitive" } });
+  if (search) {
+    filters.push({
+      OR: [
+        { title: { contains: search, mode: "insensitive" } },
+        { tags: { some: { name: { contains: search, mode: "insensitive" } } } },
+      ],
+    });
+  }
+  // El estado viaja como String en BD: solo se filtra con valores conocidos.
+  if (ai && (PATTERN_AI_STATUSES as readonly string[]).includes(ai)) {
+    filters.push({ aiStatus: ai });
+  }
   const hasFilters = filters.length > 0;
 
   const [t, patterns, filterTags] = await Promise.all([
@@ -73,7 +57,17 @@ export default async function PatternsPage({
     prisma.pattern.findMany({
       where: hasFilters ? { AND: filters } : undefined,
       orderBy: { createdAt: "desc" },
-      include: { tags: { select: { name: true }, orderBy: { name: "asc" } } },
+      // Select ligero: los listados no necesitan imagePaths ni el JSON
+      // estandarizado (su presencia se deduce de aiStatus DONE/MULTIPLE).
+      select: {
+        id: true,
+        title: true,
+        aiStatus: true,
+        coverImagePath: true,
+        filePath: true,
+        externalUrl: true,
+        tags: { select: { name: true }, orderBy: { name: "asc" } },
+      },
     }),
     prisma.tag.findMany({
       where: { patterns: { some: {} } },
@@ -82,13 +76,20 @@ export default async function PatternsPage({
     }),
   ]);
 
-  const preserve = { q: search, tag: activeTag };
+  // El detalle de "¿tiene versión estandarizada?" sin arrastrar el JSON: los
+  // escritores de standardizedContent siempre dejan aiStatus DONE o MULTIPLE.
+  const toCard = (pattern: (typeof patterns)[number]) => ({
+    ...pattern,
+    hasStandardized: pattern.aiStatus === "DONE" || pattern.aiStatus === "MULTIPLE",
+  });
+
+  const preserve = { q: search, tag: activeTag, ai };
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">{t("title")}</h1>
+          <h1 className="h1-display">{t("title")}</h1>
           <p className="text-muted-foreground">{t("description")}</p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -107,24 +108,28 @@ export default async function PatternsPage({
         </div>
       </div>
 
-      <div className="space-y-3">
+      {/* Toolbar compacta: búsqueda + vista + etiquetas. */}
+      <div className="space-y-3 rounded-2xl border bg-card p-3 shadow-sm">
         <div className="flex flex-wrap items-center gap-3">
           <ListSearch className="min-w-56 flex-1" />
           {(patterns.length > 0 || hasFilters) && (
             <ViewToggle section={SECTION} value={view} />
           )}
         </div>
-        <TagFilter
-          tags={filterTags.map((tag) => tag.name)}
-          activeTag={activeTag}
-          basePath={BASE_PATH}
-          preserveQuery={preserve}
-        />
+        {filterTags.length > 0 && (
+          <TagFilter
+            tags={filterTags.map((tag) => tag.name)}
+            activeTag={activeTag}
+            basePath={BASE_PATH}
+            preserveQuery={preserve}
+          />
+        )}
+        <AiStatusFilter active={ai} basePath={BASE_PATH} preserveQuery={preserve} />
       </div>
 
       {patterns.length === 0 ? (
         <EmptyState
-          icon={ScrollText}
+          icon={<ScrollText className="size-6" />}
           title={hasFilters ? t("noResultsTitle") : t("emptyTitle")}
           description={
             hasFilters ? t("noResultsDescription") : t("emptyDescription")
@@ -133,88 +138,23 @@ export default async function PatternsPage({
       ) : view === "grid" ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {patterns.map((pattern) => (
-            <Card key={pattern.id} className="overflow-hidden rounded-2xl pt-0 shadow-sm">
-              {pattern.coverImagePath ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={`/api/files/${pattern.coverImagePath}`}
-                  alt={pattern.title}
-                  className="h-36 w-full object-cover"
-                />
-              ) : (
-                <div className="flex h-36 w-full items-center justify-center bg-accent text-accent-foreground">
-                  <ScrollText className="size-8" />
-                </div>
-              )}
-              <CardHeader className="pb-2">
-                <div className="flex items-start justify-between gap-2">
-                  <CardTitle className="text-base leading-snug">
-                    <Link
-                      href={`${BASE_PATH}/${pattern.id}`}
-                      className="hover:underline"
-                    >
-                      {pattern.title}
-                    </Link>
-                  </CardTitle>
-                  <div className="flex shrink-0 flex-col items-end gap-1.5">
-                    <AiStatusBadge status={pattern.aiStatus} />
-                    <RowActions
-                      editHref={`${BASE_PATH}/editar/${pattern.id}`}
-                      deleteAction={deletePattern.bind(null, pattern.id)}
-                    />
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-2 text-sm text-muted-foreground">
-                <div className="flex items-center gap-3">
-                  {pattern.filePath && (
-                    <a
-                      href={`/api/files/${pattern.filePath}`}
-                      target="_blank"
-                      rel="noreferrer noopener"
-                      className="flex items-center gap-1 transition-colors hover:text-foreground"
-                    >
-                      <FileText className="size-3.5" />
-                      {t("viewFile")}
-                    </a>
-                  )}
-                  {pattern.externalUrl && (
-                    <a
-                      href={pattern.externalUrl}
-                      target="_blank"
-                      rel="noreferrer noopener"
-                      className="flex items-center gap-1 transition-colors hover:text-foreground"
-                    >
-                      <ExternalLink className="size-3.5" />
-                      {t("viewLink")}
-                    </a>
-                  )}
-                  {pattern.standardizedContent && <ExportLinks id={pattern.id} />}
-                  {!pattern.filePath && !pattern.externalUrl && (
-                    <span className="text-xs">{t("noSource")}</span>
-                  )}
-                </div>
-                <TagChips tags={pattern.tags} basePath={BASE_PATH} />
-              </CardContent>
-            </Card>
+            <PatternCard
+              key={pattern.id}
+              pattern={toCard(pattern)}
+              deleteAction={deletePattern.bind(null, pattern.id)}
+            />
           ))}
         </div>
       ) : (
         <div className="divide-y overflow-hidden rounded-2xl border bg-card shadow-sm">
           {patterns.map((pattern) => (
             <div key={pattern.id} className="flex items-center gap-3 p-3">
-              {pattern.coverImagePath ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={`/api/files/${pattern.coverImagePath}`}
-                  alt={pattern.title}
-                  className="size-12 shrink-0 rounded-lg border object-cover"
-                />
-              ) : (
-                <span className="flex size-12 shrink-0 items-center justify-center rounded-lg bg-accent text-accent-foreground">
-                  <ScrollText className="size-5" />
-                </span>
-              )}
+              <AssetImage
+                src={pattern.coverImagePath ? assetUrl(pattern.coverImagePath) : null}
+                alt={pattern.title}
+                fallbackIcon={<ScrollText className="size-5" />}
+                className="size-12 shrink-0 rounded-lg border object-cover"
+              />
               <div className="min-w-0 flex-1 space-y-1">
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                   <Link
@@ -226,38 +166,15 @@ export default async function PatternsPage({
                   <AiStatusBadge status={pattern.aiStatus} />
                 </div>
                 <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                  {pattern.filePath && (
-                    <a
-                      href={`/api/files/${pattern.filePath}`}
-                      target="_blank"
-                      rel="noreferrer noopener"
-                      className="flex items-center gap-1 transition-colors hover:text-foreground"
-                    >
-                      <FileText className="size-3.5" />
-                      {t("viewFile")}
-                    </a>
-                  )}
-                  {pattern.externalUrl && (
-                    <a
-                      href={pattern.externalUrl}
-                      target="_blank"
-                      rel="noreferrer noopener"
-                      className="flex items-center gap-1 transition-colors hover:text-foreground"
-                    >
-                      <ExternalLink className="size-3.5" />
-                      {t("viewLink")}
-                    </a>
-                  )}
-                  {pattern.standardizedContent && <ExportLinks id={pattern.id} />}
-                  {!pattern.filePath && !pattern.externalUrl && (
-                    <span className="text-xs">{t("noSource")}</span>
-                  )}
+                  <PatternSourceLinks pattern={toCard(pattern)} />
                 </div>
                 <TagChips tags={pattern.tags} basePath={BASE_PATH} />
               </div>
               <RowActions
+                viewHref={`${BASE_PATH}/${pattern.id}`}
                 editHref={`${BASE_PATH}/editar/${pattern.id}`}
                 deleteAction={deletePattern.bind(null, pattern.id)}
+                entityName={pattern.title}
               />
             </div>
           ))}

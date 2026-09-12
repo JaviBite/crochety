@@ -80,7 +80,14 @@ export async function POST(request: Request): Promise<Response> {
           imagePaths,
         };
 
-        const patterns = await standardizePatternSource(source, send);
+        // El texto pegado viaja SIEMPRE al pipeline: si es el único origen va
+        // directo al LLM; si lo combinan con fichero/web/imágenes se antepone
+        // al contenido extraído (los 4 orígenes se pueden mezclar).
+        const patterns = await standardizePatternSource(
+          source,
+          send,
+          text ? { extraText: text } : {},
+        );
 
         if (patterns.length === 0) {
           send({

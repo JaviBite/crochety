@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { computeSettlements, type MemberBalance } from "./balance";
+import {
+  computeSettlements,
+  filterParticipants,
+  type MemberBalance,
+} from "./balance";
 
 function member(
   id: string,
@@ -8,6 +12,31 @@ function member(
 ): MemberBalance {
   return { id, name: id.toUpperCase(), paidCents, earnedCents };
 }
+
+describe("filterParticipants", () => {
+  it("deja pasar solo a quienes participan del bote común", () => {
+    const users = [
+      { id: "ana", name: "Ana", participates: true },
+      { id: "compi", name: "Compi", participates: false },
+    ];
+    expect(filterParticipants(users)).toEqual([
+      { id: "ana", name: "Ana", participates: true },
+    ]);
+  });
+
+  it("sin participantes queda vacío (no divide entre cero)", () => {
+    expect(filterParticipants([])).toEqual([]);
+    expect(
+      filterParticipants([{ id: "x", name: "X", participates: false }]),
+    ).toEqual([]);
+  });
+
+  it("sin el campo marcado, todos los usuarios por defecto entran", () => {
+    // El default de BD es true: un usuario recién creado siempre participa.
+    const users = [{ id: "bea", name: "Bea", participates: true }];
+    expect(filterParticipants(users)).toEqual(users);
+  });
+});
 
 describe("computeSettlements", () => {
   it("con menos de dos personas no hay deudas", () => {

@@ -31,9 +31,25 @@ export async function POST(request: Request) {
     const relPath = await saveUpload(kind, file);
     return NextResponse.json({ path: relPath }, { status: 201 });
   } catch (error) {
+    // Siempre JSON: si el error sale como HTML (500 por defecto), el cliente
+    // no puede leerlo y el usuario solo ve un mensaje genérico.
     if (error instanceof UploadError) {
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
-    throw error;
+    console.error("[uploads] fallo al guardar fichero:", {
+      kind,
+      name: file.name,
+      size: file.size,
+      type: file.type,
+      error,
+    });
+    const detail =
+      error instanceof Error && error.message
+        ? ` — ${error.message.split("\n")[0]}`
+        : "";
+    return NextResponse.json(
+      { error: `No se pudo guardar el fichero en el almacenamiento${detail}` },
+      { status: 500 },
+    );
   }
 }

@@ -1,4 +1,4 @@
-import { HeartHandshake } from "lucide-react";
+import { ArrowRight, Coins, HeartHandshake, ShoppingBasket, Sprout } from "lucide-react";
 import { getLocale, getTranslations } from "next-intl/server";
 import {
   Card,
@@ -7,45 +7,127 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Link } from "@/i18n/navigation";
 import { auth } from "@/lib/auth";
-import { computeSettlements } from "@/lib/balance";
+import { avatarHue, initialsOf } from "@/lib/avatar";
+import { computeSettlements, filterParticipants } from "@/lib/balance";
+import { getFormatter } from "next-intl/server";
 import { formatCents } from "@/lib/money";
+import { isOrderOverdue } from "@/lib/orders";
+import { getLowStockThreshold } from "@/lib/settings";
 import { prisma } from "@/lib/prisma";
+import { cn } from "@/lib/utils";
+import { ORDER_STATUSES } from "@/lib/validations";
+
+type CssWithHue = React.CSSProperties & { "--avatar-h": number };
 
 export default async function DashboardHome() {
-  const [t, locale, session] = await Promise.all([
+  const [t, locale, format, session] = await Promise.all([
     getTranslations("Dashboard"),
     getLocale(),
+    getFormatter(),
     auth(),
   ]);
 
+  // Inicio del día actual y ventana de 7 días para las entregas.
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const inSevenDays = new Date(today);
+  inSevenDays.setDate(inSevenDays.getDate() + 7);
+
+  // El umbral decide si la consulta de stock bajo tiene sentido (0 = off).
+  const lowStockThreshold = await getLowStockThreshold();
+
   // Métricas globales: ganado = pedidos cobrados; gastado = total de gastos.
-  const [earnedAgg, spentAgg, users, paidByUser, earnedByUser] =
-    await Promise.all([
-      prisma.order.aggregate({
-        _sum: { priceCents: true },
-        where: { status: "COBRADO" },
-      }),
-      prisma.expense.aggregate({ _sum: { totalCents: true } }),
-      prisma.user.findMany({ orderBy: { createdAt: "asc" } }),
-      prisma.expense.groupBy({ by: ["paidById"], _sum: { totalCents: true } }),
-      prisma.order.groupBy({
-        by: ["assignedToId"],
-        _sum: { priceCents: true },
-        where: { status: "COBRADO" },
-      }),
-    ]);
+  const [
+    earnedAgg,
+    spentAgg,
+    users,
+    paidByUser,
+    earnedByUser,
+    dueOrders,
+    statusCounts,
+    lowStock,
+  ] = await Promise.all([
+    prisma.order.aggregate({
+      _sum: { priceCents: true },
+      where: { status: "COBRADO" },
+    }),
+    prisma.expense.aggregate({ _sum: { totalCents: true } }),
+    prisma.user.findMany({ orderBy: { createdAt: "asc" } }),
+    prisma.expense.groupBy({ by: ["paidById"], _sum: { totalCents: true } }),
+    prisma.order.groupBy({
+      by: ["assignedToId"],
+      _sum: { priceCents: true },
+      where: { status: "COBRADO" },
+    }),
+    // Entregas próximas/vencidas: ≤7 días (o pasado) y no cobradas.
+    prisma.order.findMany({
+      where: {
+        dueDate: { not: null, lte: inSevenDays },
+        status: { not: "COBRADO" },
+      },
+      orderBy: { dueDate: "asc" },
+      take: 5,
+      select: {
+        id: true,
+        name: true,
+        dueDate: true,
+        status: true,
+        assignedTo: { select: { name: true } },
+      },
+    }),
+    prisma.order.groupBy({ by: ["status"], _count: { _all: true } }),
+    // Stock bajo (0 = aviso desactivado en Ajustes).
+    lowStockThreshold === 0
+      ? Promise.resolve([])
+      : prisma.material.findMany({
+          where: { stock: { lte: lowStockThreshold } },
+          orderBy: { stock: "asc" },
+          take: 5,
+          select: { id: true, name: true, stock: true },
+        }),
+  ]);
 
   const totalEarned = earnedAgg._sum.priceCents ?? 0;
   const totalSpent = spentAgg._sum.totalCents ?? 0;
+  const profit = totalEarned - totalSpent;
+
+  // Tinte por métrica: ganado=acento, gastado=muted, beneficio=positivo.
+  const profitTint =
+    profit > 0
+      ? "bg-emerald-600/10 text-emerald-700 dark:text-emerald-400"
+      : profit < 0
+        ? "bg-destructive/10 text-destructive"
+        : "bg-muted text-muted-foreground";
 
   const metrics = [
-    { label: t("totalEarned"), hint: t("totalEarnedHint"), value: totalEarned },
-    { label: t("totalSpent"), hint: t("totalSpentHint"), value: totalSpent },
-    { label: t("profit"), hint: t("profitHint"), value: totalEarned - totalSpent },
+    {
+      label: t("totalEarned"),
+      hint: t("totalEarnedHint"),
+      value: totalEarned,
+      icon: Coins,
+      tint: "bg-primary/10 text-primary",
+    },
+    {
+      label: t("totalSpent"),
+      hint: t("totalSpentHint"),
+      value: totalSpent,
+      icon: ShoppingBasket,
+      tint: "bg-muted text-muted-foreground",
+    },
+    {
+      label: t("profit"),
+      hint: t("profitHint"),
+      value: profit,
+      icon: Sprout,
+      tint: profitTint,
+    },
   ];
 
-  const balances = users.map((user) => {
+  // Balance solo entre quienes participan del bote común (los usuarios
+  // marcados como no participantes quedan fuera del reparto).
+  const balances = filterParticipants(users).map((user) => {
     const paid =
       paidByUser.find((p) => p.paidById === user.id)?._sum.totalCents ?? 0;
     const earned =
@@ -67,7 +149,7 @@ export default async function DashboardHome() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">
+        <h1 className="h1-display">
           {t("greeting", { name: session?.user.name ?? "" })}
         </h1>
         <p className="text-muted-foreground">{t("subtitle")}</p>
@@ -75,26 +157,156 @@ export default async function DashboardHome() {
 
       <div className="grid gap-4 sm:grid-cols-3">
         {metrics.map((metric) => (
-          <Card key={metric.label} className="rounded-2xl shadow-sm">
-            <CardHeader className="pb-2">
-              <CardDescription>{metric.label}</CardDescription>
-              <CardTitle className="text-2xl tabular-nums">
-                {formatCents(metric.value, locale)}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="text-xs text-muted-foreground">
-              {metric.hint}
+          <Card key={metric.label} className="cozy-card rounded-2xl shadow-sm">
+            <CardContent className="flex items-start gap-4 py-5">
+              <span
+                aria-hidden
+                className={cn(
+                  "flex size-11 shrink-0 items-center justify-center rounded-xl",
+                  metric.tint,
+                )}
+              >
+                <metric.icon className="size-5" />
+              </span>
+              <div className="min-w-0">
+                <p className="text-sm text-muted-foreground">{metric.label}</p>
+                <p className="font-heading text-2xl font-extrabold tracking-tight tabular-nums">
+                  {formatCents(metric.value, locale)}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {metric.hint}
+                </p>
+              </div>
             </CardContent>
           </Card>
         ))}
       </div>
 
+      {/* Panel operativo: entregas, estados y stock bajo */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <Card className="cozy-card rounded-2xl shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">{t("deliveriesTitle")}</CardTitle>
+            <CardDescription>{t("deliveriesHint")}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {dueOrders.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                {t("deliveriesEmpty")}
+              </p>
+            ) : (
+              <ul className="space-y-2 text-sm">
+                {dueOrders.map((order) => (
+                  <li key={order.id} className="flex items-center gap-2">
+                    <Link
+                      href={`/dashboard/pedidos/${order.id}`}
+                      className="min-w-0 flex-1 truncate hover:underline"
+                    >
+                      {order.name}
+                    </Link>
+                    <span
+                      className={cn(
+                        "shrink-0 text-xs tabular-nums",
+                        isOrderOverdue(order)
+                          ? "font-medium text-amber-600 dark:text-amber-400"
+                          : "text-muted-foreground",
+                      )}
+                    >
+                      {order.dueDate
+                        ? format.dateTime(order.dueDate, { dateStyle: "short" })
+                        : null}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <Link
+              href="/dashboard/pedidos?sort=due"
+              className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+            >
+              {t("deliveriesSeeAll")}
+              <ArrowRight aria-hidden className="size-3" />
+            </Link>
+          </CardContent>
+        </Card>
+
+        <Card className="cozy-card rounded-2xl shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">{t("statusCountsTitle")}</CardTitle>
+            <CardDescription>{t("statusCountsHint")}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {ORDER_STATUSES.map((status) => {
+              const count =
+                statusCounts.find((entry) => entry.status === status)?._count
+                  ._all ?? 0;
+              return (
+                <Link
+                  key={status}
+                  href={`/dashboard/pedidos?status=${status}`}
+                  className="flex items-center justify-between rounded-lg px-2 py-1.5 text-sm transition-colors hover:bg-accent"
+                >
+                  <span>
+                    {t.has(status) ? t(status) : status}
+                  </span>
+                  <span className="font-medium tabular-nums text-muted-foreground">
+                    {count}
+                  </span>
+                </Link>
+              );
+            })}
+          </CardContent>
+        </Card>
+
+        {lowStockThreshold > 0 && (
+          <Card className="cozy-card rounded-2xl shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">{t("lowStockTitle")}</CardTitle>
+              <CardDescription>
+                {t("lowStockHint", { count: lowStockThreshold })}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {lowStock.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  {t("lowStockEmpty")}
+                </p>
+              ) : (
+                <ul className="space-y-2 text-sm">
+                  {lowStock.map((material) => (
+                    <li key={material.id} className="flex items-center gap-2">
+                      <Link
+                        href={`/dashboard/materiales/${material.id}`}
+                        className="min-w-0 flex-1 truncate hover:underline"
+                      >
+                        {material.name}
+                      </Link>
+                      <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+                        ×{material.stock}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <Link
+                href="/dashboard/materiales"
+                className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+              >
+                {t("lowStockSeeAll")}
+                <ArrowRight aria-hidden className="size-3" />
+              </Link>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+
       <Card className="rounded-2xl shadow-sm">
         <CardHeader>
-          <CardTitle>{t("balanceTitle")}</CardTitle>
+          <CardTitle className="font-heading">{t("balanceTitle")}</CardTitle>
           <CardDescription>{t("balanceDescription")}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* Transferencias para saldar: X → Y con el importe a la derecha. */}
           <div className="rounded-xl border bg-accent/30 p-4">
             {settlements.length === 0 ? (
               <p className="flex items-center gap-2 text-sm font-medium">
@@ -102,44 +314,81 @@ export default async function DashboardHome() {
                 {t("settledUp")}
               </p>
             ) : (
-              <ul className="space-y-1">
+              <ul className="space-y-1.5">
                 {settlements.map((settlement) => (
                   <li
                     key={`${settlement.from.id}-${settlement.to.id}`}
-                    className="text-sm font-medium"
-                  >
-                    {t("owes", {
+                    aria-label={t("owes", {
                       from: settlement.from.name,
                       to: settlement.to.name,
                       amount: formatCents(settlement.amountCents, locale),
                     })}
+                    className="flex items-center gap-2 text-sm font-medium"
+                  >
+                    <span>{settlement.from.name}</span>
+                    <ArrowRight
+                      aria-hidden
+                      className="size-4 shrink-0 text-primary"
+                    />
+                    <span>{settlement.to.name}</span>
+                    <span className="ml-auto tabular-nums">
+                      {formatCents(settlement.amountCents, locale)}
+                    </span>
                   </li>
                 ))}
               </ul>
             )}
-            <p className="mt-1 text-xs text-muted-foreground">
+            <p className="mt-2 text-xs text-muted-foreground">
               {t("settlementHint")}
             </p>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
             {balances.map(({ user, paid, earned, net }) => (
-              <div key={user.id} className="rounded-xl border p-4">
-                <p className="font-semibold">{user.name}</p>
-                <dl className="mt-3 space-y-1 text-sm">
-                  <div className="flex justify-between">
-                    <dt className="text-muted-foreground">{t("balancePaid")}</dt>
-                    <dd className="tabular-nums">{formatCents(paid, locale)}</dd>
-                  </div>
-                  <div className="flex justify-between">
-                    <dt className="text-muted-foreground">{t("balanceEarned")}</dt>
-                    <dd className="tabular-nums">{formatCents(earned, locale)}</dd>
-                  </div>
-                  <div className="flex justify-between font-medium">
-                    <dt>{t("balanceNet")}</dt>
-                    <dd className="tabular-nums">{formatCents(net, locale)}</dd>
-                  </div>
-                </dl>
+              <div
+                key={user.id}
+                className="cozy-card flex gap-4 rounded-xl border p-4"
+              >
+                <span
+                  className="initials-avatar flex size-11 shrink-0 items-center justify-center rounded-full font-heading text-sm font-bold"
+                  style={{ "--avatar-h": avatarHue(user.name) } as CssWithHue}
+                  aria-hidden
+                >
+                  {initialsOf(user.name)}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-semibold">{user.name}</p>
+                  <dl className="mt-2 space-y-1 text-sm">
+                    <div className="flex justify-between">
+                      <dt className="text-muted-foreground">
+                        {t("balancePaid")}
+                      </dt>
+                      <dd className="tabular-nums">
+                        {formatCents(paid, locale)}
+                      </dd>
+                    </div>
+                    <div className="flex justify-between">
+                      <dt className="text-muted-foreground">
+                        {t("balanceEarned")}
+                      </dt>
+                      <dd className="tabular-nums">
+                        {formatCents(earned, locale)}
+                      </dd>
+                    </div>
+                    <div className="flex justify-between font-medium">
+                      <dt>{t("balanceNet")}</dt>
+                      <dd
+                        className={cn(
+                          "tabular-nums",
+                          net > 0 && "text-emerald-700 dark:text-emerald-400",
+                          net < 0 && "text-destructive",
+                        )}
+                      >
+                        {formatCents(net, locale)}
+                      </dd>
+                    </div>
+                  </dl>
+                </div>
               </div>
             ))}
           </div>

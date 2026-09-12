@@ -3,6 +3,8 @@
 
 export const MAX_TAG_LENGTH = 30;
 export const MAX_TAGS = 20;
+/** Tope de chips de sugerencia mostrados bajo el input (TagInput). */
+export const MAX_TAG_SUGGESTIONS = 8;
 
 /**
  * Normaliza el valor crudo del input de tags (una cadena separada por comas) a

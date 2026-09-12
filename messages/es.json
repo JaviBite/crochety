@@ -1,7 +1,8 @@
 {
   "Common": {
     "appName": "Zgz Stitches",
-    "loading": "Cargando…"
+    "loading": "Cargando…",
+    "unknownStatus": "Estado desconocido"
   },
   "Errors": {
     "title": "Esta página no se ha podido cargar",
@@ -11,9 +12,11 @@
   },
   "Landing": {
     "tagline": "Amigurumis y crochet hechos a mano en Zaragoza",
+    "galleryCta": "Ver la galería",
     "emptyTitle": "Aún estamos tejiendo…",
     "emptyDescription": "Muy pronto encontrarás aquí nuestras creaciones terminadas.",
-    "login": "Acceso"
+    "login": "Acceso",
+    "footerNote": "Hecho a mano, punto a punto."
   },
   "Login": {
     "title": "Bienvenida de nuevo",
@@ -54,7 +57,17 @@
     "balanceNet": "Neto",
     "settledUp": "Estáis en paz: nadie debe nada",
     "owes": "{from} le debe {amount} a {to}",
-    "settlementHint": "Gastos e ingresos a medias; los pedidos cobrados sin asignar no se reparten."
+    "settlementHint": "Gastos e ingresos a medias; los pedidos cobrados sin asignar no se reparten.",
+    "deliveriesTitle": "Entregas próximas",
+    "deliveriesHint": "Vencen en 7 días o ya vencidas (sin cobrar)",
+    "deliveriesEmpty": "Nada pendiente de entrega",
+    "deliveriesSeeAll": "Ver pedidos",
+    "statusCountsTitle": "Pedidos por estado",
+    "statusCountsHint": "Clic para ver el listado filtrado",
+    "lowStockTitle": "Stock bajo",
+    "lowStockHint": "Materiales con ≤ {count} unidades",
+    "lowStockEmpty": "Inventario bien surtido",
+    "lowStockSeeAll": "Ver materiales"
   },
   "Profile": {
     "title": "Mi perfil",
@@ -85,12 +98,17 @@
     "fieldEmail": "Correo electrónico",
     "fieldRole": "Rol",
     "roleLockedHint": "No puedes cambiar tu propio rol.",
+    "fieldParticipates": "Participa en gastos y beneficios",
+    "participatesHint": "Si se desmarca, esta persona no entra en el balance del panel ni sus gastos ni sus cobros se reparten.",
     "fieldPassword": "Contraseña",
     "fieldNewPassword": "Contraseña nueva",
     "passwordHint": "Déjala en blanco para no cambiarla.",
     "colName": "Nombre",
     "colEmail": "Correo",
     "colRole": "Rol",
+    "colBalance": "Balance",
+    "balanceYes": "Participa",
+    "balanceNo": "No participa",
     "colCreatedAt": "Alta",
     "youLabel": "(tú)"
   },
@@ -105,6 +123,11 @@
     "taglineHint": "En blanco se usa el texto por defecto traducido.",
     "fieldGalleryEnabled": "Galería pública",
     "galleryEnabledHint": "Desactívala para ocultar las fotos de la portada.",
+    "fieldLocations": "Ubicaciones de materiales",
+    "locationsHint": "Se ofrecen como desplegable al dar de alta o editar un material.",
+    "locationAdd": "Añadir",
+    "locationAddPlaceholder": "Añade una ubicación…",
+    "locationRemove": "Quitar {location}",
     "appearanceTitle": "Apariencia",
     "appearanceDescription": "Valores por defecto de la web",
     "fieldDefaultAccent": "Acento por defecto",
@@ -120,7 +143,9 @@
     "apiKeyFromEnv": "Se usa la clave de las variables de entorno; escribe una para fijarla en la app.",
     "apiKeyMissing": "Sin clave configurada.",
     "clearApiKey": "Olvidar la clave guardada",
-    "saved": "Ajustes guardados"
+    "saved": "Ajustes guardados",
+    "fieldLowStockThreshold": "Umbral de stock bajo",
+    "lowStockThresholdHint": "Materiales con stock ≤ este valor se avisan en el dashboard. 0 desactiva el aviso."
   },
   "Forms": {
     "save": "Guardar",
@@ -145,9 +170,21 @@
     "uploading": "Subiendo…",
     "finalizing": "Finalizando…",
     "uploadFailed": "No se pudo subir el fichero",
+    "fileDrop": "Arrastra aquí o haz clic para elegir",
+    "fileDropMulti": "Arrastra aquí o haz clic para elegir (admite varios)",
     "search": "Buscar",
     "searchPlaceholder": "Buscar…",
-    "searchClear": "Limpiar búsqueda"
+    "searchClear": "Limpiar búsqueda",
+    "comboboxSearch": "Buscar…",
+    "comboboxEmpty": "Sin resultados",
+    "comboboxClear": "Quitar selección",
+    "comboboxCreate": "Añadir «{value}»",
+    "rowActions": "Acciones",
+    "resetAutoTotal": "Volver al total automático",
+    "deleted": "Eliminado",
+    "deletedNamed": "Eliminado: {name}",
+    "deleteConfirmTitleNamed": "¿Borrar “{name}”?",
+    "loadMore": "Cargar más"
   },
   "OrderStatus": {
     "SIN_EMPEZAR": "Sin empezar",
@@ -212,7 +249,17 @@
     "colQuantity": "Cant.",
     "colPrice": "Precio",
     "colAssignedTo": "Asignado a",
-    "colDueDate": "Fecha prevista"
+    "colDueDate": "Fecha prevista",
+    "filterAllStatuses": "Todos",
+    "filterAssigned": "Filtrar por asignado",
+    "filterAssignedAll": "Cualquiera",
+    "sortLabel": "Ordenar por",
+    "sortRecent": "Más recientes",
+    "sortDueDate": "Fecha de entrega",
+    "sortPriceDesc": "Precio (mayor primero)",
+    "sortPriceAsc": "Precio (menor primero)",
+    "detailTitle": "Detalles",
+    "materialsWarning": "Revisa {count} línea(s): material sin elegir o cantidad inválida se ajustará al guardar."
   },
   "Expenses": {
     "title": "Gastos",
@@ -270,7 +317,14 @@
     "photosUploading": "Subiendo…",
     "photosLinkPlaceholder": "…o pega el enlace de una imagen",
     "photosAddLink": "Añadir enlace",
-    "photosHint": "Se guardan con la compra (son privadas)."
+    "photosHint": "Se guardan con la compra (son privadas).",
+    "spentThisMonth": "Gastado este mes: {total}",
+    "rowsInvalid": "Revisa {count} línea(s): cantidades e importes inválidos se ajustarán al guardar.",
+    "filterAllReceived": "Todas",
+    "filterAllPaidBy": "Cualquiera",
+    "filterTotal": "Filtrado: {total}",
+    "markReceived": "Marcar como recibido",
+    "markPending": "Marcar como pendiente"
   },
   "Materials": {
     "title": "Materiales",
@@ -281,6 +335,7 @@
     "noResultsDescription": "Prueba con otra búsqueda o quita los filtros.",
     "colorFilterAll": "Todos",
     "colorFilterOne": "Color {color}",
+    "colorFilter": "Color",
     "add": "Nuevo material",
     "newTitle": "Nuevo material",
     "newDescription": "Añade un material al inventario",
@@ -395,7 +450,8 @@
     "batchFilesLabel": "Ficheros (PDF o DOCX)",
     "batchFilesHint": "Cada fichero crea un patrón; la portada y la versión estandarizada se generan en segundo plano.",
     "batchTagsHint": "Se aplican a todos los patrones del lote.",
-    "batchReadyCount": "{count, plural, one {# patrón listo} other {# patrones listos}}"
+    "batchReadyCount": "{count, plural, one {# patrón listo} other {# patrones listos}}",
+    "filterAllAi": "Todos los estados"
   },
   "PatternDifficulty": {
     "principiante": "Principiante",

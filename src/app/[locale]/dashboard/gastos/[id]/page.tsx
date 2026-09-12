@@ -1,6 +1,8 @@
 import { ArrowLeft, Pencil, Receipt } from "lucide-react";
 import { getFormatter, getLocale, getTranslations } from "next-intl/server";
 import { notFound } from "next/navigation";
+import { AssetImage } from "@/components/asset-image";
+import { assetUrl } from "@/lib/assets";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -38,8 +40,15 @@ export default async function ExpenseDetailPage({ params }: { params: Promise<{ 
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-bold tracking-tight">{expense.store ?? t("fieldStore")}</h1>
-            <Badge variant={expense.received ? "default" : "secondary"}>
+            <h1 className="h1-display">{expense.store ?? t("fieldStore")}</h1>
+            <Badge
+              variant="outline"
+              className={
+                expense.received
+                  ? "border-transparent bg-primary/15 text-primary"
+                  : "border-transparent bg-destructive/15 text-destructive"
+              }
+            >
               {expense.received ? t("received") : t("pending")}
             </Badge>
           </div>
@@ -74,7 +83,9 @@ export default async function ExpenseDetailPage({ params }: { params: Promise<{ 
               </div>
               <div>
                 <p className="text-xs font-medium uppercase tracking-wide text-foreground">{t("fieldTotal")}</p>
-                <p>{formatCents(expense.totalCents, locale)}</p>
+                <p className="font-heading text-lg font-bold tabular-nums text-foreground">
+                  {formatCents(expense.totalCents, locale)}
+                </p>
               </div>
             </div>
             <div className="space-y-2">
@@ -104,7 +115,12 @@ export default async function ExpenseDetailPage({ params }: { params: Promise<{ 
             ) : (
               <div className="grid gap-3">
                 {expense.photos.map((photo) => (
-                  <img key={photo.id} src={`/api/files/${photo.path}`} alt={expense.store ?? t("fieldStore")} className="w-full rounded-xl border object-cover" />
+                  <AssetImage
+                    key={photo.id}
+                    src={assetUrl(photo.path)}
+                    alt={expense.store ?? t("fieldStore")}
+                    className="w-full rounded-xl border object-cover"
+                  />
                 ))}
               </div>
             )}

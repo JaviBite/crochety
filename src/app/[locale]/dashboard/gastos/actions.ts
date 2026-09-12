@@ -147,6 +147,9 @@ export async function createExpense(
 
   const parsed = parseExpenseForm(formData);
   if (!parsed.ok) return { error: parsed.error };
+  // Tolerancias del parser: rastro en logs (el usuario ya ve los avisos
+  // en ámbar en el form antes de enviar).
+  if (parsed.warning) console.warn("[form]", parsed.warning);
 
   await saveExpense(parsed.data, await resolvePhotos(formData));
 
@@ -167,6 +170,9 @@ export async function updateExpense(
 
   const parsed = parseExpenseForm(formData);
   if (!parsed.ok) return { error: parsed.error };
+  // Tolerancias del parser: rastro en logs (el usuario ya ve los avisos
+  // en ámbar en el form antes de enviar).
+  if (parsed.warning) console.warn("[form]", parsed.warning);
 
   await saveExpense(parsed.data, await resolvePhotos(formData), id);
 
@@ -190,6 +196,26 @@ export async function deleteExpense(
   await prisma.expense.delete({ where: { id } });
 
   for (const photo of photos) await deleteUpload(photo.path);
+  revalidatePath("/", "layout");
+}
+
+/** Toggle "recibido" desde la fila del listado (sin pasar por el form). */
+export async function toggleExpenseReceived(
+  id: string,
+): Promise<{ error: string } | void> {
+  const session = await auth();
+  if (!session?.user) return { error: "No autorizado" };
+
+  const expense = await prisma.expense.findUnique({
+    where: { id },
+    select: { received: true },
+  });
+  if (!expense) return { error: "Gasto no encontrado" };
+
+  await prisma.expense.update({
+    where: { id },
+    data: { received: !expense.received },
+  });
   revalidatePath("/", "layout");
 }
 

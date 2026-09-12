@@ -3,16 +3,10 @@
 import { Calculator, Plus, X } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { useMemo, useState } from "react";
+import { ComboboxField } from "@/components/form/combobox-field";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { centsToEur, formatCents } from "@/lib/money";
 import { materialsCostCents, suggestedPriceCents } from "@/lib/pricing";
 
@@ -80,6 +74,17 @@ export function OrderMaterialsField({
       })),
   );
 
+  // Aviso pre-submit: líneas sin material (no se guardarán) o con cantidad
+  // inválida (caerá a 1). El parser hace lo mismo en servidor como red de
+  // seguridad, pero así el usuario lo ve antes de enviar.
+  const missing = lines.filter((line) => !line.materialId).length;
+  const invalidQuantity = lines.filter(
+    (line) =>
+      line.materialId &&
+      !Number.isFinite(Number.parseFloat(line.quantity.replace(",", "."))),
+  ).length;
+  const warningCount = missing + invalidQuantity;
+
   function updateLine(index: number, patch: Partial<EditableLine>) {
     setLines((current) =>
       current.map((line, i) => (i === index ? { ...line, ...patch } : line)),
@@ -108,50 +113,61 @@ export function OrderMaterialsField({
       {lines.length === 0 ? (
         <p className="text-sm text-muted-foreground">{t("materialsEmpty")}</p>
       ) : (
-        <div className="space-y-2">
-          {lines.map((line, index) => (
-            <div key={index} className="flex items-center gap-2">
-              <Select
-                value={line.materialId || undefined}
-                onValueChange={(value) => updateLine(index, { materialId: value })}
-              >
-                <SelectTrigger className="min-w-0 flex-1">
-                  <SelectValue placeholder={t("selectMaterial")} />
-                </SelectTrigger>
-                <SelectContent>
-                  {materials.map((material) => (
-                    <SelectItem key={material.id} value={material.id}>
-                      {material.name} · {formatCents(material.priceCents, locale)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Input
-                type="number"
-                min={0}
-                step="0.1"
-                className="w-20"
-                aria-label={t("materialQuantity")}
-                value={line.quantity}
-                onChange={(event) =>
-                  updateLine(index, { quantity: event.target.value })
-                }
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                aria-label={t("removeMaterial")}
-                className="text-muted-foreground hover:text-destructive"
-                onClick={() =>
-                  setLines((current) => current.filter((_, i) => i !== index))
-                }
-              >
-                <X />
-              </Button>
-            </div>
-          ))}
-        </div>
+        <>
+          {warningCount > 0 && (
+            <p className="text-xs text-amber-600 dark:text-amber-400">
+              {t("materialsWarning", { count: warningCount })}
+            </p>
+          )}
+          <div className="space-y-2">
+            {lines.map((line, index) => (
+              <div key={index} className="flex items-center gap-2">
+                {/* Combobox buscable: el select plano no escala con el
+                    inventario. La etiqueta incluye el precio unitario. */}
+                <ComboboxField
+                  name={`materialId-${index}`}
+                  value={line.materialId}
+                  onValueChange={(value) => updateLine(index, { materialId: value })}
+                  options={materials.map((material) => ({
+                    value: material.id,
+                    label: `${material.name} · ${formatCents(material.priceCents, locale)}`,
+                  }))}
+                  placeholder={t("selectMaterial")}
+                  className="min-w-0 flex-1"
+                />
+                <Input
+                  type="number"
+                  min={0}
+                  step="0.1"
+                  className="w-20"
+                  aria-label={t("materialQuantity")}
+                  aria-invalid={
+                    line.materialId !== "" &&
+                    !Number.isFinite(
+                      Number.parseFloat(line.quantity.replace(",", ".")),
+                    )
+                  }
+                  value={line.quantity}
+                  onChange={(event) =>
+                    updateLine(index, { quantity: event.target.value })
+                  }
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={t("removeMaterial")}
+                  className="text-muted-foreground hover:text-destructive"
+                  onClick={() =>
+                    setLines((current) => current.filter((_, i) => i !== index))
+                  }
+                >
+                  <X />
+                </Button>
+              </div>
+            ))}
+          </div>
+        </>
       )}
 
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t pt-3 text-sm">

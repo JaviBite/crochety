@@ -4,13 +4,48 @@ import { revalidatePath } from "next/cache";
 import { getLocale } from "next-intl/server";
 import { redirect } from "@/i18n/navigation";
 import { auth } from "@/lib/auth";
-import { UploadError } from "@/lib/files";
-import { deleteUpload, saveUpload } from "@/lib/files.server";
-import { optionalFile, parseMaterialForm } from "@/lib/forms";
+import { isValidUploadPath } from "@/lib/files";
+import { deleteUpload } from "@/lib/files.server";
+import { parseMaterialForm } from "@/lib/forms";
+import { getMaterialLocations } from "@/lib/settings";
 import { prisma } from "@/lib/prisma";
 import { tagsCreateInput, tagsUpdateInput } from "@/lib/tags";
 
 export type ActionState = { error: string } | null;
+
+/**
+ * Añade una ubicación nueva al Setting `locations` (desde el desplegable del
+ * form de material, con "Añadir «X»"). Silencioso si ya existe (caja-a-caja):
+ * la siguiente petición ya la verá en todos los desplegables.
+ */
+export async function addMaterialLocation(
+  value: string,
+): Promise<{ error: string } | void> {
+  const session = await auth();
+  if (!session?.user) return { error: "No autorizado" };
+
+  const trimmed = String(value ?? "").trim().slice(0, 100);
+  if (!trimmed) return { error: "Ubicación vacía" };
+
+  const current = await getMaterialLocations();
+  if (current.some((location) => location.toLowerCase() === trimmed.toLowerCase())) {
+    return;
+  }
+
+  const next = [...current, trimmed].sort((a, b) => a.localeCompare(b, "es"));
+  await prisma.setting.upsert({
+    where: { key: "locations" },
+    create: { key: "locations", value: JSON.stringify(next) },
+    update: { value: JSON.stringify(next) },
+  });
+  revalidatePath("/", "layout");
+}
+
+/** Lee `photoPath` del form: "" = sin foto; pathname válido = foto subida. */
+function readPhotoPath(formData: FormData): string | null {
+  const raw = String(formData.get("photoPath") ?? "").trim();
+  return raw && isValidUploadPath(raw) ? raw : null;
+}
 
 export async function createMaterial(
   _prev: ActionState,
@@ -22,14 +57,8 @@ export async function createMaterial(
   const parsed = parseMaterialForm(formData);
   if (!parsed.ok) return { error: parsed.error };
 
-  let photoPath: string | null = null;
-  const photo = optionalFile(formData.get("photo"));
-  try {
-    if (photo) photoPath = await saveUpload("materials", photo);
-  } catch (error) {
-    if (error instanceof UploadError) return { error: error.message };
-    throw error;
-  }
+  // La foto ya está subida a /api/uploads (ImageUploadField): llega el pathname.
+  const photoPath = readPhotoPath(formData);
 
   const { tags, ...data } = parsed.data;
   await prisma.material.create({
@@ -60,27 +89,24 @@ export async function updateMaterial(
   });
   if (!existing) return { error: "Material no encontrado" };
 
-  // Solo se reemplaza la foto si se sube una nueva; si no, se conserva.
-  let newPhotoPath: string | null = null;
-  const photo = optionalFile(formData.get("photo"));
-  try {
-    if (photo) newPhotoPath = await saveUpload("materials", photo);
-  } catch (error) {
-    if (error instanceof UploadError) return { error: error.message };
-    throw error;
-  }
+  // La foto llega como pathname ya subido; "" = la quitaron. Si cambió, la
+  // acción limpia el fichero anterior del storage.
+  const photoPath = readPhotoPath(formData);
+  const photoChanged = photoPath !== (existing.photoPath ?? null);
 
   const { tags, ...data } = parsed.data;
   await prisma.material.update({
     where: { id },
     data: {
       ...data,
-      ...(newPhotoPath ? { photoPath: newPhotoPath } : {}),
+      ...(photoChanged ? { photoPath } : {}),
       tags: tagsUpdateInput(tags),
     },
   });
 
-  if (newPhotoPath) await deleteUpload(existing.photoPath);
+  if (photoChanged && existing.photoPath) {
+    await deleteUpload(existing.photoPath);
+  }
 
   revalidatePath("/", "layout");
   redirect({ href: "/dashboard/materiales", locale: await getLocale() });

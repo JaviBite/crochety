@@ -23,6 +23,17 @@ export type Settlement = {
   amountCents: number;
 };
 
+/**
+ * Solo quienes participan del bote común entran en el balance: el resto
+ * (p. ej. cuentas de administración o duplicados del import legacy) se queda
+ * fuera del reparto de gastos y beneficios.
+ */
+export function filterParticipants<
+  T extends { id: string; participates: boolean },
+>(users: T[]): T[] {
+  return users.filter((user) => user.participates);
+}
+
 /** Transferencias mínimas para saldar cuentas. Vacío si ya están en paz. */
 export function computeSettlements(members: MemberBalance[]): Settlement[] {
   if (members.length < 2) return [];

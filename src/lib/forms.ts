@@ -2,6 +2,7 @@ import { z } from "zod";
 import { eurToCents } from "@/lib/money";
 import { parseTagNames } from "@/lib/tags";
 import { ACCENTS } from "@/lib/theme";
+import { parseLocationsJson } from "@/lib/validations";
 import {
   aiProviderSchema,
   materialCategorySchema,
@@ -17,7 +18,8 @@ import {
 // ---------------------------------------------------------------------------
 
 export type ParseResult<T> =
-  | { ok: true; data: T }
+  | { ok: true; data: T; /** Tolerancias aplicadas (valores caídos/ignorados). */
+      warning?: string }
   | { ok: false; error: string };
 
 function str(value: FormDataEntryValue | null): string {
@@ -88,20 +90,32 @@ const orderMaterialSchema = z.object({
 
 export type OrderMaterialInput = z.infer<typeof orderMaterialSchema>;
 
-/** Líneas válidas y sin duplicados (mismo material → se suman cantidades). */
-function parseOrderMaterials(raw: FormDataEntryValue | null): OrderMaterialInput[] {
+/** Líneas válidas y sin duplicados (mismo material → se suman cantidades).
+    Devuelve también cuántas líneas se ignoraron (sin materialId) y cuántas
+    fusiones se hicieron, para avisar en vez de perder datos en silencio. */
+function parseOrderMaterials(raw: FormDataEntryValue | null): {
+  materials: OrderMaterialInput[];
+  dropped: number;
+  merged: number;
+} {
   const byId = new Map<string, OrderMaterialInput>();
+  let dropped = 0;
+  let merged = 0;
   for (const entry of parseItemsJson(raw)) {
     const parsed = orderMaterialSchema.safeParse(entry);
-    if (!parsed.success) continue;
+    if (!parsed.success) {
+      dropped += 1;
+      continue;
+    }
     const existing = byId.get(parsed.data.materialId);
     if (existing) {
       existing.quantity += parsed.data.quantity;
+      merged += 1;
     } else {
       byId.set(parsed.data.materialId, parsed.data);
     }
   }
-  return [...byId.values()];
+  return { materials: [...byId.values()], dropped, merged };
 }
 
 export type OrderInput = Omit<z.infer<typeof orderFormSchema>, "priceEur"> & {
@@ -125,13 +139,26 @@ export function parseOrderForm(formData: FormData): ParseResult<OrderInput> {
   if (!parsed.success) return { ok: false, error: firstIssue(parsed.error) };
 
   const { priceEur, ...rest } = parsed.data;
+  const { materials, dropped, merged } = parseOrderMaterials(
+    formData.get("materials"),
+  );
+  const notices: string[] = [];
+  if (dropped > 0) {
+    notices.push(`${dropped} línea(s) de material inválida(s) ignorada(s)`);
+  }
+  if (merged > 0) {
+    notices.push(
+      `${merged} línea(s) de material duplicada(s) sumada(s) a la existente`,
+    );
+  }
   return {
     ok: true,
     data: {
       ...rest,
       priceCents: eurToCents(priceEur),
-      materials: parseOrderMaterials(formData.get("materials")),
+      materials,
     },
+    ...(notices.length > 0 ? { warning: notices.join("; ") } : {}),
   };
 }
 
@@ -175,6 +202,19 @@ function eurStrToCents(value: FormDataEntryValue | null): number {
   return Number.isFinite(eur) && eur > 0 ? eurToCents(eur) : 0;
 }
 
+/** true si el valor enviado no coincide con el parseado (es decir, el schema
+    lo toleró con .catch al default). Los valores ausentes no avisan: son el
+    default esperado de una línea nueva. */
+function numberMismatch(raw: unknown, field: string, parsed: number): boolean {
+  const value =
+    typeof raw === "object" && raw !== null
+      ? (raw as Record<string, unknown>)[field]
+      : undefined;
+  if (value === undefined || value === null || value === "") return false;
+  const n = typeof value === "number" ? value : Number.parseFloat(String(value));
+  return !Number.isFinite(n) || n !== parsed;
+}
+
 function parseItemsJson(raw: FormDataEntryValue | null): unknown[] {
   if (typeof raw !== "string" || !raw.trim()) return [];
   try {
@@ -197,6 +237,8 @@ export function parseExpenseForm(
   }
 
   const items: ExpenseItemInput[] = [];
+  let coercedQuantity = 0;
+  let coercedPrice = 0;
   for (const raw of rawItems) {
     const parsed = expenseItemSchema.safeParse(raw);
     if (!parsed.success) {
@@ -204,6 +246,11 @@ export function parseExpenseForm(
     }
     const { item, quantity, unitPriceEur, totalEur, link, addToMaterials } =
       parsed.data;
+
+    // Tolerancias: si el valor enviado no coincide con el parseado es que
+    // cayó al default (catch) — se cuenta para avisar al usuario.
+    if (numberMismatch(raw, "quantity", quantity)) coercedQuantity += 1;
+    if (numberMismatch(raw, "unitPriceEur", unitPriceEur)) coercedPrice += 1;
 
     let unitPriceCents: number;
     if (unitPriceEur > 0) {
@@ -233,6 +280,18 @@ export function parseExpenseForm(
   const totalCents =
     totalRaw === "" ? itemsTotal + shippingCents : eurStrToCents(totalRaw);
 
+  const notices: string[] = [];
+  if (coercedQuantity > 0) {
+    notices.push(
+      `${coercedQuantity} línea(s) con cantidad inválida ajustada(s) a 1`,
+    );
+  }
+  if (coercedPrice > 0) {
+    notices.push(
+      `${coercedPrice} línea(s) con precio inválido ajustado(s) a 0`,
+    );
+  }
+
   return {
     ok: true,
     data: {
@@ -245,6 +304,7 @@ export function parseExpenseForm(
       notes: opt(formData.get("notes")),
       items,
     },
+    ...(notices.length > 0 ? { warning: notices.join("; ") } : {}),
   };
 }
 
@@ -278,11 +338,13 @@ export function parseMaterialForm(
     category: str(formData.get("category")),
     priceEur: str(formData.get("priceEur")) || "0",
     stock: str(formData.get("stock")) || "0",
-    location: opt(formData.get("location")),
+    location: optId(formData.get("location")),
     link: opt(formData.get("link")),
     brand: opt(formData.get("brand")),
-    fiberType: opt(formData.get("fiberType")),
-    weight: opt(formData.get("weight")),
+    // Selects opcionales con centinela NONE_VALUE ("" y "none" -> null); los
+    // valores históricos en texto libre pasan sin cambios.
+    fiberType: optId(formData.get("fiberType")),
+    weight: optId(formData.get("weight")),
     // El color solo se guarda si el checkbox "hasColor" está marcado.
     colorHex: checkbox(formData.get("hasColor"))
       ? str(formData.get("colorHex")).toLowerCase() || null
@@ -391,6 +453,8 @@ const userFormSchema = z.object({
   email: emailSchema,
   role: userRoleSchema,
   password: newPasswordSchema,
+  // Entra en el balance de gastos/beneficios del panel.
+  participates: z.boolean(),
 });
 
 export type UserInput = z.infer<typeof userFormSchema>;
@@ -405,6 +469,7 @@ export function parseUserForm(
     email: str(formData.get("email")),
     role: str(formData.get("role")) || "USER",
     password: optPassword(formData.get("password")),
+    participates: checkbox(formData.get("participates")),
   });
   if (!parsed.success) return { ok: false, error: firstIssue(parsed.error) };
 
@@ -421,6 +486,14 @@ const settingsFormSchema = z.object({
   workshopTagline: z.string().nullable(),
   galleryEnabled: z.boolean(),
   defaultAccent: z.enum(ACCENTS),
+  // JSON array de ubicaciones de materiales (parseado de forma tolerante).
+  locations: z.array(z.string()),
+  // Umbral de stock bajo (0 desactiva el aviso del dashboard).
+  lowStockThreshold: z.coerce
+    .number({ error: "Umbral inválido" })
+    .int("Debe ser un número entero")
+    .min(0, "No puede ser negativo")
+    .catch(1),
   aiProvider: aiProviderSchema,
   aiModel: z.string().nullable(),
   // Solo del proveedor seleccionado; en blanco = conservar la guardada.
@@ -439,6 +512,8 @@ export function parseSettingsForm(
     workshopTagline: opt(formData.get("workshopTagline")),
     galleryEnabled: checkbox(formData.get("galleryEnabled")),
     defaultAccent: str(formData.get("defaultAccent")),
+    locations: parseLocationsJson(str(formData.get("locations"))),
+    lowStockThreshold: str(formData.get("lowStockThreshold")),
     aiProvider: str(formData.get("aiProvider")),
     aiModel: opt(formData.get("aiModel")),
     apiKey: optPassword(formData.get("apiKey")),

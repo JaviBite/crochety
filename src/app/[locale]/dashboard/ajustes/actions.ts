@@ -16,7 +16,7 @@ export async function updateSettings(
   formData: FormData,
 ): Promise<SettingsActionState> {
   const session = await auth();
-  if (!isAdmin(session)) return { error: "No autorizado" };
+  if (!(await isAdmin(session))) return { error: "No autorizado" };
 
   const parsed = parseSettingsForm(formData);
   if (!parsed.ok) return { error: parsed.error };
@@ -28,6 +28,9 @@ export async function updateSettings(
     workshopTagline: data.workshopTagline,
     galleryEnabled: data.galleryEnabled ? null : "false",
     defaultAccent: data.defaultAccent,
+    // Sin ubicaciones se borra la fila (el desplegable queda vacío).
+    locations: data.locations.length ? JSON.stringify(data.locations) : null,
+    lowStockThreshold: String(data.lowStockThreshold),
     aiProvider: data.aiProvider,
     aiModel: data.aiModel,
     ollamaBaseUrl: data.ollamaBaseUrl,

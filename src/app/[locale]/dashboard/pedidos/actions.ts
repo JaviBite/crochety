@@ -4,12 +4,41 @@ import { revalidatePath } from "next/cache";
 import { getLocale } from "next-intl/server";
 import { redirect } from "@/i18n/navigation";
 import { auth } from "@/lib/auth";
-import { UploadError } from "@/lib/files";
-import { deleteUpload, saveUpload } from "@/lib/files.server";
-import { optionalFile, parseOrderForm } from "@/lib/forms";
+import { isValidUploadPath } from "@/lib/files";
+import { deleteUpload } from "@/lib/files.server";
+import { parseOrderForm } from "@/lib/forms";
 import { isForeignKeyViolation, prisma } from "@/lib/prisma";
+import { orderStatusSchema } from "@/lib/validations";
 
 export type ActionState = { error: string } | null;
+
+/** Cambia el estado en línea desde la fila/tarjeta del listado. */
+export async function updateOrderStatus(
+  id: string,
+  status: string,
+): Promise<{ error: string } | void> {
+  const session = await auth();
+  if (!session?.user) return { error: "No autorizado" };
+
+  const parsed = orderStatusSchema.safeParse(status);
+  if (!parsed.success) return { error: "Estado no válido" };
+
+  try {
+    await prisma.order.update({
+      where: { id },
+      data: { status: parsed.data },
+    });
+  } catch {
+    return { error: "No se pudo cambiar el estado" };
+  }
+  revalidatePath("/", "layout");
+}
+
+/** Lee `photoPath` del form: "" = sin foto; pathname válido = foto subida. */
+function readPhotoPath(formData: FormData): string | null {
+  const raw = String(formData.get("photoPath") ?? "").trim();
+  return raw && isValidUploadPath(raw) ? raw : null;
+}
 
 export async function createOrder(
   _prev: ActionState,
@@ -20,15 +49,11 @@ export async function createOrder(
 
   const parsed = parseOrderForm(formData);
   if (!parsed.ok) return { error: parsed.error };
+  // Tolerancias del parser: rastro en logs (el usuario ya ve los avisos
+  // en ámbar en el form antes de enviar).
+  if (parsed.warning) console.warn("[form]", parsed.warning);
 
-  let photoPath: string | null = null;
-  const photo = optionalFile(formData.get("photo"));
-  try {
-    if (photo) photoPath = await saveUpload("orders", photo);
-  } catch (error) {
-    if (error instanceof UploadError) return { error: error.message };
-    throw error;
-  }
+  const photoPath = readPhotoPath(formData);
 
   const { materials, ...data } = parsed.data;
   try {
@@ -66,34 +91,26 @@ export async function updateOrder(
 
   const parsed = parseOrderForm(formData);
   if (!parsed.ok) return { error: parsed.error };
+  // Tolerancias del parser: rastro en logs (el usuario ya ve los avisos
+  // en ámbar en el form antes de enviar).
+  if (parsed.warning) console.warn("[form]", parsed.warning);
 
+  const photoPath = readPhotoPath(formData);
   const existing = await prisma.order.findUnique({
     where: { id },
-    select: { id: true },
+    select: {
+      id: true,
+      photos: { where: { isCover: true }, select: { path: true } },
+    },
   });
   if (!existing) return { error: "Pedido no encontrado" };
 
-  let newPhotoPath: string | null = null;
-  const photo = optionalFile(formData.get("photo"));
-  try {
-    if (photo) newPhotoPath = await saveUpload("orders", photo);
-  } catch (error) {
-    if (error instanceof UploadError) return { error: error.message };
-    throw error;
-  }
-
-  // Si hay foto nueva, reemplaza la portada anterior (registro + fichero).
-  let oldCoverPaths: string[] = [];
-  if (newPhotoPath) {
-    const covers = await prisma.orderPhoto.findMany({
-      where: { orderId: id, isCover: true },
-      select: { path: true },
-    });
-    oldCoverPaths = covers.map((cover) => cover.path);
-    await prisma.orderPhoto.deleteMany({
-      where: { orderId: id, isCover: true },
-    });
-  }
+  // La foto (pathname) solo cambia si el form envía una distinta de la
+  // guardada; "" significa "la quitaron" → se limpia el registro y el fichero.
+  const currentCoverPath = existing.photos[0]?.path ?? null;
+  const coverChanged = photoPath !== currentCoverPath;
+  const oldCoverPath =
+    coverChanged && currentCoverPath ? currentCoverPath : null;
 
   const { materials, ...data } = parsed.data;
   try {
@@ -103,8 +120,15 @@ export async function updateOrder(
         ...data,
         // Se reemplazan por completo las líneas de material del pedido.
         materials: { deleteMany: {}, create: materials },
-        ...(newPhotoPath
-          ? { photos: { create: { path: newPhotoPath, isCover: true } } }
+        ...(coverChanged
+          ? {
+              photos: photoPath
+                ? {
+                    deleteMany: { isCover: true },
+                    create: { path: photoPath, isCover: true },
+                  }
+                : { deleteMany: { isCover: true } },
+            }
           : {}),
       },
     });
@@ -115,7 +139,7 @@ export async function updateOrder(
     throw error;
   }
 
-  for (const path of oldCoverPaths) await deleteUpload(path);
+  if (oldCoverPath) await deleteUpload(oldCoverPath);
 
   revalidatePath("/", "layout");
   redirect({ href: "/dashboard/pedidos", locale: await getLocale() });

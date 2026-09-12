@@ -2,7 +2,8 @@
 
 import { CircleAlert, CircleCheck, LoaderCircle, X } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { type ChangeEvent, useActionState, useState } from "react";
+import { useActionState, useState } from "react";
+import { FileField } from "@/components/form/file-field";
 import { SubmitButton } from "@/components/form/submit-button";
 import { TagInput } from "@/components/form/tag-input";
 import { Button } from "@/components/ui/button";
@@ -70,10 +71,9 @@ export function PatternBatchForm({
     }
   }
 
-  function onPickFiles(event: ChangeEvent<HTMLInputElement>) {
-    const picked = Array.from(event.target.files ?? []);
-    if (picked.length === 0) return;
-    const entries = picked.map((file) => ({
+  function onPickFiles(pickedFiles: File[]) {
+    if (pickedFiles.length === 0) return;
+    const entries = pickedFiles.map((file) => ({
       key: crypto.randomUUID(),
       fileName: file.name,
       title: titleFromFileName(file.name),
@@ -82,8 +82,9 @@ export function PatternBatchForm({
       uploading: true,
     }));
     setFiles((current) => [...current, ...entries]);
-    entries.forEach((entry, index) => void uploadOne(entry.key, picked[index]));
-    event.target.value = "";
+    entries.forEach((entry, index) =>
+      void uploadOne(entry.key, pickedFiles[index]),
+    );
   }
 
   const ready = files.filter((file) => file.path);
@@ -98,14 +99,13 @@ export function PatternBatchForm({
 
       <div className="space-y-2">
         <Label htmlFor="files">{t("batchFilesLabel")}</Label>
-        <Input
+        <FileField
           id="files"
-          type="file"
           multiple
           accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-          onChange={onPickFiles}
+          hint={t("batchFilesHint")}
+          onFiles={onPickFiles}
         />
-        <p className="text-xs text-muted-foreground">{t("batchFilesHint")}</p>
       </div>
 
       {files.length > 0 && (

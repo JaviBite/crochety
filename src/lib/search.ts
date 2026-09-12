@@ -32,6 +32,62 @@ export function hexToRgb(hex: string): [number, number, number] | undefined {
   return [(value >> 16) & 0xff, (value >> 8) & 0xff, value & 0xff];
 }
 
+/** Convierte un color hex a HSL (h 0-360, s y l 0-1), o undefined si no es válido. */
+export function hexToHsl(hex: string): [number, number, number] | undefined {
+  const [r255, g255, b255] = (hexToRgb(hex) ?? []).map((channel) => channel / 255);
+  if (r255 === undefined || g255 === undefined || b255 === undefined) {
+    return undefined;
+  }
+
+  const max = Math.max(r255, g255, b255);
+  const min = Math.min(r255, g255, b255);
+  const lightness = (max + min) / 2;
+  if (max === min) return [0, 0, lightness];
+
+  const delta = max - min;
+  const saturation =
+    lightness > 0.5 ? delta / (2 - max - min) : delta / (max + min);
+
+  let hue: number;
+  if (max === r255) {
+    hue = ((g255 - b255) / delta) % 6;
+  } else if (max === g255) {
+    hue = (b255 - r255) / delta + 2;
+  } else {
+    hue = (r255 - g255) / delta + 4;
+  }
+
+  return [((hue * 60) + 360) % 360, saturation, lightness];
+}
+
+/**
+ * Ordena muestras por familia de color (hue) para el selector de color:
+ * primero los cromáticos en arcoíris y al final los neutros (grises/negros/
+ * blancos) por luminosidad. El redondeo a familias de 30° evita partir los
+ * rojos en los extremos (350° y 10° caen en la misma familia).
+ */
+export function sortByColorHue(hexes: string[]): string[] {
+  const parsed = hexes
+    .map((hex) => ({ hex, hsl: hexToHsl(hex) }))
+    .filter((entry): entry is { hex: string; hsl: [number, number, number] } =>
+      entry.hsl !== undefined,
+    );
+
+  const chromatic = parsed.filter((entry) => entry.hsl[1] >= 0.08);
+  const neutrals = parsed
+    .filter((entry) => entry.hsl[1] < 0.08)
+    .sort((a, b) => a.hsl[2] - b.hsl[2]);
+
+  chromatic.sort((a, b) => {
+    const familyA = Math.round(a.hsl[0] / 30) % 12;
+    const familyB = Math.round(b.hsl[0] / 30) % 12;
+    if (familyA !== familyB) return familyA - familyB;
+    return a.hsl[2] - b.hsl[2];
+  });
+
+  return [...chromatic, ...neutrals].map((entry) => entry.hex);
+}
+
 /** Distancia euclídea en el espacio RGB entre dos colores. */
 export function colorDistanceHex(aHex: string, bHex: string): number {
   const a = hexToRgb(aHex);

@@ -1,7 +1,8 @@
 {
   "Common": {
     "appName": "Zgz Stitches",
-    "loading": "Cargando…"
+    "loading": "Cargando…",
+    "unknownStatus": "Unknown status"
   },
   "Errors": {
     "title": "This page couldn't load",
@@ -11,9 +12,11 @@
   },
   "Landing": {
     "tagline": "Handmade amigurumi & crochet from Zaragoza",
+    "galleryCta": "See the gallery",
     "emptyTitle": "Still stitching…",
     "emptyDescription": "Our finished creations will show up here very soon.",
-    "login": "Sign in"
+    "login": "Sign in",
+    "footerNote": "Handmade, stitch by stitch."
   },
   "Login": {
     "title": "Welcome back",
@@ -54,7 +57,17 @@
     "balanceNet": "Net",
     "settledUp": "You're settled up: nobody owes anything",
     "owes": "{from} owes {amount} to {to}",
-    "settlementHint": "Expenses and earnings split evenly; paid orders without an assignee are not split."
+    "settlementHint": "Expenses and earnings split evenly; paid orders without an assignee are not split.",
+    "deliveriesTitle": "Upcoming deliveries",
+    "deliveriesHint": "Due within 7 days or overdue (unpaid)",
+    "deliveriesEmpty": "Nothing pending delivery",
+    "deliveriesSeeAll": "View orders",
+    "statusCountsTitle": "Orders by status",
+    "statusCountsHint": "Click to see the filtered list",
+    "lowStockTitle": "Low stock",
+    "lowStockHint": "Materials with ≤ {count} units",
+    "lowStockEmpty": "Inventory is well stocked",
+    "lowStockSeeAll": "View materials"
   },
   "Profile": {
     "title": "My profile",
@@ -85,12 +98,17 @@
     "fieldEmail": "Email",
     "fieldRole": "Role",
     "roleLockedHint": "You can't change your own role.",
+    "fieldParticipates": "Shares expenses and profits",
+    "participatesHint": "If unchecked, this person is left out of the panel balance; their expenses and earnings are not split.",
     "fieldPassword": "Password",
     "fieldNewPassword": "New password",
     "passwordHint": "Leave it blank to keep the current one.",
     "colName": "Name",
     "colEmail": "Email",
     "colRole": "Role",
+    "colBalance": "Balance",
+    "balanceYes": "In balance",
+    "balanceNo": "Out of balance",
     "colCreatedAt": "Joined",
     "youLabel": "(you)"
   },
@@ -105,6 +123,11 @@
     "taglineHint": "Leave blank to use the translated default text.",
     "fieldGalleryEnabled": "Public gallery",
     "galleryEnabledHint": "Turn it off to hide the photos from the landing page.",
+    "fieldLocations": "Material locations",
+    "locationsHint": "They are offered as a dropdown when creating or editing a material.",
+    "locationAdd": "Add",
+    "locationAddPlaceholder": "Add a location…",
+    "locationRemove": "Remove {location}",
     "appearanceTitle": "Appearance",
     "appearanceDescription": "Site-wide defaults",
     "fieldDefaultAccent": "Default accent",
@@ -120,7 +143,9 @@
     "apiKeyFromEnv": "Using the key from the environment variables; type one to store it in the app.",
     "apiKeyMissing": "No key configured.",
     "clearApiKey": "Forget the stored key",
-    "saved": "Settings saved"
+    "saved": "Settings saved",
+    "fieldLowStockThreshold": "Low stock threshold",
+    "lowStockThresholdHint": "Materials with stock ≤ this value are flagged on the dashboard. 0 disables the notice."
   },
   "Forms": {
     "save": "Save",
@@ -145,9 +170,21 @@
     "uploading": "Uploading…",
     "finalizing": "Finalizing…",
     "uploadFailed": "Could not upload the file",
+    "fileDrop": "Drop here or click to choose",
+    "fileDropMulti": "Drop here or click to choose (multiple allowed)",
     "search": "Search",
     "searchPlaceholder": "Search…",
-    "searchClear": "Clear search"
+    "searchClear": "Clear search",
+    "comboboxSearch": "Search…",
+    "comboboxEmpty": "No results",
+    "comboboxClear": "Clear selection",
+    "comboboxCreate": "Add “{value}”",
+    "rowActions": "Actions",
+    "resetAutoTotal": "Back to automatic total",
+    "deleted": "Deleted",
+    "deletedNamed": "Deleted: {name}",
+    "deleteConfirmTitleNamed": "Delete “{name}”?",
+    "loadMore": "Load more"
   },
   "OrderStatus": {
     "SIN_EMPEZAR": "Not started",
@@ -212,7 +249,17 @@
     "colQuantity": "Qty",
     "colPrice": "Price",
     "colAssignedTo": "Assigned to",
-    "colDueDate": "Due date"
+    "colDueDate": "Due date",
+    "filterAllStatuses": "All",
+    "filterAssigned": "Filter by assignee",
+    "filterAssignedAll": "Anyone",
+    "sortLabel": "Sort by",
+    "sortRecent": "Most recent",
+    "sortDueDate": "Due date",
+    "sortPriceDesc": "Price (highest first)",
+    "sortPriceAsc": "Price (lowest first)",
+    "detailTitle": "Details",
+    "materialsWarning": "Check {count} line(s): unpicked material or invalid quantity will be adjusted on save."
   },
   "Expenses": {
     "title": "Expenses",
@@ -270,7 +317,14 @@
     "photosUploading": "Uploading…",
     "photosLinkPlaceholder": "…or paste an image link",
     "photosAddLink": "Add link",
-    "photosHint": "Saved with the purchase (private)."
+    "photosHint": "Saved with the purchase (private).",
+    "spentThisMonth": "Spent this month: {total}",
+    "rowsInvalid": "Check {count} line(s): invalid quantities and amounts will be adjusted on save.",
+    "filterAllReceived": "All",
+    "filterAllPaidBy": "Anyone",
+    "filterTotal": "Filtered: {total}",
+    "markReceived": "Mark as received",
+    "markPending": "Mark as pending"
   },
   "Materials": {
     "title": "Materials",
@@ -281,6 +335,7 @@
     "noResultsDescription": "Try another search or clear the filters.",
     "colorFilterAll": "All",
     "colorFilterOne": "Color {color}",
+    "colorFilter": "Color",
     "add": "New material",
     "newTitle": "New material",
     "newDescription": "Add a material to the inventory",
@@ -395,7 +450,8 @@
     "batchFilesLabel": "Files (PDF or DOCX)",
     "batchFilesHint": "Each file creates a pattern; the cover and the standardized version are generated in the background.",
     "batchTagsHint": "Applied to every pattern in the batch.",
-    "batchReadyCount": "{count, plural, one {# pattern ready} other {# patterns ready}}"
+    "batchReadyCount": "{count, plural, one {# pattern ready} other {# patterns ready}}",
+    "filterAllAi": "All statuses"
   },
   "PatternDifficulty": {
     "principiante": "Beginner",

@@ -169,40 +169,69 @@ Organizado en fases para implementación incremental. `✅` = ya hecho.
   leer la BD.
 - ✅ **Balance fino "quién debe a quién"** en el dashboard: `lib/balance.ts`
   (gastos e ingresos a medias, greedy para N usuarios, redondeo saneado); los
-  pedidos cobrados sin asignar no se reparten.
+  pedidos cobrados sin asignar no se reparten. Cada usuario tiene un flag
+  `participates` (editable en el gestor de usuarios): quien no participa queda
+  fuera del balance (p. ej. cuentas duplicadas del import antiguo).
 
-### Fase E — Importación de datos y robustez (pendiente)
+### Fase E — Importación de datos y robustez
 
-- **Importar datos del Excel antiguo** (PRIORITARIO): script puntual e idempotente
-  para poblar la BD con los gastos, pedidos y materiales históricos. Formato a
-  definir con el fichero real (hojas, columnas, importes → céntimos, mapeo de
-  quién paga → `User`).
-- **Robustez del estandarizador de patrones** (conocido): a veces
-  `standardizePattern` devuelve vacío/nada, y si un fichero contiene **varios
-  patrones** solo procesa uno e ignora el resto. Pendiente montar una batería de
-  pruebas con patrones reales para depurar prompt/segmentación (no urgente).
-- **Selector de imagen de portada del patrón**: hoy `derivePatternCover` elige
-  automáticamente (imagen más grande de las 3 primeras páginas del PDF / og:image)
-  y a veces no es representativa; ofrecer elegir entre las imágenes candidatas
-  extraídas del origen.
-- **Rol admin sin re-login**: hoy el rol viaja en el JWT, así que la migración y
-  los cambios de rol no se ven hasta cerrar y volver a iniciar sesión (por eso
-  el menú Usuarios/Ajustes puede parecer "ausente"). Leer el rol de la BD en el
-  layout y en los guards para que aparezca al instante.
+- ✅ **Importar datos del Excel antiguo**: `prisma/import-legacy.ts` (dry-run
+  por defecto, `--confirm` para escribir) inserta pedidos, gastos, materiales
+  y patrones desde `prisma/legacy-data/*.json` (datos ya parseados del Excel +
+  Homebox). Borra las tablas antes de importar (lo pedido), no toca usuarios
+  (salvo resetear la contraseña de Javier) ni ajustes. Ya ejecutado en la BD.
+- ✅ **Robustez del estandarizador de patrones**: la segmentación de varios
+  patrones por fichero existe (`pattern_auto_split`: hermanos o MULTIPLE para
+  revisión humana) y la batería de pruebas real es reproducible:
+  `npx tsx prisma/standardize-battery.ts` (dry-run, prioriza los ERROR y
+  mezcla DONE como regresión; `--id`, `--limit`, `--dump`). Hallazgos
+  aplicados: los modelos gratuitos devuelven a ratos JSON ensuciado/truncado
+  → `repairPatternJson` + `experimental_repairText` en el pipeline (patrones
+  y extractor de gastos, con tests); los "vacíos" restantes de la BD son
+  datos inutilizables (enlaces de YouTube/Etsy, ficheros borrados), no bugs
+  del prompt. Limitación local conocida: el rasterizado de PDFs escaneados
+  no funciona en Windows dev (canvas nativo) — en Vercel sí.
+- ✅ **Notas entre rondas** («añadir ojos, relleno, cortar hilo…»): cubierto
+  por los pasos intercalados del contrato (`kind: "step"`) — el editor los
+  añade/reordena entre rondas, el detalle los renderiza aparte y el
+  exportador MD/EPUB los respeta.
+- ✅ **Selector de imagen de portada del patrón**: el detalle ofrece las
+  imágenes candidatas extraídas del origen (`cover-picker.tsx` + actions
+  `loadCoverCandidates`/`setPatternCover`); si no se elige, sigue
+  `derivePatternCover` como fallback.
+- ✅ **Rol admin sin re-login**: `isAdmin` lee el rol de la BD (no del JWT) en
+  cada guard y en el layout — cambiar roles o perder el admin se ve al
+  instante, sin cerrar sesión.
 
 ### TODOS
 
-- Filtros en las busquedas de pedidos (por asigancion, precio, etc)
-- Poder borrar la imagen asociada a un pedido/patroin etc y que se borre en el storage
-- Las ubicaciones deberian ser desplegable, no texto libre y poder añadir más desde administración
-- Arreglar en los patrones cuando hay rondas que se hace lo mismo que aparece un mensaje a la derecha raro
-- Permitir añadir notas entre rondas (para añadir ojos, relleno, etc)
-- Paginacion
-- En la vista publica que las iamgenes hagan animacion de aprecer mientras se scrollea hacia abajo
-- Ver porque da error al subir un pdf (añadir mas datos al mensaje de error de subida)
+(vacío — la Fase E y los ítems sueltos están en "Ya hecho")
 
 ### Ya hecho
 
+- ✅ **Estado del pedido editable en línea** (listado de pedidos, tabla y
+  tarjetas): `OrderStatusSelect` con la estética del badge + action
+  `updateOrderStatus` validada por `orderStatusSchema`; errores con toast.
+- ✅ **Filtro de color por hue** en materiales: muestras del popover ordenadas
+  por familia de tono (`sortByColorHue`, familias de 30° + neutros por luz,
+  con tests en `lib/search.test.ts`).
+- ✅ **Notas entre rondas** («añadir ojos, relleno, cortar hilo…»): cubierto
+  por los pasos intercalados del contrato (`kind: "step"`) — el editor los
+  añade/reordena entre rondas, el detalle los renderiza aparte y el
+  exportador MD/EPUB los respeta.
+- ✅ Mensajes de error de subida con detalle: `/api/uploads` devuelve JSON
+  también en fallos no-previstos (500 con causa en el mensaje, log con
+  kind/name/size/mime en el servidor) y el cliente traduce códigos HTTP
+  (413 tamaño, 401 sesión caducada, 503 storage) en vez del genérico.
+
+- ✅ Filtros de pedidos (estado/asignado/orden), búsqueda por tags en
+  materiales y patrones, filtro `aiStatus` en patrones, toggle de "recibido"
+  inline en gastos (spec QoL, bloques 3-5).
+- ✅ Borrar la imagen asociada a pedido/material/patrón y que se limpie el
+  storage (update/delete + descarte de huérfanos en cliente).
+- ✅ Ubicaciones desplegables desde Ajustes (Setting `locations`).
+- ✅ Paginación "cargar más" por recuento en pedidos y gastos (`?n=`).
+- ✅ Galería pública: animación de aparición al scroll (`<Reveal>`).
 - ✅ Galería pública tipo mampostería (Pinterest) con CSS columns en `/`.
 - ✅ **Despliegue self-hosted** con un solo `docker compose up -d --build`:
   `Dockerfile` multi-stage (standalone de Next solo con `DOCKER_BUILD=1`, no

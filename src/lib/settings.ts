@@ -1,6 +1,7 @@
 import { cache } from "react";
 import { prisma } from "@/lib/prisma";
 import { parseAccent, type Accent } from "@/lib/theme";
+import { parseLocationsJson } from "@/lib/validations";
 import {
   AI_PROVIDERS,
   DEFAULT_AI_MODEL,
@@ -18,6 +19,8 @@ export const SETTING_KEYS = [
   "workshopTagline",
   "galleryEnabled",
   "defaultAccent",
+  "locations",
+  "lowStockThreshold",
   "aiProvider",
   "aiModel",
   "aiApiKeyAnthropic",
@@ -132,6 +135,42 @@ export async function getDefaultAccent(): Promise<Accent> {
   return parseAccent((await getSetting("defaultAccent")) ?? undefined);
 }
 
+/** Ubicaciones físicas gestionadas en Ajustes (Setting `locations`, JSON).
+    Si el Setting está vacío, se deduce del inventario: los valores distintos
+    en uso, deduplicados por caja (gana la variante con mayúsculas). Así el
+    desplegable nunca ofrece solo la ubicación del material que se edita. */
+export async function getMaterialLocations(): Promise<string[]> {
+  const setting = await getSetting("locations");
+  let values = parseLocationsJson(setting);
+  if (values.length === 0) {
+    const rows = await prisma.material.findMany({
+      where: { location: { not: null } },
+      distinct: ["location"],
+      select: { location: true },
+      orderBy: { location: "asc" },
+    });
+    const seen = new Set<string>();
+    values = rows
+      .map((row) => row.location)
+      .filter((location): location is string => location !== null)
+      .sort((a, b) => a.localeCompare(b, "es"))
+      .filter((value) => {
+        const key = value.toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+  }
+  return values.sort((a, b) => a.localeCompare(b, "es"));
+}
+
+/** Umbral de stock bajo (Setting `lowStockThreshold`); 0 desactiva el aviso. */
+export async function getLowStockThreshold(): Promise<number> {
+  const raw = await getSetting("lowStockThreshold");
+  const value = raw == null ? Number.NaN : Number.parseInt(raw, 10);
+  return Number.isFinite(value) && value >= 0 ? value : 1;
+}
+
 export type AiConfig = {
   provider: AiProvider;
   /** null → usar el modelo por defecto del proveedor. */
@@ -174,6 +213,10 @@ export type SettingsSnapshot = {
   workshopTagline: string;
   galleryEnabled: boolean;
   defaultAccent: Accent;
+  /** Ubicaciones de materiales (Setting `locations`), ordenadas. */
+  locations: string[];
+  /** Umbral de stock bajo (Setting `lowStockThreshold`). */
+  lowStockThreshold: number;
   aiProvider: AiProvider;
   /** "" → se usa el modelo por defecto del proveedor. */
   aiModel: string;
@@ -206,6 +249,10 @@ export async function getSettingsSnapshot(): Promise<SettingsSnapshot> {
     workshopTagline: workshop.tagline ?? "",
     galleryEnabled: workshop.galleryEnabled,
     defaultAccent: await getDefaultAccent(),
+    locations: parseLocationsJson(stored.locations).sort((a, b) =>
+      a.localeCompare(b, "es"),
+    ),
+    lowStockThreshold: await getLowStockThreshold(),
     aiProvider,
     aiModel: stored.aiModel ?? process.env.AI_MODEL ?? "",
     ollamaBaseUrl: (await getSetting("ollamaBaseUrl")) ?? "",

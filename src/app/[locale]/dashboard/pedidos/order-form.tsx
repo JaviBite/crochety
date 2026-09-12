@@ -2,7 +2,11 @@
 
 import { useTranslations } from "next-intl";
 import { useActionState, useState } from "react";
+import { ComboboxField } from "@/components/form/combobox-field";
+import { ImageUploadField } from "@/components/form/image-upload-field";
+import { FormFooter } from "@/components/form/form-footer";
 import { SubmitButton } from "@/components/form/submit-button";
+import { SuggestInput } from "@/components/form/suggest-input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -16,8 +20,10 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Link } from "@/i18n/navigation";
+import { toDateInputValue } from "@/lib/dates";
 import { NONE_VALUE } from "@/lib/forms";
 import { centsToEur } from "@/lib/money";
+import { cn } from "@/lib/utils";
 import { ORDER_STATUSES } from "@/lib/validations";
 import { createOrder, updateOrder } from "./actions";
 import {
@@ -45,24 +51,19 @@ export type OrderFormValues = {
   materials: OrderMaterialLine[];
 };
 
-/** Date -> "YYYY-MM-DD" en la zona local (evita el desfase de toISOString). */
-function toDateInputValue(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
 export function OrderForm({
   users,
   patterns,
   materials,
   order,
+  customers = [],
 }: {
   users: Option[];
   patterns: PatternOption[];
   materials: MaterialOption[];
   order?: OrderFormValues;
+  /** Clientes ya asignados en otros pedidos, para el datalist. */
+  customers?: string[];
 }) {
   const t = useTranslations("Orders");
   const tForms = useTranslations("Forms");
@@ -74,6 +75,10 @@ export function OrderForm({
   // Controlado para que la calculadora pueda aplicar el precio sugerido.
   const [priceEur, setPriceEur] = useState(
     order ? String(centsToEur(order.priceCents)) : "",
+  );
+  // Foto del pedido: pathname subido a /api/uploads ("" = sin foto).
+  const [photoPath, setPhotoPath] = useState<string | null>(
+    order?.coverPhotoPath ?? null,
   );
 
   return (
@@ -104,7 +109,7 @@ export function OrderForm({
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="quantity">{t("fieldQuantity")}</Label>
           <Input
@@ -129,20 +134,36 @@ export function OrderForm({
             onChange={(event) => setPriceEur(event.target.value)}
           />
         </div>
-        <div className="col-span-2 space-y-2 sm:col-span-1">
-          <Label htmlFor="status">{t("fieldStatus")}</Label>
-          <Select name="status" defaultValue={order?.status ?? "SIN_EMPEZAR"}>
-            <SelectTrigger id="status" className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {ORDER_STATUSES.map((status) => (
-                <SelectItem key={status} value={status}>
-                  {tStatus(status)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+      </div>
+
+      <div className="space-y-2">
+        <Label>{t("fieldStatus")}</Label>
+        {/* Pills segmentadas: radios nativos escondidos estilizan la píldora
+            con :has(:checked) y el valor viaja con el form sin JS extra. */}
+        <div
+          role="radiogroup"
+          aria-label={t("fieldStatus")}
+          className="flex flex-wrap gap-1 rounded-full border bg-muted/50 p-1"
+        >
+          {ORDER_STATUSES.map((status) => (
+            <label
+              key={status}
+              className={cn(
+                "cursor-pointer rounded-full px-3 py-1.5 text-sm font-medium transition-colors",
+                "text-muted-foreground hover:text-foreground",
+                "has-checked:bg-primary has-checked:text-primary-foreground has-checked:shadow-sm",
+              )}
+            >
+              <input
+                type="radio"
+                name="status"
+                value={status}
+                defaultChecked={status === (order?.status ?? "SIN_EMPEZAR")}
+                className="sr-only"
+              />
+              {tStatus(status)}
+            </label>
+          ))}
         </div>
       </div>
 
@@ -152,9 +173,10 @@ export function OrderForm({
             {t("fieldCustomer")}{" "}
             <span className="text-muted-foreground">({tForms("optional")})</span>
           </Label>
-          <Input
+          <SuggestInput
             id="customer"
             name="customer"
+            options={customers}
             defaultValue={order?.customer ?? undefined}
           />
         </div>
@@ -182,19 +204,19 @@ export function OrderForm({
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="patternId">{t("fieldPattern")}</Label>
-          <Select name="patternId" defaultValue={order?.patternId ?? NONE_VALUE}>
-            <SelectTrigger id="patternId" className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={NONE_VALUE}>{tForms("none")}</SelectItem>
-              {patterns.map((pattern) => (
-                <SelectItem key={pattern.id} value={pattern.id}>
-                  {pattern.title}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {/* Combobox buscable: con muchos patrones el select plano no da
+              abasto. Valor en input hidden ("" = ninguno, optId lo trata). */}
+          <ComboboxField
+            id="patternId"
+            name="patternId"
+            options={patterns.map((pattern) => ({
+              value: pattern.id,
+              label: pattern.title,
+            }))}
+            defaultValue={order?.patternId ?? ""}
+            placeholder={tForms("none")}
+            allowClear
+          />
         </div>
         <div className="space-y-2">
           <Label htmlFor="dueDate">
@@ -221,15 +243,15 @@ export function OrderForm({
           {t("fieldPhoto")}{" "}
           <span className="text-muted-foreground">({tForms("optional")})</span>
         </Label>
-        {order?.coverPhotoPath && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={`/api/files/${order.coverPhotoPath}`}
-            alt={order.name}
-            className="size-20 rounded-lg border object-cover"
-          />
-        )}
-        <Input id="photo" name="photo" type="file" accept="image/*" />
+        {/* Sube al elegir y manda el pathname (trampa #10). */}
+        <ImageUploadField
+          id="photo"
+          kind="orders"
+          value={photoPath}
+          initialValue={order?.coverPhotoPath ?? null}
+          onChange={setPhotoPath}
+        />
+        <input type="hidden" name="photoPath" value={photoPath ?? ""} />
       </div>
 
       <div className="flex items-start gap-3 rounded-xl border p-4">
@@ -251,12 +273,12 @@ export function OrderForm({
         </p>
       )}
 
-      <div className="flex gap-3">
+      <FormFooter>
         <SubmitButton />
         <Button variant="outline" asChild>
           <Link href="/dashboard/pedidos">{tForms("cancel")}</Link>
         </Button>
-      </div>
+      </FormFooter>
     </form>
   );
 }

@@ -51,3 +51,7 @@ next-env.d.ts
 .vercel
 .env*
 patterns/**
+
+# configs locales de herramientas de agente (opencode/claude code)
+.claude/
+.opencode/

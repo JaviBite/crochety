@@ -19,11 +19,11 @@ export async function createUser(
   formData: FormData,
 ): Promise<ActionState> {
   const session = await auth();
-  if (!isAdmin(session)) return { error: "No autorizado" };
+  if (!(await isAdmin(session))) return { error: "No autorizado" };
 
   const parsed = parseUserForm(formData, { requirePassword: true });
   if (!parsed.ok) return { error: parsed.error };
-  const { name, email, role, password } = parsed.data;
+  const { name, email, role, password, participates } = parsed.data;
 
   try {
     await prisma.user.create({
@@ -31,6 +31,7 @@ export async function createUser(
         name,
         email,
         role,
+        participates,
         passwordHash: await hash(password!, 12),
       },
     });
@@ -49,14 +50,14 @@ export async function updateUser(
   formData: FormData,
 ): Promise<ActionState> {
   const session = await auth();
-  if (!isAdmin(session)) return { error: "No autorizado" };
+  if (!(await isAdmin(session))) return { error: "No autorizado" };
 
   const id = String(formData.get("id") ?? "");
   if (!id) return { error: "Falta el identificador" };
 
   const parsed = parseUserForm(formData, { requirePassword: false });
   if (!parsed.ok) return { error: parsed.error };
-  const { name, email, role, password } = parsed.data;
+  const { name, email, role, password, participates } = parsed.data;
 
   // Evita quedarse sin acceso al panel: nadie se quita su propio rol admin.
   if (id === session!.user.id && role !== "ADMIN") {
@@ -76,6 +77,7 @@ export async function updateUser(
         name,
         email,
         role,
+        participates,
         ...(password ? { passwordHash: await hash(password, 12) } : {}),
       },
     });
@@ -84,8 +86,9 @@ export async function updateUser(
     throw error;
   }
 
-  // El rol y el nombre viajan en el JWT: la persona editada verá los cambios
-  // al volver a iniciar sesión.
+  // El rol se lee de la BD en cada guard (isAdmin) y en el layout: los cambios
+  // de rol se ven al instante. El nombre sí viaja en el JWT (saludo del panel)
+  // y se actualiza al re-loguearse; revalidatePath refresca las listas.
   revalidatePath("/", "layout");
   redirect({ href: "/dashboard/usuarios", locale: await getLocale() });
   return null;
@@ -95,7 +98,7 @@ export async function deleteUser(
   id: string,
 ): Promise<{ error: string } | void> {
   const session = await auth();
-  if (!isAdmin(session)) return { error: "No autorizado" };
+  if (!(await isAdmin(session))) return { error: "No autorizado" };
   if (id === session!.user.id) {
     return { error: "No puedes borrar tu propio usuario" };
   }

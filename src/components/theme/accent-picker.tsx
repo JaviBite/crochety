@@ -11,12 +11,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ACCENTS, type Accent } from "@/lib/theme";
 
-// Muestras aproximadas para el selector (el color real lo definen las CSS vars).
+// Muestras del selector: los mismos oklch que las vars --primary de globals.css
+// para cada acento (modo claro), así la muestra coincide con el color aplicado.
 const SWATCHES: Record<Accent, string> = {
-  mint: "oklch(0.72 0.11 170)",
-  lavender: "oklch(0.72 0.12 295)",
-  peach: "oklch(0.76 0.11 50)",
-  sky: "oklch(0.72 0.11 235)",
+  mint: "oklch(0.56 0.09 170)",
+  lavender: "oklch(0.56 0.13 295)",
+  peach: "oklch(0.6 0.12 45)",
+  sky: "oklch(0.56 0.11 235)",
 };
 
 function applyAccent(accent: Accent) {

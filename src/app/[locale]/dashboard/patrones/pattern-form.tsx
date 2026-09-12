@@ -1,8 +1,12 @@
 "use client";
 
-import { X } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { type ChangeEvent, useActionState, useState } from "react";
+import { useActionState, useState } from "react";
+import { discardUploadAction } from "@/app/[locale]/dashboard/discard-upload";
+import { assetUrl } from "@/lib/assets";
+import { FileField } from "@/components/form/file-field";
+import { FormFooter } from "@/components/form/form-footer";
+import { PhotoChip } from "@/components/form/photo-chip";
 import { SubmitButton } from "@/components/form/submit-button";
 import { TagInput } from "@/components/form/tag-input";
 import { Button } from "@/components/ui/button";
@@ -41,17 +45,28 @@ export function PatternForm({
   // Los ficheros se suben a /api/uploads al elegirlos (el body de las server
   // actions está limitado a 1 MB); la action solo recibe los pathnames.
   const [filePath, setFilePath] = useState<string | null>(null);
-  const [coverPath, setCoverPath] = useState<string | null>(null);
+  // La portada parte de la guardada: quitarla envía "" y la action la limpia
+  // (igual que la foto del pedido). Una subida nueva descartada con la X es
+  // huérfano: se borra del storage al instante (la guardada, al guardar).
+  const [coverPath, setCoverPath] = useState<string | null>(
+    pattern?.coverImagePath ?? null,
+  );
   const [imagePaths, setImagePaths] = useState<string[]>(
     pattern?.imagePaths ?? [],
   );
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
+  /** Subida descartada de esta sesión (≠ guardada): no está en BD, huérfano. */
+  function discardIfNew(
+    path: string | null | undefined,
+    initial: string | null | undefined,
+  ) {
+    if (path && path !== initial) void discardUploadAction(path);
+  }
+
   // Varias imágenes como origen del patrón: la IA las lee por visión.
-  function onPickImages(event: ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(event.target.files ?? []);
-    event.target.value = "";
+  function uploadImages(files: File[]) {
     if (files.length === 0) return;
     setUploadError(null);
     setUploading(true);
@@ -74,13 +89,7 @@ export function PatternForm({
     })();
   }
 
-  function onPickUpload(
-    event: ChangeEvent<HTMLInputElement>,
-    onDone: (path: string) => void,
-  ) {
-    const input = event.target;
-    const file = input.files?.[0];
-    if (!file) return;
+  function uploadOne(file: File, onDone: (path: string) => void) {
     setUploadError(null);
     setUploading(true);
     void (async () => {
@@ -89,11 +98,9 @@ export function PatternForm({
         if ("path" in result) {
           onDone(result.path);
         } else {
-          input.value = "";
           setUploadError(result.error ?? tForms("uploadFailed"));
         }
       } catch {
-        input.value = "";
         setUploadError(tForms("uploadFailed"));
       } finally {
         setUploading(false);
@@ -102,7 +109,6 @@ export function PatternForm({
   }
 
   const shownFilePath = filePath ?? pattern?.filePath ?? null;
-  const shownCoverPath = coverPath ?? pattern?.coverImagePath ?? null;
 
   return (
     <form action={formAction} className="max-w-xl space-y-5">
@@ -141,13 +147,19 @@ export function PatternForm({
             {t("viewFile")}
           </a>
         )}
-        <Input
+        <FileField
           id="file"
-          type="file"
           accept=".pdf,.docx,.html,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/html"
-          onChange={(event) => onPickUpload(event, setFilePath)}
+          hint={t("fileHint")}
+          onFiles={(files) => {
+            const file = files[0];
+            if (file)
+              uploadOne(file, (path) => {
+                discardIfNew(filePath, pattern?.filePath);
+                setFilePath(path);
+              });
+          }}
         />
-        <p className="text-xs text-muted-foreground">{t("fileHint")}</p>
       </div>
 
       <div className="space-y-2">
@@ -158,37 +170,26 @@ export function PatternForm({
         {imagePaths.length > 0 && (
           <div className="flex flex-wrap gap-2">
             {imagePaths.map((path) => (
-              <div key={path} className="relative">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={`/api/files/${path}`}
-                  alt=""
-                  className="size-16 rounded-lg border object-cover"
-                />
-                <button
-                  type="button"
-                  onClick={() =>
-                    setImagePaths((current) =>
-                      current.filter((entry) => entry !== path),
-                    )
-                  }
-                  aria-label={tForms("delete")}
-                  className="absolute -right-1.5 -top-1.5 rounded-full border bg-background p-0.5 text-muted-foreground hover:text-destructive"
-                >
-                  <X className="size-3" />
-                </button>
-              </div>
+              <PhotoChip
+                key={path}
+                src={assetUrl(path)}
+                onDelete={() => {
+                  discardIfNew(path, pattern?.imagePaths.includes(path) ? path : null);
+                  setImagePaths((current) =>
+                    current.filter((entry) => entry !== path),
+                  );
+                }}
+              />
             ))}
           </div>
         )}
-        <Input
+        <FileField
           id="images"
-          type="file"
           accept="image/*"
           multiple
-          onChange={onPickImages}
+          hint={t("imagesHint")}
+          onFiles={uploadImages}
         />
-        <p className="text-xs text-muted-foreground">{t("imagesHint")}</p>
       </div>
 
       <div className="space-y-2">
@@ -210,21 +211,27 @@ export function PatternForm({
           {t("fieldCover")}{" "}
           <span className="text-muted-foreground">({tForms("optional")})</span>
         </Label>
-        {shownCoverPath && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={`/api/files/${shownCoverPath}`}
-            alt={pattern?.title ?? ""}
-            className="size-20 rounded-lg border object-cover"
-          />
+        {coverPath && (
+          <div className="mb-2">
+            <PhotoChip
+              src={assetUrl(coverPath)}
+              size="size-20"
+              onDelete={() => {
+                discardIfNew(coverPath, pattern?.coverImagePath);
+                setCoverPath(null);
+              }}
+            />
+          </div>
         )}
-        <Input
+        <FileField
           id="cover"
-          type="file"
           accept="image/*"
-          onChange={(event) => onPickUpload(event, setCoverPath)}
+          hint={t("coverHint")}
+          onFiles={(files) => {
+            const file = files[0];
+            if (file) uploadOne(file, setCoverPath);
+          }}
         />
-        <p className="text-xs text-muted-foreground">{t("coverHint")}</p>
       </div>
 
       <div className="space-y-2">
@@ -266,7 +273,7 @@ export function PatternForm({
         </p>
       )}
 
-      <div className="flex gap-3">
+      <FormFooter>
         {uploading && (
           <p className="self-center text-sm text-muted-foreground">
             {tForms("uploading")}
@@ -276,7 +283,7 @@ export function PatternForm({
         <Button variant="outline" asChild>
           <Link href="/dashboard/patrones">{tForms("cancel")}</Link>
         </Button>
-      </div>
+      </FormFooter>
     </form>
   );
 }

@@ -11,7 +11,7 @@ export default async function NewPatternPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">{t("newTitle")}</h1>
+        <h1 className="h1-display">{t("newTitle")}</h1>
         <p className="text-muted-foreground">{t("newDescription")}</p>
       </div>
       <PatternForm suggestions={tags.map((tag) => tag.name)} />

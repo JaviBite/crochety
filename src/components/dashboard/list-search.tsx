@@ -3,7 +3,7 @@
 import { Search, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useSearchParams } from "next/navigation";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { usePathname, useRouter } from "@/i18n/navigation";
 
@@ -20,6 +20,17 @@ export function ListSearch({ className }: { className?: string }) {
   const searchParams = useSearchParams();
   const [value, setValue] = useState(searchParams.get("q") ?? "");
   const timeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  // Sincroniza con el parámetro externo (atrás/adelante, enlaces con ?q=).
+  // Ignora cambios causados por el propio debounce (mismo valor).
+  const externalQ = searchParams.get("q") ?? "";
+  useEffect(() => {
+    setValue((current) =>
+      current === externalQ || (timeout.current && current.trim() === externalQ)
+        ? current
+        : externalQ,
+    );
+  }, [externalQ]);
 
   function commit(next: string) {
     const params = new URLSearchParams(searchParams.toString());
