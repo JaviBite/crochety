@@ -3,6 +3,7 @@ import { getFormatter, getLocale, getTranslations } from "next-intl/server";
 import { AssetImage, } from "@/components/asset-image";
 import { RowActions } from "@/components/dashboard/row-actions";
 import { StatusBadge } from "@/components/dashboard/status-badge";
+import { OrderStatusSelect } from "@/components/dashboard/order-status-select";
 import { TagChips } from "@/components/dashboard/tag-filter";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -348,7 +349,11 @@ export async function OrderCard({
           />
         </Link>
         <div className="absolute left-2 top-2">
-          <StatusBadge status={order.status} kind="order" overlay />
+          <OrderStatusSelect
+            id={order.id}
+            status={order.status}
+            className="border-transparent bg-card/95 shadow-sm backdrop-blur-sm"
+          />
         </div>
         <CoverActions>
           <RowActions

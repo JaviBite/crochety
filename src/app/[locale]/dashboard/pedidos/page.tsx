@@ -7,8 +7,8 @@ import { OrderCard } from "@/components/dashboard/cards";
 import { ListSearch } from "@/components/dashboard/list-search";
 import { LoadMore } from "@/components/dashboard/load-more";
 import { OrderFilters } from "@/components/dashboard/order-filters";
+import { OrderStatusSelect } from "@/components/dashboard/order-status-select";
 import { RowActions } from "@/components/dashboard/row-actions";
-import { StatusBadge } from "@/components/dashboard/status-badge";
 import { ViewToggle } from "@/components/dashboard/view-toggle";
 import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
@@ -189,7 +189,7 @@ export default async function OrdersPage({
                         </div>
                       </TableCell>
                       <TableCell>
-                        <StatusBadge status={order.status} kind="order" />
+                        <OrderStatusSelect id={order.id} status={order.status} />
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
                         {order.quantity}

@@ -8,8 +8,31 @@ import { isValidUploadPath } from "@/lib/files";
 import { deleteUpload } from "@/lib/files.server";
 import { parseOrderForm } from "@/lib/forms";
 import { isForeignKeyViolation, prisma } from "@/lib/prisma";
+import { orderStatusSchema } from "@/lib/validations";
 
 export type ActionState = { error: string } | null;
+
+/** Cambia el estado en línea desde la fila/tarjeta del listado. */
+export async function updateOrderStatus(
+  id: string,
+  status: string,
+): Promise<{ error: string } | void> {
+  const session = await auth();
+  if (!session?.user) return { error: "No autorizado" };
+
+  const parsed = orderStatusSchema.safeParse(status);
+  if (!parsed.success) return { error: "Estado no válido" };
+
+  try {
+    await prisma.order.update({
+      where: { id },
+      data: { status: parsed.data },
+    });
+  } catch {
+    return { error: "No se pudo cambiar el estado" };
+  }
+  revalidatePath("/", "layout");
+}
 
 /** Lee `photoPath` del form: "" = sin foto; pathname válido = foto subida. */
 function readPhotoPath(formData: FormData): string | null {

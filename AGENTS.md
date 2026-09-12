@@ -209,6 +209,12 @@ Organizado en fases para implementación incremental. `✅` = ya hecho.
 
 ### Ya hecho
 
+- ✅ **Estado del pedido editable en línea** (listado de pedidos, tabla y
+  tarjetas): `OrderStatusSelect` con la estética del badge + action
+  `updateOrderStatus` validada por `orderStatusSchema`; errores con toast.
+- ✅ **Filtro de color por hue** en materiales: muestras del popover ordenadas
+  por familia de tono (`sortByColorHue`, familias de 30° + neutros por luz,
+  con tests en `lib/search.test.ts`).
 - ✅ **Notas entre rondas** («añadir ojos, relleno, cortar hilo…»): cubierto
   por los pasos intercalados del contrato (`kind: "step"`) — el editor los
   añade/reordena entre rondas, el detalle los renderiza aparte y el
