@@ -16,6 +16,7 @@ model User {
   participates   Boolean   @default(true) // entra en el balance de gastos/beneficios
   createdAt      DateTime  @default(now())
   ordersAssigned Order[]   @relation("AssignedOrders")
+  ordersCollected Order[]  @relation("CollectedOrders")
   expensesPaid   Expense[]
 }
 
@@ -40,7 +41,11 @@ model Order {
   status       String          @default("SIN_EMPEZAR") // SIN_EMPEZAR | EMPEZADO | TERMINADO | COBRADO
   customer     String? // para quién es el pedido
   assignedToId String? // quién lo hace
-  assignedTo   User?           @relation("AssignedOrders", fields: [assignedToId], references: [id])
+  assignedTo   User?   @relation("AssignedOrders", fields: [assignedToId], references: [id])
+  // Quién cobra el dinero del pedido. null = el asignado (fallback para los
+  // pedidos ya existentes y para altas donde no se dice nada).
+  collectedById String?
+  collectedBy   User?   @relation("CollectedOrders", fields: [collectedById], references: [id])
   patternId    String?
   pattern      Pattern?        @relation(fields: [patternId], references: [id])
   dueDate      DateTime? // fecha de finalización prevista

@@ -7,13 +7,14 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Link } from "@/i18n/navigation";
 import { auth } from "@/lib/auth";
 import { avatarHue, initialsOf } from "@/lib/avatar";
 import { computeSettlements, filterParticipants } from "@/lib/balance";
 import { getFormatter } from "next-intl/server";
 import { formatCents } from "@/lib/money";
-import { isOrderOverdue } from "@/lib/orders";
+import { isOrderOverdue, resolveOrderCollectorId } from "@/lib/orders";
 import { getLowStockThreshold } from "@/lib/settings";
 import { prisma } from "@/lib/prisma";
 import { cn } from "@/lib/utils";
@@ -22,8 +23,9 @@ import { ORDER_STATUSES } from "@/lib/validations";
 type CssWithHue = React.CSSProperties & { "--avatar-h": number };
 
 export default async function DashboardHome() {
-  const [t, locale, format, session] = await Promise.all([
+  const [t, tStatus, locale, format, session] = await Promise.all([
     getTranslations("Dashboard"),
+    getTranslations("OrderStatus"),
     getLocale(),
     getFormatter(),
     auth(),
@@ -44,7 +46,7 @@ export default async function DashboardHome() {
     spentAgg,
     users,
     paidByUser,
-    earnedByUser,
+    paidOrders,
     dueOrders,
     statusCounts,
     lowStock,
@@ -56,10 +58,12 @@ export default async function DashboardHome() {
     prisma.expense.aggregate({ _sum: { totalCents: true } }),
     prisma.user.findMany({ orderBy: { createdAt: "asc" } }),
     prisma.expense.groupBy({ by: ["paidById"], _sum: { totalCents: true } }),
-    prisma.order.groupBy({
-      by: ["assignedToId"],
-      _sum: { priceCents: true },
+    // Cobrado = pedidos COBRADO agrupados por su cobrador efectivo (el campo
+    // collectedById o, por defecto, el asignado). Se resuelve en cliente:
+    // Prisma no puede agrupar por COALESCE(collectedById, assignedToId).
+    prisma.order.findMany({
       where: { status: "COBRADO" },
+      select: { priceCents: true, assignedToId: true, collectedById: true },
     }),
     // Entregas próximas/vencidas: ≤7 días (o pasado) y no cobradas.
     prisma.order.findMany({
@@ -127,11 +131,23 @@ export default async function DashboardHome() {
 
   // Balance solo entre quienes participan del bote común (los usuarios
   // marcados como no participantes quedan fuera del reparto).
+  // Ingresos por cobrador efectivo: el cobrador explícito o, por defecto,
+  // quien tiene el pedido asignado (pedidos antiguos incluidos).
+  const earnedByCollector = new Map<string, number>();
+  for (const order of paidOrders) {
+    const collectorId = resolveOrderCollectorId(order);
+    if (collectorId) {
+      earnedByCollector.set(
+        collectorId,
+        (earnedByCollector.get(collectorId) ?? 0) + order.priceCents,
+      );
+    }
+  }
+
   const balances = filterParticipants(users).map((user) => {
     const paid =
       paidByUser.find((p) => p.paidById === user.id)?._sum.totalCents ?? 0;
-    const earned =
-      earnedByUser.find((e) => e.assignedToId === user.id)?._sum.priceCents ?? 0;
+    const earned = earnedByCollector.get(user.id) ?? 0;
     return { user, paid, earned, net: earned - paid };
   });
 
@@ -144,6 +160,12 @@ export default async function DashboardHome() {
       paidCents: paid,
       earnedCents: earned,
     })),
+  );
+
+  // Escala común para el mini gráfico: la barra más grande ± marca el rango.
+  const maxAbsNet = Math.max(
+    1,
+    ...balances.map((balance) => Math.abs(balance.net)),
   );
 
   return (
@@ -220,13 +242,12 @@ export default async function DashboardHome() {
                 ))}
               </ul>
             )}
-            <Link
-              href="/dashboard/pedidos?sort=due"
-              className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
-            >
-              {t("deliveriesSeeAll")}
-              <ArrowRight aria-hidden className="size-3" />
-            </Link>
+            <Button asChild variant="outline" size="sm" className="mt-1">
+              <Link href="/dashboard/pedidos?sort=due">
+                {t("deliveriesSeeAll")}
+                <ArrowRight aria-hidden className="size-3.5" />
+              </Link>
+            </Button>
           </CardContent>
         </Card>
 
@@ -247,7 +268,7 @@ export default async function DashboardHome() {
                   className="flex items-center justify-between rounded-lg px-2 py-1.5 text-sm transition-colors hover:bg-accent"
                 >
                   <span>
-                    {t.has(status) ? t(status) : status}
+                    {tStatus(status)}
                   </span>
                   <span className="font-medium tabular-nums text-muted-foreground">
                     {count}
@@ -288,13 +309,12 @@ export default async function DashboardHome() {
                   ))}
                 </ul>
               )}
-              <Link
-                href="/dashboard/materiales"
-                className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
-              >
-                {t("lowStockSeeAll")}
-                <ArrowRight aria-hidden className="size-3" />
-              </Link>
+              <Button asChild variant="outline" size="sm" className="mt-1">
+                <Link href="/dashboard/materiales">
+                  {t("lowStockSeeAll")}
+                  <ArrowRight aria-hidden className="size-3.5" />
+                </Link>
+              </Button>
             </CardContent>
           </Card>
         )}
@@ -388,6 +408,25 @@ export default async function DashboardHome() {
                       </dd>
                     </div>
                   </dl>
+                  {/* Mini gráfico: barra divergente desde el centro. Neto a
+                      favor crece a la derecha (le deben); neto negativo a la
+                      izquierda (debe). Escala común entre todas las tarjetas. */}
+                  <div
+                    className="relative mt-2 h-1.5 rounded-full bg-muted"
+                    aria-hidden
+                  >
+                    <div className="absolute inset-y-0 left-1/2 w-px bg-border" />
+                    <div
+                      className={cn(
+                        "absolute inset-y-0 rounded-full transition-all",
+                        net > 0 && "left-1/2 bg-emerald-600 dark:bg-emerald-500",
+                        net < 0 && "right-1/2 bg-destructive",
+                      )}
+                      style={{
+                        width: `${(Math.abs(net) / maxAbsNet) * 50}%`,
+                      }}
+                    />
+                  </div>
                 </div>
               </div>
             ))}

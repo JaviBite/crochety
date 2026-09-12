@@ -22,6 +22,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
       where: { id },
       include: {
         assignedTo: { select: { name: true } },
+        collectedBy: { select: { name: true } },
         pattern: { select: { title: true } },
         materials: { include: { material: { select: { name: true } } } },
         photos: { orderBy: { createdAt: "asc" } },
@@ -76,6 +77,11 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
               <div>
                 <p className="text-xs font-medium uppercase tracking-wide text-foreground">{t("fieldAssignedTo")}</p>
                 <p>{order.assignedTo?.name ?? "—"}</p>
+              </div>
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wide text-foreground">{t("fieldCollectedBy")}</p>
+                {/* Sin cobrador explícito, se muestra el asignado (mismo fallback que el balance). */}
+                <p>{order.collectedBy?.name ?? order.assignedTo?.name ?? "—"}</p>
               </div>
               <div>
                 <p className="text-xs font-medium uppercase tracking-wide text-foreground">{t("fieldPattern")}</p>

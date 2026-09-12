@@ -75,6 +75,8 @@ const orderFormSchema = z.object({
   status: orderStatusSchema,
   customer: z.string().nullable(),
   assignedToId: z.string().nullable(),
+  // Quién cobra; null = el asignado (fallback en servidor).
+  collectedById: z.string().nullable(),
   patternId: z.string().nullable(),
   dueDate: z.date().nullable(),
   isPublic: z.boolean(),
@@ -132,6 +134,7 @@ export function parseOrderForm(formData: FormData): ParseResult<OrderInput> {
     status: str(formData.get("status")) || "SIN_EMPEZAR",
     customer: opt(formData.get("customer")),
     assignedToId: optId(formData.get("assignedToId")),
+    collectedById: optId(formData.get("collectedById")),
     patternId: optId(formData.get("patternId")),
     dueDate: optDate(formData.get("dueDate")),
     isPublic: checkbox(formData.get("isPublic")),

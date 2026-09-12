@@ -10,3 +10,15 @@ export function isOrderOverdue(order: {
   today.setHours(0, 0, 0, 0);
   return order.dueDate < today;
 }
+
+/**
+ * Quién cobra un pedido: si no se especificó (`collectedById` null, el caso
+ * por defecto y de todos los pedidos anteriores al campo), lo cobra quien lo
+ * tiene asignado; sin asignado tampoco, no se sabe quién tiene el dinero.
+ */
+export function resolveOrderCollectorId(order: {
+  collectedById: string | null;
+  assignedToId: string | null;
+}): string | null {
+  return order.collectedById ?? order.assignedToId;
+}

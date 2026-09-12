@@ -51,6 +51,27 @@ describe("parseOrderForm", () => {
     expect(result.data.patternId).toBeNull();
   });
 
+  it("el cobrador sin selección es null (el servidor usa el asignado como fallback)", () => {
+    const unset = parseOrderForm(fd({ name: "Rana" }));
+    expect(unset.ok).toBe(true);
+    if (!unset.ok) return;
+    expect(unset.data.collectedById).toBeNull();
+
+    const sentinel = parseOrderForm(
+      fd({ name: "Rana", collectedById: "none" }),
+    );
+    expect(sentinel.ok).toBe(true);
+    if (!sentinel.ok) return;
+    expect(sentinel.data.collectedById).toBeNull();
+
+    const explicit = parseOrderForm(
+      fd({ name: "Rana", assignedToId: "user-ana", collectedById: "user-bea" }),
+    );
+    expect(explicit.ok).toBe(true);
+    if (!explicit.ok) return;
+    expect(explicit.data.collectedById).toBe("user-bea");
+  });
+
   it("aplica valores por defecto (cantidad 1, sin empezar, privado)", () => {
     const result = parseOrderForm(fd({ name: "Rana" }));
     expect(result.ok).toBe(true);

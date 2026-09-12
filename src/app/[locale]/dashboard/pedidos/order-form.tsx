@@ -43,6 +43,7 @@ export type OrderFormValues = {
   status: string;
   customer: string | null;
   assignedToId: string | null;
+  collectedById: string | null;
   patternId: string | null;
   dueDate: Date | null;
   isPublic: boolean;
@@ -203,6 +204,32 @@ export function OrderForm({
               ))}
             </SelectContent>
           </Select>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="collectedById">{t("fieldCollectedBy")}</Label>
+          {/* Sin selección (centinela) el dinero lo cobra el asignado: el
+              parser guarda null y el servidor aplica el fallback. */}
+          <Select
+            name="collectedById"
+            defaultValue={order?.collectedById ?? NONE_VALUE}
+          >
+            <SelectTrigger id="collectedById" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={NONE_VALUE}>
+                {t("collectedByDefault")}
+              </SelectItem>
+              {users.map((user) => (
+                <SelectItem key={user.id} value={user.id}>
+                  {user.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            {t("fieldCollectedByHint")}
+          </p>
         </div>
       </div>
 

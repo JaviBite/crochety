@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isOrderOverdue } from "./orders";
+import { isOrderOverdue, resolveOrderCollectorId } from "./orders";
 
 function daysAgo(n: number): Date {
   const date = new Date();
@@ -32,5 +32,28 @@ describe("isOrderOverdue", () => {
     const today = new Date();
     today.setHours(23, 59, 0, 0);
     expect(isOrderOverdue({ dueDate: today, status: "EMPEZADO" })).toBe(false);
+  });
+});
+
+describe("resolveOrderCollectorId", () => {
+  it("sin cobrador explícito lo cobra el asignado (pedidos ya existentes)", () => {
+    expect(
+      resolveOrderCollectorId({ collectedById: null, assignedToId: "ana" }),
+    ).toBe("ana");
+  });
+
+  it("si se especificó otro cobrador, manda el cobrador", () => {
+    expect(
+      resolveOrderCollectorId({ collectedById: "bea", assignedToId: "ana" }),
+    ).toBe("bea");
+  });
+
+  it("cobrador y asignado pueden coincidir o faltar los dos", () => {
+    expect(
+      resolveOrderCollectorId({ collectedById: "ana", assignedToId: "ana" }),
+    ).toBe("ana");
+    expect(
+      resolveOrderCollectorId({ collectedById: null, assignedToId: null }),
+    ).toBeNull();
   });
 });

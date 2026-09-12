@@ -60,6 +60,7 @@ export default async function EditOrderPage({
           status: order.status,
           customer: order.customer,
           assignedToId: order.assignedToId,
+          collectedById: order.collectedById,
           patternId: order.patternId,
           dueDate: order.dueDate,
           isPublic: order.isPublic,
