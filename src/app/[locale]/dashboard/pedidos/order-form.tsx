@@ -6,7 +6,6 @@ import { ComboboxField } from "@/components/form/combobox-field";
 import { ImageUploadField } from "@/components/form/image-upload-field";
 import { FormFooter } from "@/components/form/form-footer";
 import { SubmitButton } from "@/components/form/submit-button";
-import { SuggestInput } from "@/components/form/suggest-input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -173,11 +172,17 @@ export function OrderForm({
             {t("fieldCustomer")}{" "}
             <span className="text-muted-foreground">({tForms("optional")})</span>
           </Label>
-          <SuggestInput
+          <ComboboxField
             id="customer"
             name="customer"
-            options={customers}
-            defaultValue={order?.customer ?? undefined}
+            options={customers.map((customer) => ({
+              value: customer,
+              label: customer,
+            }))}
+            defaultValue={order?.customer ?? ""}
+            allowClear
+            allowCustom
+            placeholder={tForms("none")}
           />
         </div>
         <div className="space-y-2">

@@ -8,6 +8,7 @@ import { assetUrl } from "@/lib/assets";
 import { FileField } from "@/components/form/file-field";
 import { FormFooter } from "@/components/form/form-footer";
 import { ImageCropper } from "@/components/form/image-cropper";
+import { ComboboxField } from "@/components/form/combobox-field";
 import { PhotoChip } from "@/components/form/photo-chip";
 import { SubmitButton } from "@/components/form/submit-button";
 import { SuggestInput } from "@/components/form/suggest-input";
@@ -343,11 +344,14 @@ export function ExpenseForm({
             {t("fieldStore")}{" "}
             <span className="text-muted-foreground">({tForms("optional")})</span>
           </Label>
-          <SuggestInput
+          <ComboboxField
             id="store"
             name="store"
-            options={stores}
-            defaultValue={expense?.store ?? undefined}
+            options={stores.map((store) => ({ value: store, label: store }))}
+            defaultValue={expense?.store ?? ""}
+            allowClear
+            allowCustom
+            placeholder={tForms("none")}
           />
         </div>
         <div className="space-y-2">

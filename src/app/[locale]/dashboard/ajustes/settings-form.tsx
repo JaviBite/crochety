@@ -3,9 +3,9 @@
 import { X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useActionState, useState } from "react";
+import { ComboboxField } from "@/components/form/combobox-field";
 import { FormFooter } from "@/components/form/form-footer";
 import { SubmitButton } from "@/components/form/submit-button";
-import { SuggestInput } from "@/components/form/suggest-input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -238,12 +238,18 @@ export function SettingsForm({ snapshot }: { snapshot: SettingsSnapshot }) {
             </div>
             <div className="space-y-2">
               <Label htmlFor="aiModel">{t("fieldAiModel")}</Label>
-              <SuggestInput
+              <ComboboxField
                 id="aiModel"
                 name="aiModel"
-                options={SUGGESTED_AI_MODELS[provider]}
-                defaultValue={snapshot.aiModel}
+                options={(SUGGESTED_AI_MODELS[provider] ?? []).map((model) => ({
+                  value: model,
+                  label: model,
+                }))}
+                defaultValue={snapshot.aiModel ?? ""}
+                allowClear
+                allowCustom
                 placeholder={snapshot.defaultModel[provider]}
+                className="w-full"
               />
             </div>
           </div>
