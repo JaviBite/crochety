@@ -7,10 +7,39 @@ import { auth } from "@/lib/auth";
 import { isValidUploadPath } from "@/lib/files";
 import { deleteUpload } from "@/lib/files.server";
 import { parseMaterialForm } from "@/lib/forms";
+import { getMaterialLocations } from "@/lib/settings";
 import { prisma } from "@/lib/prisma";
 import { tagsCreateInput, tagsUpdateInput } from "@/lib/tags";
 
 export type ActionState = { error: string } | null;
+
+/**
+ * Añade una ubicación nueva al Setting `locations` (desde el desplegable del
+ * form de material, con "Añadir «X»"). Silencioso si ya existe (caja-a-caja):
+ * la siguiente petición ya la verá en todos los desplegables.
+ */
+export async function addMaterialLocation(
+  value: string,
+): Promise<{ error: string } | void> {
+  const session = await auth();
+  if (!session?.user) return { error: "No autorizado" };
+
+  const trimmed = String(value ?? "").trim().slice(0, 100);
+  if (!trimmed) return { error: "Ubicación vacía" };
+
+  const current = await getMaterialLocations();
+  if (current.some((location) => location.toLowerCase() === trimmed.toLowerCase())) {
+    return;
+  }
+
+  const next = [...current, trimmed].sort((a, b) => a.localeCompare(b, "es"));
+  await prisma.setting.upsert({
+    where: { key: "locations" },
+    create: { key: "locations", value: JSON.stringify(next) },
+    update: { value: JSON.stringify(next) },
+  });
+  revalidatePath("/", "layout");
+}
 
 /** Lee `photoPath` del form: "" = sin foto; pathname válido = foto subida. */
 function readPhotoPath(formData: FormData): string | null {

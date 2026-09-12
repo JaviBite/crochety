@@ -178,6 +178,7 @@
     "comboboxSearch": "Search…",
     "comboboxEmpty": "No results",
     "comboboxClear": "Clear selection",
+    "comboboxCreate": "Add “{value}”",
     "rowActions": "Actions",
     "resetAutoTotal": "Back to automatic total",
     "deleted": "Deleted",

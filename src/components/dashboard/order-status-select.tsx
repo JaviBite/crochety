@@ -3,7 +3,6 @@
 import { useTranslations } from "next-intl";
 import { useTransition } from "react";
 import { toast } from "sonner";
-import { ChevronDown } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -12,7 +11,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { orderStatusTone } from "@/lib/status";
+import { orderStatusTone, type StatusTone } from "@/lib/status";
 import { ORDER_STATUSES } from "@/lib/validations";
 import { updateOrderStatus } from "@/app/[locale]/dashboard/pedidos/actions";
 
@@ -20,15 +19,23 @@ import { updateOrderStatus } from "@/app/[locale]/dashboard/pedidos/actions";
  * Estado del pedido editable en línea (tabla y tarjetas del listado): un
  * select con la estética del badge (puntito + tono por estado) que llama a la
  * action de cambio directo, sin pasar por el form de edición. Error → toast.
+ *
+ * Los tonos van marcados Important: el trigger de shadcn declara
+ * `dark:bg-input/30` (y hovers) que pisa cualquier `bg-*` normal en dark.
  */
+function tonePill(tone: StatusTone): string {
+  return tone.className.split(" ").filter(Boolean).map((c) => `${c}!`).join(" ");
+}
+
 export function OrderStatusSelect({
   id,
   status,
-  className,
+  overlay = false,
 }: {
   id: string;
   status: string;
-  className?: string;
+  /** Sobre la portada de una tarjeta: fondo tipo card, sin tono de estado. */
+  overlay?: boolean;
 }) {
   const t = useTranslations("OrderStatus");
   const tCommon = useTranslations("Common");
@@ -46,18 +53,24 @@ export function OrderStatusSelect({
   return (
     <Select value={status} onValueChange={change}>
       <SelectTrigger
-        aria-label={`${label} (${t.has(status) ? t(status) : status}).`}
+        aria-label={`${label}.`}
         title={label}
         disabled={pending}
         className={cn(
-          "h-6 w-fit gap-1.5 rounded-4xl border-transparent px-2.5 py-0 text-xs font-medium",
-          tone.className,
-          className,
+          "h-6 w-fit gap-1.5 rounded-4xl border-transparent! bg-transparent px-2.5 py-0 text-xs font-medium",
+          overlay
+            ? "bg-card/95! text-foreground! shadow-sm dark:bg-card/95! dark:hover:bg-card!"
+            : tonePill(tone),
         )}
       >
-        <span aria-hidden className={cn("size-1.5 shrink-0 rounded-full", tone.dot)} />
+        <span
+          aria-hidden
+          className={cn(
+            "size-1.5 shrink-0 rounded-full",
+            overlay ? "bg-foreground/60" : tone.dot,
+          )}
+        />
         <SelectValue>{label}</SelectValue>
-        <ChevronDown className="size-3 shrink-0 opacity-50" aria-hidden />
       </SelectTrigger>
       <SelectContent align="start">
         {ORDER_STATUSES.map((statusOption) => (

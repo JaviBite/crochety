@@ -135,11 +135,33 @@ export async function getDefaultAccent(): Promise<Accent> {
   return parseAccent((await getSetting("defaultAccent")) ?? undefined);
 }
 
-/** Ubicaciones físicas gestionadas en Ajustes (Setting `locations`, JSON). */
+/** Ubicaciones físicas gestionadas en Ajustes (Setting `locations`, JSON).
+    Si el Setting está vacío, se deduce del inventario: los valores distintos
+    en uso, deduplicados por caja (gana la variante con mayúsculas). Así el
+    desplegable nunca ofrece solo la ubicación del material que se edita. */
 export async function getMaterialLocations(): Promise<string[]> {
-  return parseLocationsJson(await getSetting("locations")).sort((a, b) =>
-    a.localeCompare(b, "es"),
-  );
+  const setting = await getSetting("locations");
+  let values = parseLocationsJson(setting);
+  if (values.length === 0) {
+    const rows = await prisma.material.findMany({
+      where: { location: { not: null } },
+      distinct: ["location"],
+      select: { location: true },
+      orderBy: { location: "asc" },
+    });
+    const seen = new Set<string>();
+    values = rows
+      .map((row) => row.location)
+      .filter((location): location is string => location !== null)
+      .sort((a, b) => a.localeCompare(b, "es"))
+      .filter((value) => {
+        const key = value.toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+  }
+  return values.sort((a, b) => a.localeCompare(b, "es"));
 }
 
 /** Umbral de stock bajo (Setting `lowStockThreshold`); 0 desactiva el aviso. */

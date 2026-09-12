@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckIcon, ChevronDownIcon, XIcon } from "lucide-react";
+import { CheckIcon, ChevronDownIcon, PlusIcon, XIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 import * as React from "react";
 import { Popover as PopoverPrimitive } from "radix-ui";
@@ -23,6 +23,26 @@ export function filterComboboxOptions(
 }
 
 /**
+ * Candidato a valor personalizado con `allowCustom`: el texto tecleado, sin
+ * espacios y SOLO si ninguna opción coincide ya (case-insensitive). Puro
+ * para tests ("Casa Javi" tecleado cuando ya existe → null).
+ */
+export function customValueCandidate(
+  options: ComboboxOption[],
+  query: string,
+): string | null {
+  const trimmed = query.trim();
+  if (!trimmed) return null;
+  const lower = trimmed.toLowerCase();
+  const exists = options.some(
+    (option) =>
+      option.value.toLowerCase() === lower ||
+      option.label.toLowerCase() === lower,
+  );
+  return exists ? null : trimmed;
+}
+
+/**
  * Select con búsqueda: dispara un popover con input filtrable y navegación
  * por teclado (↑↓ Home End Enter Esc). El valor viaja en un input hidden, así
  * que funciona con forms nativos + useActionState igual que el resto del
@@ -39,6 +59,8 @@ export function ComboboxField({
   placeholder,
   disabled = false,
   allowClear = false,
+  allowCustom = false,
+  onCustomValue,
   className,
 }: {
   id?: string;
@@ -50,6 +72,10 @@ export function ComboboxField({
   placeholder?: string;
   disabled?: boolean;
   allowClear?: boolean;
+  /** Acepta valores que no están en la lista (entradas "Añadir «X»"). */
+  allowCustom?: boolean;
+  /** Al crear un valor nuevo (p. ej. guardar la ubicación en Ajustes). */
+  onCustomValue?: (value: string) => void;
   className?: string;
 }) {
   const t = useTranslations("Forms");
@@ -65,6 +91,10 @@ export function ComboboxField({
   const filtered = React.useMemo(
     () => filterComboboxOptions(options, query),
     [options, query],
+  );
+  const custom = React.useMemo(
+    () => (allowCustom ? customValueCandidate(options, query) : null),
+    [allowCustom, options, query],
   );
 
   // Índice resaltado saneado: la lista filtrada puede encoger y el índice
@@ -82,6 +112,12 @@ export function ComboboxField({
     if (controlledValue === undefined) setUncontrolled(next);
     onValueChange?.(next);
     setOpen(false);
+  }
+
+  function commitCustom() {
+    if (!custom) return;
+    commit(custom);
+    onCustomValue?.(custom);
   }
 
   function handleOpenChange(nextOpen: boolean) {
@@ -117,10 +153,18 @@ export function ComboboxField({
       event.preventDefault();
       const option = filtered[active];
       if (option) commit(option.value);
+      else if (custom) commitCustom();
     }
   }
 
   const selectedOption = options.find((option) => option.value === selected);
+  // Un valor personalizado (allowCustom) no está en la lista: se muestra en
+  // crudo en el trigger en lugar del placeholder.
+  const shownLabel = selectedOption
+    ? selectedOption.label
+    : selected
+      ? selected
+      : null;
 
   return (
     <PopoverPrimitive.Root open={open} onOpenChange={handleOpenChange}>
@@ -135,9 +179,7 @@ export function ComboboxField({
         )}
       >
         <span className="truncate">
-          {selectedOption ? (
-            selectedOption.label
-          ) : (
+          {shownLabel ?? (
             <span className="text-muted-foreground">{placeholder}</span>
           )}
         </span>
@@ -218,7 +260,24 @@ export function ComboboxField({
                 <span className="truncate">{option.label}</span>
               </button>
             ))}
-            {filtered.length === 0 && (
+            {custom && (
+              <button
+                type="button"
+                role="option"
+                aria-selected={custom === selected}
+                onMouseMove={() => setHighlighted(filtered.length)}
+                id={`${listId}-option-${filtered.length}`}
+                data-index={filtered.length}
+                onClick={commitCustom}
+                className="flex w-full cursor-default items-center gap-1.5 rounded-md border-t px-2 py-1.5 pt-2 text-left text-sm outline-none text-foreground hover:bg-accent"
+              >
+                <PlusIcon className="size-3.5 shrink-0 text-primary" />
+                <span className="truncate">
+                  {t("comboboxCreate", { value: custom })}
+                </span>
+              </button>
+            )}
+            {filtered.length === 0 && !custom && (
               <p className="px-2 py-4 text-center text-sm text-muted-foreground">
                 {t("comboboxEmpty")}
               </p>

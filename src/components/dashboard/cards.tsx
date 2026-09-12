@@ -349,11 +349,7 @@ export async function OrderCard({
           />
         </Link>
         <div className="absolute left-2 top-2">
-          <OrderStatusSelect
-            id={order.id}
-            status={order.status}
-            className="border-transparent bg-card/95 shadow-sm backdrop-blur-sm"
-          />
+          <OrderStatusSelect id={order.id} status={order.status} overlay />
         </div>
         <CoverActions>
           <RowActions

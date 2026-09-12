@@ -178,6 +178,7 @@
     "comboboxSearch": "Buscar…",
     "comboboxEmpty": "Sin resultados",
     "comboboxClear": "Quitar selección",
+    "comboboxCreate": "Añadir «{value}»",
     "rowActions": "Acciones",
     "resetAutoTotal": "Volver al total automático",
     "deleted": "Eliminado",

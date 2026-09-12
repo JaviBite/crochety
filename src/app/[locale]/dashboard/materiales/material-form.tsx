@@ -3,6 +3,7 @@
 import { useTranslations } from "next-intl";
 import { useActionState } from "react";
 import { FormFooter } from "@/components/form/form-footer";
+import { ComboboxField } from "@/components/form/combobox-field";
 import { SubmitButton } from "@/components/form/submit-button";
 import { SuggestInput } from "@/components/form/suggest-input";
 import { TagInput } from "@/components/form/tag-input";
@@ -17,14 +18,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Link } from "@/i18n/navigation";
-import { NONE_VALUE } from "@/lib/forms";
 import { centsToEur } from "@/lib/money";
 import {
   MATERIAL_CATEGORIES,
   YARN_FIBERS,
   YARN_WEIGHTS,
 } from "@/lib/validations";
-import { createMaterial, updateMaterial } from "./actions";
+import { addMaterialLocation, createMaterial, updateMaterial } from "./actions";
 import { MaterialColorField } from "./material-color-field";
 
 export type MaterialFormValues = {
@@ -80,27 +80,28 @@ export function MaterialForm({
     weightOptions.unshift(material.weight);
   }
 
-  /** Select opcional: primera opción = centinela NONE_VALUE ("—"). */
+  /** Select opcional buscable, con aceptación de valores nuevos
+      ("Añadir «X»"). La ubicación los persiste en el Ajuste `locations`; los
+      demás (fiber/weight) admiten el valor libre sin más. */
   function renderOptionalSelect(
     id: string,
     name: string,
     options: readonly string[],
     selected: string | null | undefined,
+    onCustom?: (value: string) => void,
   ) {
     return (
-      <Select name={name} defaultValue={selected ?? NONE_VALUE}>
-        <SelectTrigger id={id} className="w-full">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value={NONE_VALUE}>{tForms("none")}</SelectItem>
-          {options.map((option) => (
-            <SelectItem key={option} value={option}>
-              {option}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <ComboboxField
+        id={id}
+        name={name}
+        options={options.map((option) => ({ value: option, label: option }))}
+        defaultValue={selected ?? ""}
+        allowClear
+        allowCustom
+        onCustomValue={onCustom}
+        placeholder={tForms("none")}
+        className="w-full"
+      />
     );
   }
 
@@ -165,7 +166,11 @@ export function MaterialForm({
             {t("fieldLocation")}{" "}
             <span className="text-muted-foreground">({tForms("optional")})</span>
           </Label>
-          {renderOptionalSelect("location", "location", locationOptions, material?.location)}
+          {renderOptionalSelect("location", "location", locationOptions, material?.location, (value) => {
+            void addMaterialLocation(value).then((result) => {
+              if (result?.error) console.error("[locations]", result.error);
+            });
+          })}
         </div>
       </div>
 

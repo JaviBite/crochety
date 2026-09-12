@@ -5,7 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { NextIntlClientProvider } from "next-intl";
 import { beforeAll, describe, expect, it } from "vitest";
 import es from "../../../messages/es.json";
-import { ComboboxField, filterComboboxOptions } from "./combobox-field";
+import { ComboboxField, customValueCandidate, filterComboboxOptions } from "./combobox-field";
 
 const options = [
   { value: "m1", label: "Lana algodón rosa" },
@@ -94,5 +94,34 @@ describe("ComboboxField", () => {
     expect(
       document.querySelector('input[type="hidden"][name="materialId"]'),
     ).toHaveValue("");
+  });
+});
+
+describe("customValueCandidate (allowCustom)", () => {
+  it("ofrece el texto tecleado cuando no existe", () => {
+    expect(customValueCandidate(options, "  casa nueva ")).toBe(
+      "casa nueva",
+    );
+  });
+
+  it("no lo ofrece si ya coincide (case-insensitive)", () => {
+    expect(customValueCandidate(options, "lana velvet azul")).toBeNull();
+    expect(customValueCandidate(options, "ojos 9mm")).toBeNull();
+  });
+
+  it("sin texto efimero no hay candidato", () => {
+    expect(customValueCandidate(options, "   ")).toBeNull();
+    expect(customValueCandidate(options, "")).toBeNull();
+  });
+
+  it("con allowCustom la entrada Añadir compromete el valor tecleado", async () => {
+    const user = userEvent.setup();
+    renderCombobox({ allowCustom: true });
+    await user.click(screen.getByRole("button"));
+    await user.type(screen.getByRole("combobox"), "Casa nueva");
+    await user.click(screen.getByText(/Añadir «Casa nueva»/));
+    expect(
+      document.querySelector('input[type="hidden"][name="materialId"]'),
+    ).toHaveValue("Casa nueva");
   });
 });
